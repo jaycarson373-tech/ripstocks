@@ -24,8 +24,10 @@ test("pack inventory and holder treasury use separate ledgers", () => {
   assert.match(schema, /holder_airdrop_treasury_ledger/);
   assert.match(schema, /pack_ev_reserve_ledger/);
   assert.match(schema, /protocol_wallets/);
-  assert.match(schema, /'pack_inventory','holder_airdrop','pack_ev_reserve'/);
+  assert.match(schema, /'main_treasury','holder_airdrop'/);
   assert.match(schema, /protocol_fee_sweeps/);
+  assert.match(schema, /retained_in_main_treasury/);
+  assert.doesNotMatch(protocol, /PACK_EV_RESERVE_WALLET/);
 });
 
 test("EV is calculated, never a fixed promise", () => {

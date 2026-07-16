@@ -3,12 +3,17 @@ create extension if not exists pgcrypto;
 create table if not exists public.protocol_config (id boolean primary key default true check(id), airdrop_interval_minutes int not null default 20 check(airdrop_interval_minutes=20));
 insert into public.protocol_config(id,airdrop_interval_minutes) values(true,20) on conflict(id) do update set airdrop_interval_minutes=20;
 
--- Three explicit public accounts. Private signing material belongs only in Railway.
+-- Two explicit public accounts. Private signing material belongs only in Railway.
 create table if not exists public.protocol_wallets (
-  role text primary key check(role in ('pack_inventory','holder_airdrop','pack_ev_reserve')),
+  role text primary key check(role in ('main_treasury','holder_airdrop')),
   address text not null unique,
   updated_at timestamptz not null default now()
 );
+alter table public.protocol_wallets drop constraint if exists protocol_wallets_role_check;
+delete from public.protocol_wallets where role='pack_ev_reserve';
+delete from public.protocol_wallets where role='pack_inventory' and exists(select 1 from public.protocol_wallets where role='main_treasury');
+update public.protocol_wallets set role='main_treasury' where role='pack_inventory';
+alter table public.protocol_wallets add constraint protocol_wallets_role_check check(role in ('main_treasury','holder_airdrop'));
 
 create table if not exists public.pack_inventory_ledger (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
@@ -40,16 +45,19 @@ create table if not exists public.protocol_fee_ledger (
   pack_ev_reserve_amount numeric(18,6) generated always as (gross_fee_usdc-round(gross_fee_usdc*.75,6)) stored,
   transaction_signature text unique not null
 );
--- One verified sweep moves each fee allocation into its own wallet. The 25% share
--- does not stay in the fee collector: it goes to the Pack EV Reserve wallet.
+-- Fees land in Main Treasury. Each verified 20-minute sweep transfers 75% to
+-- Holder Airdrops while the 25% EV allocation remains in Main Treasury.
 create table if not exists public.protocol_fee_sweeps (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   fee_ledger_id uuid not null unique references public.protocol_fee_ledger(id),
   holder_airdrop_amount numeric(18,6) not null check(holder_airdrop_amount>=0),
   pack_ev_reserve_amount numeric(18,6) not null check(pack_ev_reserve_amount>=0),
   holder_transfer_signature text not null unique,
-  reserve_transfer_signature text not null unique
+  reserve_transfer_signature text unique, -- legacy compatibility; no transfer is made in the two-wallet model
+  retained_in_main_treasury boolean not null default true
 );
+alter table public.protocol_fee_sweeps add column if not exists retained_in_main_treasury boolean not null default true;
+alter table public.protocol_fee_sweeps alter column reserve_transfer_signature drop not null;
 create table if not exists public.holder_airdrop_treasury_ledger (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   amount_usdc numeric(18,6) not null, entry_type text not null check(entry_type in ('fee_credit','stock_purchase','airdrop','adjustment')),
@@ -79,8 +87,7 @@ create table if not exists public.airdrop_epochs (
 create or replace function public.record_protocol_fee_sweep(
   p_gross_fee_usdc numeric,
   p_fee_signature text,
-  p_holder_transfer_signature text,
-  p_reserve_transfer_signature text
+  p_holder_transfer_signature text
 ) returns uuid language plpgsql security definer set search_path=public as $$
 declare
   v_fee_id uuid;
@@ -92,16 +99,17 @@ begin
   v_reserve := p_gross_fee_usdc - v_holder;
   insert into protocol_fee_ledger(gross_fee_usdc,transaction_signature)
     values(p_gross_fee_usdc,p_fee_signature) returning id into v_fee_id;
-  insert into protocol_fee_sweeps(fee_ledger_id,holder_airdrop_amount,pack_ev_reserve_amount,holder_transfer_signature,reserve_transfer_signature)
-    values(v_fee_id,v_holder,v_reserve,p_holder_transfer_signature,p_reserve_transfer_signature);
+  insert into protocol_fee_sweeps(fee_ledger_id,holder_airdrop_amount,pack_ev_reserve_amount,holder_transfer_signature,retained_in_main_treasury)
+    values(v_fee_id,v_holder,v_reserve,p_holder_transfer_signature,true);
   insert into holder_airdrop_treasury_ledger(amount_usdc,entry_type,fee_ledger_id,transaction_signature)
     values(v_holder,'fee_credit',v_fee_id,p_holder_transfer_signature);
   insert into pack_ev_reserve_ledger(amount_usdc,entry_type,fee_ledger_id,transaction_signature)
-    values(v_reserve,'fee_credit',v_fee_id,p_reserve_transfer_signature);
+    values(v_reserve,'fee_credit',v_fee_id,null);
   return v_fee_id;
 end;
 $$;
-revoke all on function public.record_protocol_fee_sweep(numeric,text,text,text) from public,anon,authenticated;
+drop function if exists public.record_protocol_fee_sweep(numeric,text,text,text);
+revoke all on function public.record_protocol_fee_sweep(numeric,text,text) from public,anon,authenticated;
 
 create or replace function public.protocol_public_snapshot() returns jsonb language sql security definer set search_path=public as $$
 with inv as (select coalesce(sum(stock_value_delta),0) stock_value, coalesce(sum(packs_delta),0) packs, count(*) filter(where entry_type in('inventory_purchase','ev_reserve_purchase')) purchases from pack_inventory_ledger),
