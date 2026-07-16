@@ -50,7 +50,7 @@ export async function POST(request:Request){
     const signer=keypairEnv(scope==="main"?"MAIN_TREASURY_SIGNER_SECRET":"HOLDER_AIRDROP_SIGNER_SECRET");
     const configured=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET");
     if(!signer.publicKey.equals(configured))throw new Error(`${scope} signer does not match configured wallet`);
-    const intervalMinutes=scope==="main"?10:20;
+    const intervalMinutes=20;
     const slot=Math.floor(Date.now()/(intervalMinutes*60_000));
     const runKey=`restock:${scope}:${slot}`;
     const lock=await supabase("automation_runs",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({run_key:runKey,kind:`${scope}_restock`,status:"running"})});
