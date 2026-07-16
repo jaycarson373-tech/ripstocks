@@ -42,9 +42,6 @@ create table if not exists public.inventory_restock_jobs (
   jupiter_request_id text, swap_signature text unique, inventory_ledger_id uuid references public.pack_inventory_ledger(id),
   error text, updated_at timestamptz not null default now()
 );
-insert into public.pack_inventory_ledger(entry_type,packs_delta,metadata)
-select 'inventory_adjustment',247,'{"reason":"launch allocation"}'::jsonb
-where not exists(select 1 from public.pack_inventory_ledger);
 create table if not exists public.protocol_fee_ledger (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   gross_fee_usdc numeric(18,6) not null check(gross_fee_usdc>=0),
@@ -144,6 +141,33 @@ create table if not exists public.airdrop_inventory_lots (
   status text not null default 'available' check(status in ('available','reserved','distributed','failed')),
   epoch_id bigint references public.airdrop_epochs(id), distribution_signature text unique
 );
+create or replace function public.reserve_airdrop_epoch(p_epoch_id bigint,p_winner text,p_eligible_holders int)
+returns table(lot_id uuid,symbol text,mint text,token_amount text,decimals int,token_program text,purchase_value numeric)
+language plpgsql security definer set search_path=public as $$
+declare v_lot uuid; v_start timestamptz; v_end timestamptz;
+begin
+  if exists(select 1 from airdrop_epochs where id=p_epoch_id) then return; end if;
+  select id into v_lot from airdrop_inventory_lots where status='available' order by encode(digest(id::text||p_epoch_id::text,'sha256'),'hex') limit 1 for update skip locked;
+  if v_lot is null then return; end if;
+  v_start:=to_timestamp(p_epoch_id*1200); v_end:=v_start+interval '20 minutes';
+  insert into airdrop_epochs(id,starts_at,ends_at,snapshot_at,eligible_holders,winner_wallet,status) values(p_epoch_id,v_start,v_end,now(),p_eligible_holders,p_winner,'snapshotted');
+  update airdrop_inventory_lots set status='reserved',epoch_id=p_epoch_id where id=v_lot;
+  return query select l.id,l.symbol,l.mint,l.token_amount::text,l.decimals,l.token_program,l.purchase_value from airdrop_inventory_lots l where l.id=v_lot;
+end $$;
+create or replace function public.complete_airdrop_epoch(p_epoch_id bigint,p_lot_id uuid,p_signature text) returns void
+language plpgsql security definer set search_path=public as $$
+begin
+  update airdrop_inventory_lots set status='distributed',distribution_signature=p_signature where id=p_lot_id and epoch_id=p_epoch_id and status='reserved';
+  if not found then raise exception 'Airdrop lot cannot be completed'; end if;
+  update airdrop_epochs e set pack_name='$'||l.purchase_value::text||' HOLDER PACK',stock_symbol=l.symbol,reward_value=l.purchase_value,transaction_signature=p_signature,status='distributed' from airdrop_inventory_lots l where e.id=p_epoch_id and l.id=p_lot_id;
+  insert into holder_airdrop_treasury_ledger(amount_usdc,entry_type,transaction_signature) select -purchase_value,'airdrop',p_signature from airdrop_inventory_lots where id=p_lot_id;
+end $$;
+revoke all on function public.reserve_airdrop_epoch(bigint,text,int) from public,anon,authenticated;
+revoke all on function public.complete_airdrop_epoch(bigint,uuid,text) from public,anon,authenticated;
+create table if not exists public.automation_runs (
+  run_key text primary key, kind text not null, status text not null check(status in ('running','confirmed','failed')),
+  created_at timestamptz not null default now(), completed_at timestamptz, transaction_signature text unique
+);
 
 -- Railway calls this only after both transfers confirm on Solana. It atomically
 -- records the fee, its exact 75/25 split, and both destination-wallet credits.
@@ -175,14 +199,15 @@ drop function if exists public.record_protocol_fee_sweep(numeric,text,text,text)
 revoke all on function public.record_protocol_fee_sweep(numeric,text,text) from public,anon,authenticated;
 
 create or replace function public.protocol_public_snapshot() returns jsonb language sql security definer set search_path=public as $$
-with inv as (select coalesce(sum(stock_value_delta),0) stock_value, coalesce(sum(packs_delta),0) packs, count(*) filter(where entry_type in('inventory_purchase','ev_reserve_purchase')) purchases from pack_inventory_ledger),
+with inv as (select coalesce(sum(usd_value) filter(where status='available'),0) stock_value, count(*) filter(where status='available') packs, count(*) purchases from inventory_lots),
 opened as (select count(*) n from pack_orders where status='fulfilled'),
 hat as (select coalesce(sum(amount_usdc),0) balance from holder_airdrop_treasury_ledger),
 airpacks as (select count(*) n from airdrop_inventory_lots where status='available'),
 evr as (select coalesce(sum(amount_usdc),0) balance from pack_ev_reserve_ledger),
 drops as (select count(*) n,coalesce(sum(reward_value),0) value from airdrop_epochs where status='distributed'),
-proofs as (select coalesce(jsonb_agg(jsonb_build_object('winner',winner_wallet,'pack',pack_name,'stock',stock_symbol,'value',reward_value,'time',ends_at,'signature',transaction_signature) order by ends_at desc),'[]'::jsonb) items from (select * from airdrop_epochs where status='distributed' order by ends_at desc limit 12) x)
-select jsonb_build_object('packInventoryValue',inv.stock_value,'remainingStockInventory',inv.stock_value,'packsRemaining',greatest(inv.packs,0),'totalPacksOpened',opened.n,'inventoryPurchases',inv.purchases,'inventoryAssets',(select count(*) from inventory_assets where active),'holderAirdropTreasury',hat.balance,'holderPacksAvailable',airpacks.n,'packEvReserve',evr.balance,'totalHolderDrops',drops.n,'totalValueAirdropped',drops.value,'proofs',proofs.items) from inv,opened,hat,airpacks,evr,drops,proofs;
+proofs as (select coalesce(jsonb_agg(jsonb_build_object('winner',winner_wallet,'pack',pack_name,'stock',stock_symbol,'value',reward_value,'time',ends_at,'signature',transaction_signature) order by ends_at desc),'[]'::jsonb) items from (select * from airdrop_epochs where status='distributed' order by ends_at desc limit 12) x),
+recent_packs as (select coalesce(jsonb_agg(jsonb_build_object('wallet',wallet,'pack','$'||tier::text,'stock',stock_symbol,'value',stock_value,'time',created_at,'paymentSignature',payment_signature,'fulfillmentSignature',fulfillment_signature) order by created_at desc),'[]'::jsonb) items from (select * from pack_orders where status='fulfilled' order by created_at desc limit 20) x)
+select jsonb_build_object('packInventoryValue',inv.stock_value,'remainingStockInventory',inv.stock_value,'packsRemaining',greatest(inv.packs,0),'totalPacksOpened',opened.n,'inventoryPurchases',inv.purchases,'inventoryAssets',(select count(*) from inventory_assets where active),'holderAirdropTreasury',hat.balance,'holderPacksAvailable',airpacks.n,'packEvReserve',evr.balance,'totalHolderDrops',drops.n,'totalValueAirdropped',drops.value,'proofs',proofs.items,'recentPacks',recent_packs.items) from inv,opened,hat,airpacks,evr,drops,proofs,recent_packs;
 $$;
 grant execute on function public.protocol_public_snapshot() to anon,authenticated;
 
@@ -199,3 +224,4 @@ alter table public.pack_ev_reserve_ledger enable row level security;
 alter table public.pack_orders enable row level security;
 alter table public.airdrop_epochs enable row level security;
 alter table public.airdrop_inventory_lots enable row level security;
+alter table public.automation_runs enable row level security;

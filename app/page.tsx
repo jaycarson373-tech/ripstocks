@@ -6,33 +6,15 @@ import { detectSolanaProvider, type SolanaProvider, type SolanaPublicKey } from 
 import { Transaction } from "@solana/web3.js";
 import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
-const stocks = [
-  { ticker: "AAPLx", name: "Apple", color: "#f2f2ee", ink: "#090909" },
-  { ticker: "NVDAx", name: "Nvidia", color: "#76e247", ink: "#071407" },
-  { ticker: "TSLAx", name: "Tesla", color: "#ef3d4c", ink: "#fff" },
-  { ticker: "HOODx", name: "Robinhood", color: "#c9ff38", ink: "#111" },
-  { ticker: "GME x", name: "GameStop", color: "#ff593d", ink: "#fff" },
-  { ticker: "CRCLx", name: "Circle", color: "#6c8cff", ink: "#fff" },
-  { ticker: "MSFTx", name: "Microsoft", color: "#38a9ee", ink: "#fff" },
-  { ticker: "AMZNx", name: "Amazon", color: "#ff9900", ink: "#111" },
-  { ticker: "METAx", name: "Meta", color: "#0866ff", ink: "#fff" },
-  { ticker: "GOOGLx", name: "Alphabet", color: "#fbbc04", ink: "#111" },
-  { ticker: "SPYx", name: "S&P 500", color: "#d8ff3e", ink: "#111" },
-  { ticker: "COINx", name: "Coinbase", color: "#1652f0", ink: "#fff" },
-];
-
-const recent = [
-  ["9Kp…w21", "$30", "NVDAx", "$34.82", "+16.1%"],
-  ["H7m…Q4z", "$10", "AAPLx", "$11.07", "+10.7%"],
-  ["3Fx…aV8", "$50", "HOODx", "$63.40", "+26.8%"],
-  ["Bq2…L9n", "$10", "TSLAx", "$9.72", "-2.8%"],
-];
+const stockPalette=["#65d1ff","#d8ff3e","#815cff","#ef3d4c","#ff5b42","#76e247","#1652f0","#fbbc04","#c9ff38","#ff9900"];
+type StockDisplay={ticker:string;name:string;color:string;ink:string};
+const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map((stock,index)=>({ticker:stock.symbol,name:stock.name,color:stockPalette[index],ink:index===2||index===3||index===4||index===6?"#fff":"#090909"}));
 export default function Home() {
   const [tier, setTier] = useState(10);
   const [wallet, setWallet] = useState("");
   const [spectating, setSpectating] = useState(false);
   const [opening, setOpening] = useState(false);
-  const [result, setResult] = useState<(typeof stocks)[number] | null>(null);
+  const [result, setResult] = useState<StockDisplay | null>(null);
   const [pulledValue, setPulledValue] = useState(0);
   const [walletError, setWalletError] = useState("");
   const [connecting, setConnecting] = useState(false);
@@ -68,6 +50,8 @@ export default function Home() {
     };
   }, []);
   const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
+  const stockStyle=(symbol:string)=>stocks.find(stock=>stock.ticker===symbol)??{ticker:symbol,name:symbol,color:"#caff00",ink:"#080808"};
+  const short=(address:string)=>address?`${address.slice(0,4)}…${address.slice(-4)}`:"—";
 
   async function connect() {
     const provider = providerRef.current ?? detectSolanaProvider();
@@ -132,7 +116,7 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="ticker"><div>{[...stocks,...stocks].map((s,i)=><span key={i}><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
+      <div className="ticker"><div>{snapshot.recentPacks.length?[...snapshot.recentPacks,...snapshot.recentPacks].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.fulfillmentSignature}-${i}`}><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.wallet)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
 
       <section className="packs wrap" id="packs">
         <div className="liveStats">{[
@@ -163,11 +147,12 @@ export default function Home() {
 
       <section className="live" id="live"><div className="wrap">
         <div className="liveHead"><div><span className="liveDot"/> LIVE RIPS</div><p>Every tear. Every pull. Onchain.</p><button onClick={()=>setSpectating(!spectating)}>{spectating?"WATCHING LIVE":"SPECTATE"} ◉</button></div>
-        <div className="table"><div className="tr labels"><span>RIPPER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>EV</span></div>{recent.map((r,i)=><div className="tr" key={i}><span><i className={`avatar a${i}`}/>{r[0]}</span><span>{r[1]}</span><span><b>{r[2]}</b></span><span>{r[3]}</span><span className={r[4].startsWith("+")?"up":"down"}>{r[4]}</span></div>)}</div>
+        <div className="table"><div className="tr labels"><span>RIPPER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>PROOF</span></div>{snapshot.recentPacks.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.fulfillmentSignature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.wallet)}</span><span>{rip.pack}</span><span><b className="stockBadge" style={{background:style.color,color:style.ink}}>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.fulfillmentSignature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{snapshot.recentPacks.length===0&&<div className="emptyProof">Waiting for the first confirmed rip.</div>}</div>
       </div></section>
 
       <section className="fly wrap" id="flywheel"><span className="kicker">HOW IT WORKS</span><h2>Two wallets.<br/><em>One clear flywheel.</em></h2><div className="protocolSteps">{[["01","RIP A PACK","Open a $10 stock pack and instantly receive one tokenized stock from the Main Treasury."],["02","RESTOCK INVENTORY","The Main Treasury receives pack-sale USDC and replenishes replacement $10 xStock inventory lots."],["03","SPLIT PROTOCOL FEES","Fees enter the Main Treasury. Every 20 minutes, 75% moves to Holder Airdrops while 25% stays reserved for Pack EV."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One funded stock pack is delivered to an eligible holder from reserved airdrop inventory."],["05","PROOF","Every confirmed holder drop publishes its winner, stock, value and transaction proof immediately."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
-      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> HOLDER DROP PROOF</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK RECEIVED</span><span>REWARD VALUE</span><span>TIME</span><span>TRANSACTION PROOF</span></div>{snapshot.proofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{a.winner}</span><span>{a.pack}</span><span><b>{a.stock}</b></span><span>${a.value.toFixed(2)}</span><span>{new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{a.signature.slice(0,4)}…{a.signature.slice(-3)} ↗</a></span></div>)}{snapshot.proofs.length===0&&<div className="emptyProof">No holder drops published yet.</div>}</div></div><p className="disclaimer">Pack-sale USDC belongs only to Pack Inventory and never funds holder drops. Protocol fees are recorded separately: 75% to the Holder Airdrop Treasury and 25% to the Pack EV Reserve. EV is a statistical expected value calculated from remaining inventory; it is not a promise of profit.</p></section>
+      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> PAID PACK PROOFS</div><b>INSTANT ONCHAIN DELIVERY</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>RIPPER</span><span>PACK</span><span>STOCK RECEIVED</span><span>VALUE</span><span>TIME</span><span>PAYOUT PROOF</span></div>{snapshot.recentPacks.slice(0,12).map((rip,i)=><div className="proofRow" key={rip.fulfillmentSignature||i}><span>{short(rip.wallet)}</span><span>{rip.pack}</span><span><b>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span>{new Date(rip.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${rip.fulfillmentSignature}`} target="_blank" rel="noreferrer">{short(rip.fulfillmentSignature)} ↗</a></span></div>)}{snapshot.recentPacks.length===0&&<div className="emptyProof">No paid pack proofs published yet.</div>}</div></div>
+      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> HOLDER DROP PROOFS</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK RECEIVED</span><span>REWARD VALUE</span><span>TIME</span><span>TRANSACTION PROOF</span></div>{snapshot.proofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{a.pack}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{snapshot.proofs.length===0&&<div className="emptyProof">No holder drops published yet.</div>}</div></div><p className="disclaimer">Pack-sale USDC belongs only to Pack Inventory and never funds holder drops. Protocol fees are recorded separately: 75% to the Holder Airdrop Treasury and 25% to the Pack EV Reserve. EV is a statistical expected value calculated from remaining inventory; it is not a promise of profit.</p></section>
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">VERIFIED INVENTORY UNIVERSE</span><h2 id="verified-title">10 official xStocks.<br/>Nothing else.</h2></div><p>RipStocks inventory is restricted to these verified Solana mints. Every mint links directly to its on-chain record.</p></div><div className="verifiedGrid">{VERIFIED_XSTOCKS.map((stock,index)=><a key={stock.mint} href={`https://solscan.io/token/${stock.mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><div><b>{stock.symbol}</b><small>{stock.name}</small></div><code>{stock.mint.slice(0,8)}…{stock.mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 

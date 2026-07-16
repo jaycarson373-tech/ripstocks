@@ -1,0 +1,31 @@
+import { Connection, Keypair, PublicKey, VersionedTransaction } from "@solana/web3.js";
+
+const JUPITER_BASE="https://api.jup.ag/swap/v1";
+
+function headers():Record<string,string>{
+  const key=process.env.JUPITER_API_KEY?.trim();
+  return key?{"x-api-key":key}:{};
+}
+
+export async function swapExactInput(args:{connection:Connection;signer:Keypair;inputMint:PublicKey;outputMint:PublicKey;inputAtoms:bigint}){
+  const quoteUrl=new URL(`${JUPITER_BASE}/quote`);
+  quoteUrl.searchParams.set("inputMint",args.inputMint.toBase58());
+  quoteUrl.searchParams.set("outputMint",args.outputMint.toBase58());
+  quoteUrl.searchParams.set("amount",args.inputAtoms.toString());
+  quoteUrl.searchParams.set("slippageBps",process.env.JUPITER_SLIPPAGE_BPS||"100");
+  quoteUrl.searchParams.set("restrictIntermediateTokens","true");
+  const quoteResponse=await fetch(quoteUrl,{headers:headers(),cache:"no-store"}).then(async response=>{
+    if(!response.ok)throw new Error(`Jupiter quote failed: ${await response.text()}`);
+    return response.json();
+  });
+  const swap=await fetch(`${JUPITER_BASE}/swap`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({quoteResponse,userPublicKey:args.signer.publicKey.toBase58(),dynamicComputeUnitLimit:true,prioritizationFeeLamports:{priorityLevelWithMaxLamports:{maxLamports:1_000_000,priorityLevel:"high"}}}),cache:"no-store"}).then(async response=>{
+    if(!response.ok)throw new Error(`Jupiter swap failed: ${await response.text()}`);
+    return response.json() as Promise<{swapTransaction:string}>;
+  });
+  const transaction=VersionedTransaction.deserialize(Buffer.from(swap.swapTransaction,"base64"));
+  transaction.sign([args.signer]);
+  const signature=await args.connection.sendRawTransaction(transaction.serialize(),{skipPreflight:false,maxRetries:3});
+  const confirmation=await args.connection.confirmTransaction(signature,"confirmed");
+  if(confirmation.value.err)throw new Error(`Swap ${signature} failed`);
+  return {signature,quotedOutputAtoms:String(quoteResponse.outAmount)};
+}

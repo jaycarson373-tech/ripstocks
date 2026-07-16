@@ -11,6 +11,9 @@ const checkoutConfirm = await readFile(new URL("../app/api/checkout/confirm/rout
 const verifiedXstocks = await readFile(new URL("../lib/xstocks.ts", import.meta.url), "utf8");
 const airdropPolicy = await readFile(new URL("../lib/airdrop-policy.ts", import.meta.url), "utf8");
 const inventoryPlan = await readFile(new URL("../lib/inventory-plan.ts", import.meta.url), "utf8");
+const restock = await readFile(new URL("../app/api/admin/restock/route.ts", import.meta.url), "utf8");
+const holderEpoch = await readFile(new URL("../app/api/admin/holder-epoch/route.ts", import.meta.url), "utf8");
+const tick = await readFile(new URL("../app/api/admin/tick/route.ts", import.meta.url), "utf8");
 
 test("one shared 20-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 20/);
@@ -38,6 +41,8 @@ test("pack inventory and holder treasury use separate ledgers", () => {
 
 test("EV is calculated, never a fixed promise", () => {
   assert.match(protocol, /remainingStockInventory \/ packsRemaining/);
+  assert.match(schema, /sum\(usd_value\) filter\(where status='available'\)/);
+  assert.doesNotMatch(schema, /launch allocation/);
   assert.doesNotMatch(page, /Expected Value \$\d/);
 });
 
@@ -94,4 +99,25 @@ test("practice loader preserves gas and exact inventory averages", () => {
   assert.equal(main.reduce((a,b)=>a+b,0)/main.length,10);
   assert.equal(holder.reduce((a,b)=>a+b,0),50);
   assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,5);
+});
+
+test("protected automation restocks on 10/20-minute clocks and records confirmed output",()=>{
+  assert.match(tick,/600_000/);
+  assert.match(tick,/restock\?scope=main/);
+  assert.match(tick,/restock\?scope=holder/);
+  assert.match(restock,/SOL_GAS_BUFFER/);
+  assert.match(restock,/received<=BigInt\(0\)/);
+  assert.match(restock,/status:"available"/);
+  assert.match(schema,/automation_runs/);
+});
+
+test("holder epochs snapshot owners, reserve inventory, transfer, and publish proof",()=>{
+  assert.match(holderEpoch,/HOLDER_TOKEN_MINT/);
+  assert.match(holderEpoch,/getTokenAccounts/);
+  assert.match(holderEpoch,/reserve_airdrop_epoch/);
+  assert.match(holderEpoch,/complete_airdrop_epoch/);
+  assert.match(schema,/status='distributed'/);
+  assert.match(page,/PAID PACK PROOFS/);
+  assert.match(page,/HOLDER DROP PROOFS/);
+  assert.match(page,/snapshot\.recentPacks/);
 });

@@ -25,6 +25,7 @@ export type ProtocolSnapshot = {
   totalHolderDrops: number;
   totalValueAirdropped: number;
   proofs: Array<{winner:string;pack:string;stock:string;value:number;time:string;signature:string}>;
+  recentPacks: Array<{wallet:string;pack:string;stock:string;value:number;time:string;paymentSignature:string;fulfillmentSignature:string}>;
 };
 
 export function synchronizedEpochEndsAt(now = Date.now()) {
@@ -37,8 +38,8 @@ export function calculatePackEv(remainingStockInventory: number, packsRemaining:
 
 export const emptySnapshot = (): ProtocolSnapshot => ({
   serverNow: new Date().toISOString(), epochEndsAt: synchronizedEpochEndsAt().toISOString(),
-  packInventoryValue: 0, remainingStockInventory: 0, packsRemaining: 247,
+  packInventoryValue: 0, remainingStockInventory: 0, packsRemaining: 0,
   totalPacksOpened: 0, inventoryPurchases: 0, inventoryAssets: 0,
   holderAirdropTreasury: 0, holderPacksAvailable: 0, averageHolderDropValue: 0, packEvReserve: 0, currentPackEv: 0,
-  totalHolderDrops: 0, totalValueAirdropped: 0, proofs: [],
+  totalHolderDrops: 0, totalValueAirdropped: 0, proofs: [], recentPacks: [],
 });
