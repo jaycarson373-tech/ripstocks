@@ -16,7 +16,8 @@
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "cron:tick": "node scripts/run-automation-tick.mjs"
+    "cron:tick": "node scripts/run-automation-tick.mjs",
+    "test:load": "node scripts/run-test-load.mjs"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.15",
