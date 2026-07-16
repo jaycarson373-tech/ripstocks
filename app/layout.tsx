@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./hourly.css";
+import "./branding.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,17 +20,18 @@ export const metadata: Metadata = {
   openGraph: {
     title: "RipStocks — Rip. Pull. Own.",
     description: "Crack randomized xStock packs on Solana with USDC.",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "RipStocks pack machine" }],
+    images: [{ url: "/ripstocks-banner.jpg", width: 1280, height: 426, alt: "RipStocks stock pack" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "RipStocks — Rip. Pull. Own.",
     description: "Crack randomized xStock packs on Solana with USDC.",
-    images: ["/og.png"],
+    images: ["/ripstocks-banner.jpg"],
   },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/ripstocks-logo.jpg",
+    shortcut: "/ripstocks-logo.jpg",
+    apple: "/ripstocks-logo.jpg",
   },
 };
 

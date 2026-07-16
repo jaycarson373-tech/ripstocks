@@ -47,11 +47,12 @@ export default function Home() {
     <main>
       <div className="grain" />
       <nav className="nav wrap">
-        <a className="brand" href="#top" aria-label="RipStocks home"><span className="ripmark">R</span><span>RIPSTOCKS</span><i>β</i></a>
+        <a className="brand brandImage" href="#top" aria-label="RipStocks home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span><i>β</i></a>
         <div className="navlinks"><a href="#packs">Packs</a><a href="#live">Live rips</a><a href="#flywheel">Flywheel</a></div>
         <button className="wallet" onClick={connect}>{wallet ? `${wallet.slice(0,4)}…${wallet.slice(-4)}` : "CONNECT WALLET"}<span>↗</span></button>
       </nav>
 
+      <div className="brandBanner wrap"><img src="/ripstocks-banner.jpg" alt="RipStocks — tokenized stock packs"/></div>
       <section className="hero wrap" id="top">
         <div className="heroCopy">
           <div className="eyebrow"><span /> LIVE ON SOLANA</div>
@@ -64,7 +65,7 @@ export default function Home() {
           <div className="machineTop"><span>RIP-O-MATIC</span><i>ONLINE</i></div>
           <div className="window">
             <div className="glow" />
-            <div className="pack heroPack"><small>SOLANA STOCK PACK</small><strong>RIP<br/>STOCKS</strong><div className="tear">TEAR HERE ✂</div><b>$30</b></div>
+            <img className="heroPackImage" src="/ripstocks-logo.jpg" alt="RipStocks sealed stock pack"/>
             <div className="claw">⌄</div>
           </div>
           <div className="belt">{[1,2,3,4,5,6].map(n=><span key={n} />)}</div>
@@ -79,7 +80,7 @@ export default function Home() {
         <div className="packGrid">
           {[10,30,50].map((price, i)=><button key={price} onClick={()=>setTier(price)} className={`packCard p${price} ${tier===price?"selected":""}`}>
             <span className="chance">{i===0?"THE QUICK RIP":i===1?"CROWD FAVORITE":"THE BIG RIP"}</span>
-            <div className="miniPack"><small>SEALED ON SOLANA</small><strong>RIP<br/>STOCKS</strong><i>{price}</i></div>
+            <div className="miniPack photoPack"><img src="/ripstocks-logo.jpg" alt=""/><i>{price}</i></div>
             <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>{i===0?"1–2":i===1?"2–4":"3–6"} stock pulls<br/><em>Instant delivery</em></p></div>
             {tier===price && <span className="chosen">SELECTED ✓</span>}
           </button>)}
@@ -99,7 +100,7 @@ export default function Home() {
         <div className="hourStep"><b>01</b><span>FEES LAND</span><p>100% of creator fees collect onchain.</p></div><i>→</i><div className="hourStep acid"><b>02</b><span>BUY xSTOCKS</span><p>The full balance buys eligible tokenized stocks.</p></div><i>→</i><div className="hourStep"><b>03</b><span>RANDOM DRAW</span><p>One eligible holder is selected every hour.</p></div><i>→</i><div className="hourStep"><b>04</b><span>INSTANT PROOF</span><p>The signature posts as soon as it lands.</p></div>
       </div><div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> HOURLY AIRDROP PROOF</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>DRAW</span><span>WINNER</span><span>STOCK</span><span>VALUE</span><span>PROOF</span></div>{airdrops.map((a,i)=><div className="proofRow" key={i}><span>{a[0]}</span><span>{a[1]}</span><span><b>{a[2]}</b></span><span>{a[3]}</span><span><button title="Activates with the live distributor">{a[4]} ↗</button></span></div>)}</div></div><p className="disclaimer">Hourly draws use the configured holder snapshot and verifiable randomness seed. Eligibility and transaction signatures publish with every distribution. Tokenized assets carry market risk. Nothing here is financial advice.</p></section>
 
-      <footer><div className="wrap"><div className="brand"><span className="ripmark">R</span><span>RIPSTOCKS</span></div><p>RIP. PULL. REPEAT.</p><div><a href="#packs">PACKS</a><a href="#live">LIVE</a><a href="#flywheel">HOW IT WORKS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span></div><p>RIP. PULL. REPEAT.</p><div><a href="#packs">PACKS</a><a href="#live">LIVE</a><a href="#flywheel">HOW IT WORKS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
