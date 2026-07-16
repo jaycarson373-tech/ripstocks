@@ -25,6 +25,7 @@ export default function Home() {
   const [spectating, setSpectating] = useState(false);
   const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<(typeof stocks)[number] | null>(null);
+  const [walletError, setWalletError] = useState("");
   const [seconds, setSeconds] = useState(3600);
   const pick = useMemo(() => stocks[(tier / 10 + 1) % stocks.length], [tier]);
   useEffect(() => { const tick=()=>setSeconds(3600-(new Date().getMinutes()*60+new Date().getSeconds())); tick(); const timer=window.setInterval(tick,1000); return()=>window.clearInterval(timer); }, []);
@@ -33,14 +34,13 @@ export default function Home() {
   async function connect() {
     const provider = (window as Window & { solana?: { connect: () => Promise<{ publicKey: { toString: () => string } }> } }).solana;
     if (provider) {
-      try { setWallet((await provider.connect()).publicKey.toString()); return; } catch { /* user cancelled */ }
+      try { setWallet((await provider.connect()).publicKey.toString()); setWalletError(""); return; } catch { setWalletError("Wallet connection was cancelled."); return; }
     }
-    setWallet("DEMO8ripsT9wK1VhYh3aRk");
+    setWalletError("No Solana wallet detected. Install Phantom or Backpack, then reload.");
   }
 
   function openPack() {
-    setOpening(true); setResult(null);
-    window.setTimeout(() => { setResult(pick); setOpening(false); }, 1700);
+    setWalletError("Mainnet checkout is not configured yet. No USDC was charged.");
   }
 
   return (
@@ -87,6 +87,7 @@ export default function Home() {
         <div className="ripBar">
           <div><span>YOUR PACK</span><b>${tier} RIP</b></div><div><span>PAY WITH</span><b>USDC <i>◎</i></b></div><button onClick={wallet?openPack:connect}>{wallet?`RIP THE $${tier} PACK`:`CONNECT TO RIP`} <span>→</span></button>
         </div>
+        {walletError && <div className="walletNotice" role="alert">{walletError}</div>}
       </section>
 
       <section className="live" id="live"><div className="wrap">
