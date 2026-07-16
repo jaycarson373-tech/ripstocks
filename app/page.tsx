@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AIRDROP_INTERVAL_MINUTES, emptySnapshot, type ProtocolSnapshot } from "@/lib/protocol";
+import { detectSolanaProvider, type SolanaProvider, type SolanaPublicKey } from "@/lib/solana-wallet";
 
 const stocks = [
   { ticker: "AAPLx", name: "Apple", color: "#f2f2ee", ink: "#090909" },
@@ -25,17 +26,52 @@ export default function Home() {
   const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<(typeof stocks)[number] | null>(null);
   const [walletError, setWalletError] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const providerRef = useRef<SolanaProvider | null>(null);
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot>(emptySnapshot());
   const [seconds, setSeconds] = useState(AIRDROP_INTERVAL_MINUTES*60);
   useEffect(() => { let offset=0; let end=Date.parse(snapshot.epochEndsAt); const load=async()=>{try{const r=await fetch("/api/protocol",{cache:"no-store"});const data=await r.json() as ProtocolSnapshot;offset=Date.parse(data.serverNow)-Date.now();end=Date.parse(data.epochEndsAt);setSnapshot(data)}catch{}}; load(); const refresh=window.setInterval(load,15000); const tick=window.setInterval(()=>setSeconds(Math.max(0,Math.ceil((end-(Date.now()+offset))/1000))),250); return()=>{window.clearInterval(tick);window.clearInterval(refresh)}; }, []);
+  useEffect(() => {
+    let provider: SolanaProvider | null = null;
+    let attached = false;
+    const setAccount = (key?: SolanaPublicKey | null) => { setWallet(key?.toString() ?? ""); setWalletError(""); };
+    const clearAccount = () => { setWallet(""); setConnecting(false); };
+    const attach = async () => {
+      provider = detectSolanaProvider();
+      if (!provider) return;
+      if (attached) return;
+      attached = true;
+      providerRef.current = provider;
+      provider.on?.("connect", setAccount);
+      provider.on?.("accountChanged", setAccount);
+      provider.on?.("disconnect", clearAccount);
+      try { setAccount((await provider.connect({ onlyIfTrusted: true })).publicKey); } catch { /* No trusted session yet. */ }
+    };
+    void attach();
+    const retry = window.setTimeout(attach, 800);
+    window.addEventListener("solana#initialized", attach);
+    return () => {
+      window.clearTimeout(retry);
+      window.removeEventListener("solana#initialized", attach);
+      provider?.off?.("connect", setAccount);
+      provider?.off?.("accountChanged", setAccount);
+      provider?.off?.("disconnect", clearAccount);
+    };
+  }, []);
   const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
 
   async function connect() {
-    const provider = (window as Window & { solana?: { connect: () => Promise<{ publicKey: { toString: () => string } }> } }).solana;
+    const provider = providerRef.current ?? detectSolanaProvider();
     if (provider) {
-      try { setWallet((await provider.connect()).publicKey.toString()); setWalletError(""); return; } catch { setWalletError("Wallet connection was cancelled."); return; }
+      providerRef.current = provider;
+      setConnecting(true);
+      try { setWallet((await provider.connect()).publicKey.toString()); setWalletError(""); return; } catch { setWalletError("Wallet connection was cancelled or blocked. Unlock Phantom or Backpack and try again."); return; } finally { setConnecting(false); }
     }
     setWalletError("No Solana wallet detected. Install Phantom or Backpack, then reload.");
+  }
+
+  async function disconnect() {
+    try { await providerRef.current?.disconnect(); } finally { setWallet(""); setWalletError(""); setConnecting(false); }
   }
 
   function openPack() {
@@ -48,7 +84,7 @@ export default function Home() {
       <nav className="nav wrap">
         <a className="brand brandImage" href="#top" aria-label="RipStocks home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span><i>β</i></a>
         <div className="navlinks"><a href="#packs">Packs</a><a href="#live">Live rips</a><a href="#flywheel">Flywheel</a></div>
-        <button className="wallet" onClick={connect}>{wallet ? `${wallet.slice(0,4)}…${wallet.slice(-4)}` : "CONNECT WALLET"}<span>↗</span></button>
+        {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
       </nav>
 
       <div className="brandBanner wrap"><img src="/ripstocks-banner.jpg" alt="RipStocks — tokenized stock packs"/></div>

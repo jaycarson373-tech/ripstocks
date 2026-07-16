@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const protocol = await readFile(new URL("../lib/protocol.ts", import.meta.url), "utf8");
 const schema = await readFile(new URL("../supabase/protocol.sql", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const wallet = await readFile(new URL("../lib/solana-wallet.ts", import.meta.url), "utf8");
 
 test("one shared 20-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 20/);
@@ -40,4 +41,12 @@ test("automatic restocks preserve their funding source", () => {
   assert.match(schema, /source in \('pack_sale','pack_ev_reserve'\)/);
   assert.match(page, /RESTOCK INVENTORY/);
   assert.doesNotMatch(page, /HOLDER AIRDROP TREASURY",snapshot\.holderAirdropTreasury/);
+});
+
+test("wallet supports Phantom, Backpack, trusted reconnect and disconnect", () => {
+  assert.match(wallet, /phantom\?\.solana/);
+  assert.match(wallet, /backpack\?\.solana/);
+  assert.match(page, /onlyIfTrusted: true/);
+  assert.match(page, /providerRef\.current\?\.disconnect/);
+  assert.match(page, />DISCONNECT</);
 });
