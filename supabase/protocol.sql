@@ -21,6 +21,15 @@ create table if not exists public.inventory_assets (
   token_balance numeric(30,12) not null default 0, usd_value numeric(18,6) not null default 0,
   active boolean not null default true, updated_at timestamptz not null default now()
 );
+create table if not exists public.inventory_restock_jobs (
+  id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
+  source text not null check(source in ('pack_sale','pack_ev_reserve')),
+  input_mint text not null, input_amount numeric(30,12) not null check(input_amount>0),
+  target_symbol text, target_mint text,
+  status text not null default 'queued' check(status in ('queued','swapping','confirmed','inventory_added','failed')),
+  jupiter_request_id text, swap_signature text unique, inventory_ledger_id uuid references public.pack_inventory_ledger(id),
+  error text, updated_at timestamptz not null default now()
+);
 insert into public.pack_inventory_ledger(entry_type,packs_delta,metadata)
 select 'inventory_adjustment',247,'{"reason":"launch allocation"}'::jsonb
 where not exists(select 1 from public.pack_inventory_ledger);
@@ -108,6 +117,7 @@ grant execute on function public.protocol_public_snapshot() to anon,authenticate
 alter table public.pack_inventory_ledger enable row level security;
 alter table public.protocol_wallets enable row level security;
 alter table public.inventory_assets enable row level security;
+alter table public.inventory_restock_jobs enable row level security;
 alter table public.protocol_fee_ledger enable row level security;
 alter table public.protocol_fee_sweeps enable row level security;
 alter table public.holder_airdrop_treasury_ledger enable row level security;

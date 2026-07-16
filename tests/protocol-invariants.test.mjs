@@ -32,3 +32,10 @@ test("EV is calculated, never a fixed promise", () => {
   assert.match(protocol, /remainingStockInventory \/ packsRemaining/);
   assert.doesNotMatch(page, /EV[^\n]*\$\d/);
 });
+
+test("automatic restocks preserve their funding source", () => {
+  assert.match(schema, /inventory_restock_jobs/);
+  assert.match(schema, /source in \('pack_sale','pack_ev_reserve'\)/);
+  assert.match(page, /RESTOCK INVENTORY/);
+  assert.doesNotMatch(page, /HOLDER AIRDROP TREASURY",snapshot\.holderAirdropTreasury/);
+});
