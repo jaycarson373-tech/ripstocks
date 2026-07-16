@@ -1,5 +1,5 @@
-import { Connection, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { authorized } from "@/lib/automation-auth";
 import { HOLDER_INVENTORY_LOTS, MAIN_INVENTORY_LOTS, parseTargets } from "@/lib/inventory-plan";
 import { swapExactInput } from "@/lib/jupiter";
@@ -9,6 +9,15 @@ export const dynamic="force-dynamic";
 const USDC_DECIMALS=6;
 
 async function jsonBody(response:Response){const text=await response.text();return text?JSON.parse(text):null}
+
+async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof keypairEnv>,mint:PublicKey){
+  const account=getAssociatedTokenAddressSync(mint,payer.publicKey,false,TOKEN_2022_PROGRAM_ID);
+  const transaction=new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(payer.publicKey,account,payer.publicKey,mint,TOKEN_2022_PROGRAM_ID));
+  const signature=await connection.sendTransaction(transaction,[payer],{skipPreflight:false,maxRetries:3});
+  const confirmation=await connection.confirmTransaction(signature,"confirmed");
+  if(confirmation.value.err)throw new Error(`Token account setup ${signature} failed`);
+  return account;
+}
 
 export async function POST(request:Request){
   if(!authorized(request))return Response.json({error:"Unauthorized"},{status:401});
@@ -42,10 +51,10 @@ export async function POST(request:Request){
     const targets=parseTargets();
     const target=targets[count%targets.length];
     const mint=new PublicKey(target.mint);
-    const destination=getAssociatedTokenAddressSync(mint,signer.publicKey,false,TOKEN_2022_PROGRAM_ID);
-    const before=await connection.getTokenAccountBalance(destination,"confirmed").catch(()=>null);
-    const beforeAtoms=BigInt(before?.value.amount||"0");
-    const swap=await swapExactInput({connection,signer,inputMint:usdcMint,outputMint:mint,inputAtoms:BigInt(Math.round(usd*10**USDC_DECIMALS))});
+    const destination=await ensureTokenAccount(connection,signer,mint);
+    const before=await connection.getTokenAccountBalance(destination,"confirmed");
+    const beforeAtoms=BigInt(before.value.amount||"0");
+    const swap=await swapExactInput({connection,signer,inputMint:usdcMint,outputMint:mint,inputAtoms:BigInt(Math.round(usd*10**USDC_DECIMALS)),destinationTokenAccount:destination});
     const after=await connection.getTokenAccountBalance(destination,"confirmed");
     const received=BigInt(after.value.amount)-beforeAtoms;
     if(received<=BigInt(0))throw new Error(`Swap ${swap.signature} confirmed without received inventory`);

@@ -20,9 +20,10 @@ export async function quoteExactInput(inputMint:PublicKey,outputMint:PublicKey,i
   });
 }
 
-export async function swapExactInput(args:{connection:Connection;signer:Keypair;inputMint:PublicKey;outputMint:PublicKey;inputAtoms:bigint}){
+export async function swapExactInput(args:{connection:Connection;signer:Keypair;inputMint:PublicKey;outputMint:PublicKey;inputAtoms:bigint;destinationTokenAccount?:PublicKey}){
   const quoteResponse=await quoteExactInput(args.inputMint,args.outputMint,args.inputAtoms);
-  const swap=await fetch(`${JUPITER_BASE}/swap`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({quoteResponse,userPublicKey:args.signer.publicKey.toBase58(),dynamicComputeUnitLimit:true,prioritizationFeeLamports:{priorityLevelWithMaxLamports:{maxLamports:1_000_000,priorityLevel:"high"}}}),cache:"no-store"}).then(async response=>{
+  const body={quoteResponse,userPublicKey:args.signer.publicKey.toBase58(),...(args.destinationTokenAccount?{destinationTokenAccount:args.destinationTokenAccount.toBase58()}:{}),dynamicComputeUnitLimit:true,prioritizationFeeLamports:{priorityLevelWithMaxLamports:{maxLamports:1_000_000,priorityLevel:"high"}}};
+  const swap=await fetch(`${JUPITER_BASE}/swap`,{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify(body),cache:"no-store"}).then(async response=>{
     if(!response.ok)throw new Error(`Jupiter swap failed: ${await response.text()}`);
     return response.json() as Promise<{swapTransaction:string}>;
   });
