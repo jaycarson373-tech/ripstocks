@@ -26,6 +26,13 @@ create table if not exists public.inventory_assets (
   token_balance numeric(30,12) not null default 0, usd_value numeric(18,6) not null default 0,
   active boolean not null default true, updated_at timestamptz not null default now()
 );
+create table if not exists public.inventory_lots (
+  id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
+  symbol text not null, mint text not null, token_amount numeric(30,0) not null check(token_amount>0),
+  decimals int not null check(decimals between 0 and 12), usd_value numeric(18,6) not null check(usd_value>0),
+  acquisition_signature text not null, status text not null default 'available' check(status in ('available','reserved','paid','fulfilled','failed')),
+  reserved_order_id uuid, reserved_until timestamptz, fulfillment_signature text unique
+);
 create table if not exists public.inventory_restock_jobs (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   source text not null check(source in ('pack_sale','pack_ev_reserve')),
@@ -70,10 +77,56 @@ create table if not exists public.pack_ev_reserve_ledger (
 );
 create table if not exists public.pack_orders (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(), wallet text not null,
-  tier int not null check(tier in (10,30,50)), payment_signature text unique not null,
+  tier int not null check(tier in (10,30,50)), payment_signature text unique,
   status text not null check(status in ('pending','verified','fulfilled','refunded','failed')),
   stock_symbol text, stock_mint text, stock_value numeric(18,6), fulfillment_signature text unique
 );
+alter table public.pack_orders alter column payment_signature drop not null;
+alter table public.inventory_lots add column if not exists reserved_order_id uuid;
+do $$ begin
+  alter table public.inventory_lots add constraint inventory_lots_order_fk foreign key(reserved_order_id) references public.pack_orders(id);
+exception when duplicate_object then null; end $$;
+create table if not exists public.checkout_lock (
+  id boolean primary key default true check(id), locked_until timestamptz not null default '-infinity'
+);
+insert into public.checkout_lock(id) values(true) on conflict(id) do nothing;
+
+create or replace function public.reserve_pack_checkout(p_wallet text) returns table(order_id uuid)
+language plpgsql security definer set search_path=public as $$
+declare v_order uuid; v_lot uuid; v_lock checkout_lock%rowtype;
+begin
+  select * into v_lock from checkout_lock where id=true for update;
+  if v_lock.locked_until>now() then raise exception 'Another pack is being opened. Try again shortly.' using errcode='P0001'; end if;
+  if exists(select 1 from pack_orders where wallet=p_wallet and created_at>now()-interval '1 minute') then raise exception 'Wallet cooldown is active.' using errcode='P0001'; end if;
+  select id into v_lot from inventory_lots where status='available' order by encode(digest(id::text||gen_random_uuid()::text,'sha256'),'hex') limit 1 for update skip locked;
+  if v_lot is null then raise exception 'No verified packs are available.' using errcode='P0001'; end if;
+  insert into pack_orders(wallet,tier,status) values(p_wallet,10,'pending') returning id into v_order;
+  update inventory_lots set status='reserved',reserved_order_id=v_order,reserved_until=now()+interval '3 minutes' where id=v_lot;
+  update checkout_lock set locked_until=now()+interval '1 minute' where id=true;
+  return query select v_order;
+end $$;
+
+create or replace function public.claim_paid_inventory_lot(p_order_id uuid,p_wallet text,p_payment_signature text)
+returns table(lot_id uuid,symbol text,mint text,token_amount text,decimals int,usd_value numeric)
+language plpgsql security definer set search_path=public as $$
+begin
+  update pack_orders set payment_signature=p_payment_signature,status='verified' where id=p_order_id and wallet=p_wallet and status in('pending','verified');
+  if not found then raise exception 'Order is unavailable.'; end if;
+  update inventory_lots set status='paid' where reserved_order_id=p_order_id and status in('reserved','paid');
+  return query select l.id,l.symbol,l.mint,l.token_amount::text,l.decimals,l.usd_value from inventory_lots l where l.reserved_order_id=p_order_id and l.status='paid';
+end $$;
+
+create or replace function public.complete_pack_fulfillment(p_order_id uuid,p_lot_id uuid,p_fulfillment_signature text) returns void
+language plpgsql security definer set search_path=public as $$
+begin
+  update inventory_lots set status='fulfilled',fulfillment_signature=p_fulfillment_signature where id=p_lot_id and reserved_order_id=p_order_id and status='paid';
+  if not found then raise exception 'Inventory lot cannot be fulfilled.'; end if;
+  update pack_orders o set status='fulfilled',stock_symbol=l.symbol,stock_mint=l.mint,stock_value=l.usd_value,fulfillment_signature=p_fulfillment_signature from inventory_lots l where o.id=p_order_id and l.id=p_lot_id;
+  insert into pack_inventory_ledger(entry_type,stock_value_delta,packs_delta,transaction_signature,metadata) select 'pack_fulfillment',-l.usd_value,-1,p_fulfillment_signature,jsonb_build_object('order_id',p_order_id,'lot_id',p_lot_id) from inventory_lots l where l.id=p_lot_id;
+end $$;
+revoke all on function public.reserve_pack_checkout(text) from public,anon,authenticated;
+revoke all on function public.claim_paid_inventory_lot(uuid,text,text) from public,anon,authenticated;
+revoke all on function public.complete_pack_fulfillment(uuid,uuid,text) from public,anon,authenticated;
 create table if not exists public.airdrop_epochs (
   id bigint primary key, starts_at timestamptz not null, ends_at timestamptz not null,
   snapshot_at timestamptz, eligible_holders int, winner_wallet text, pack_name text,
@@ -125,6 +178,8 @@ grant execute on function public.protocol_public_snapshot() to anon,authenticate
 alter table public.pack_inventory_ledger enable row level security;
 alter table public.protocol_wallets enable row level security;
 alter table public.inventory_assets enable row level security;
+alter table public.inventory_lots enable row level security;
+alter table public.checkout_lock enable row level security;
 alter table public.inventory_restock_jobs enable row level security;
 alter table public.protocol_fee_ledger enable row level security;
 alter table public.protocol_fee_sweeps enable row level security;

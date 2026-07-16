@@ -6,6 +6,8 @@ const protocol = await readFile(new URL("../lib/protocol.ts", import.meta.url), 
 const schema = await readFile(new URL("../supabase/protocol.sql", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const wallet = await readFile(new URL("../lib/solana-wallet.ts", import.meta.url), "utf8");
+const checkoutCreate = await readFile(new URL("../app/api/checkout/create/route.ts", import.meta.url), "utf8");
+const checkoutConfirm = await readFile(new URL("../app/api/checkout/confirm/route.ts", import.meta.url), "utf8");
 
 test("one shared 20-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 20/);
@@ -55,4 +57,12 @@ test("holder drop math uses one funded $10 pack per epoch", () => {
   assert.match(protocol, /HOLDER_DROP_PACK_BUDGET_USD = 10/);
   assert.match(page, /AIRDROP TREASURY/);
   assert.match(page, /NEXT DROP PACK/);
+});
+
+test("checkout reserves before charging and verifies both sides of exact USDC payment", () => {
+  assert.match(checkoutCreate, /reserve_pack_checkout/);
+  assert.match(checkoutCreate, /PACK_PRICE_USDC_ATOMS/);
+  assert.match(checkoutConfirm, /buyerPre-buyerPost>=PACK_PRICE_USDC_ATOMS/);
+  assert.match(checkoutConfirm, /complete_pack_fulfillment/);
+  assert.match(schema, /for update skip locked/);
 });

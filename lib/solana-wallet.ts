@@ -5,6 +5,7 @@ export type SolanaProvider = {
   publicKey?: SolanaPublicKey | null;
   connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: SolanaPublicKey }>;
   disconnect: () => Promise<void>;
+  signAndSendTransaction: (transaction: unknown) => Promise<{ signature: string }>;
   on?: (event: "connect" | "disconnect" | "accountChanged", handler: (key?: SolanaPublicKey | null) => void) => void;
   off?: (event: "connect" | "disconnect" | "accountChanged", handler: (key?: SolanaPublicKey | null) => void) => void;
 };

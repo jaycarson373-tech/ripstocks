@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AIRDROP_INTERVAL_MINUTES, emptySnapshot, type ProtocolSnapshot } from "@/lib/protocol";
 import { detectSolanaProvider, type SolanaProvider, type SolanaPublicKey } from "@/lib/solana-wallet";
+import { Transaction } from "@solana/web3.js";
 
 const stocks = [
   { ticker: "AAPLx", name: "Apple", color: "#f2f2ee", ink: "#090909" },
@@ -11,6 +12,12 @@ const stocks = [
   { ticker: "HOODx", name: "Robinhood", color: "#c9ff38", ink: "#111" },
   { ticker: "GME x", name: "GameStop", color: "#ff593d", ink: "#fff" },
   { ticker: "CRCLx", name: "Circle", color: "#6c8cff", ink: "#fff" },
+  { ticker: "MSFTx", name: "Microsoft", color: "#38a9ee", ink: "#fff" },
+  { ticker: "AMZNx", name: "Amazon", color: "#ff9900", ink: "#111" },
+  { ticker: "METAx", name: "Meta", color: "#0866ff", ink: "#fff" },
+  { ticker: "GOOGLx", name: "Alphabet", color: "#fbbc04", ink: "#111" },
+  { ticker: "SPYx", name: "S&P 500", color: "#d8ff3e", ink: "#111" },
+  { ticker: "COINx", name: "Coinbase", color: "#1652f0", ink: "#fff" },
 ];
 
 const recent = [
@@ -25,6 +32,7 @@ export default function Home() {
   const [spectating, setSpectating] = useState(false);
   const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<(typeof stocks)[number] | null>(null);
+  const [pulledValue, setPulledValue] = useState(0);
   const [walletError, setWalletError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const providerRef = useRef<SolanaProvider | null>(null);
@@ -74,8 +82,22 @@ export default function Home() {
     try { await providerRef.current?.disconnect(); } finally { setWallet(""); setWalletError(""); setConnecting(false); }
   }
 
-  function openPack() {
-    setWalletError("Mainnet checkout is not configured yet. No USDC was charged.");
+  async function openPack() {
+    const provider=providerRef.current; if(!provider||!wallet)return connect();
+    const base=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").replace(/\/$/,"");
+    if(!base){setWalletError("Checkout service is unavailable.");return}
+    setWalletError(""); setOpening(true); setResult(null);
+    try{
+      const created=await fetch(`${base}/api/checkout/create`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet})});
+      const checkout=await created.json() as {orderId?:string;transaction?:string;error?:string};
+      if(!created.ok||!checkout.orderId||!checkout.transaction)throw new Error(checkout.error||"Could not reserve a pack");
+      const bytes=Uint8Array.from(atob(checkout.transaction),c=>c.charCodeAt(0));
+      const {signature}=await provider.signAndSendTransaction(Transaction.from(bytes));
+      const confirmed=await fetch(`${base}/api/checkout/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:checkout.orderId,paymentSignature:signature,wallet})});
+      const pull=await confirmed.json() as {symbol?:string;value?:number;error?:string};
+      if(!confirmed.ok||!pull.symbol)throw new Error(pull.error||"Payment confirmed; delivery is retrying");
+      setPulledValue(Number(pull.value)||0); setOpening(false); setResult(stocks.find(stock=>stock.ticker===pull.symbol)??{ticker:pull.symbol,name:pull.symbol,color:"#caff00",ink:"#080808"});
+    }catch(error){setOpening(false);setWalletError(error instanceof Error?error.message:"Checkout failed. No unverified payment is treated as complete.")}
   }
 
   return (
@@ -150,7 +172,7 @@ export default function Home() {
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
-        {opening ? <><span className="kicker">RIPPING ONCHAIN</span><div className="ripAnim"><div className="pack"><strong>RIP<br/>STOCKS</strong></div></div><p>VERIFYING PULL…</p></> : result && <><span className="kicker">YOU PULLED</span><div className="stockResult" style={{background:result.color,color:result.ink}}><small>xSTOCK</small><b>{result.ticker}</b><span>{result.name}</span></div><h3>${(tier*1.14).toFixed(2)} OF {result.name.toUpperCase()}</h3><p>Delivered to {wallet.slice(0,4)}…{wallet.slice(-4)}</p><div className="instantProof"><span>PROOF</span><b>Posts instantly after mainnet confirmation ↗</b></div><button className="primary" onClick={()=>setResult(null)}>RIP ANOTHER →</button></>}
+        {opening ? <><span className="kicker">RIPPING ONCHAIN</span><div className="ripAnim"><div className="pack"><strong>RIP<br/>STOCKS</strong></div></div><p>VERIFYING PULL…</p></> : result && <><span className="kicker">YOU PULLED</span><div className="stockResult" style={{background:result.color,color:result.ink}}><small>xSTOCK</small><b>{result.ticker}</b><span>{result.name}</span></div><h3>${pulledValue.toFixed(2)} OF {result.name.toUpperCase()}</h3><p>Delivered to {wallet.slice(0,4)}…{wallet.slice(-4)}</p><div className="instantProof"><span>PROOF</span><b>Posts instantly after mainnet confirmation ↗</b></div><button className="primary" onClick={()=>setResult(null)}>RIP ANOTHER →</button></>}
       </div></div>}
     </main>
   );
