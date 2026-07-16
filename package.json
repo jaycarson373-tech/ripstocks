@@ -11,6 +11,7 @@
     "vercel-build": "next build",
     "railway-build": "next build",
     "railway-start": "next start -p ${PORT:-3000}",
+    "railway-boot": "npm run railway-build && npm run railway-start",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
