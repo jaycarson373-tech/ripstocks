@@ -10,6 +10,7 @@ const checkoutCreate = await readFile(new URL("../app/api/checkout/create/route.
 const checkoutConfirm = await readFile(new URL("../app/api/checkout/confirm/route.ts", import.meta.url), "utf8");
 const verifiedXstocks = await readFile(new URL("../lib/xstocks.ts", import.meta.url), "utf8");
 const airdropPolicy = await readFile(new URL("../lib/airdrop-policy.ts", import.meta.url), "utf8");
+const inventoryPlan = await readFile(new URL("../lib/inventory-plan.ts", import.meta.url), "utf8");
 
 test("one shared 20-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 20/);
@@ -81,4 +82,16 @@ test("site publishes exactly ten verified inventory mints", () => {
   assert.equal((verifiedXstocks.match(/symbol:/g) || []).length,10);
   assert.match(page,/VERIFIED INVENTORY UNIVERSE/);
   assert.match(verifiedXstocks,/XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1/);
+});
+
+test("practice loader preserves gas and exact inventory averages", () => {
+  assert.match(inventoryPlan,/SOL_GAS_BUFFER = 0\.111/);
+  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[3,3,3,3,3,3,5,7,8,10,12,15,20,25,30\]/);
+  assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[2,3,4,5,5,5,5,7,7,7\]/);
+  const main=[3,3,3,3,3,3,5,7,8,10,12,15,20,25,30];
+  const holder=[2,3,4,5,5,5,5,7,7,7];
+  assert.equal(main.reduce((a,b)=>a+b,0),150);
+  assert.equal(main.reduce((a,b)=>a+b,0)/main.length,10);
+  assert.equal(holder.reduce((a,b)=>a+b,0),50);
+  assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,5);
 });
