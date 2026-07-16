@@ -1,0 +1,35 @@
+export const AIRDROP_INTERVAL_MINUTES = 20 as const;
+export const AIRDROP_INTERVAL_MS = AIRDROP_INTERVAL_MINUTES * 60 * 1000;
+
+export type ProtocolSnapshot = {
+  serverNow: string;
+  epochEndsAt: string;
+  packInventoryValue: number;
+  remainingStockInventory: number;
+  packsRemaining: number;
+  totalPacksOpened: number;
+  inventoryPurchases: number;
+  inventoryAssets: number;
+  holderAirdropTreasury: number;
+  packEvReserve: number;
+  currentPackEv: number;
+  totalHolderDrops: number;
+  totalValueAirdropped: number;
+  proofs: Array<{winner:string;pack:string;stock:string;value:number;time:string;signature:string}>;
+};
+
+export function synchronizedEpochEndsAt(now = Date.now()) {
+  return new Date((Math.floor(now / AIRDROP_INTERVAL_MS) + 1) * AIRDROP_INTERVAL_MS);
+}
+
+export function calculatePackEv(remainingStockInventory: number, packsRemaining: number) {
+  return packsRemaining > 0 ? remainingStockInventory / packsRemaining : 0;
+}
+
+export const emptySnapshot = (): ProtocolSnapshot => ({
+  serverNow: new Date().toISOString(), epochEndsAt: synchronizedEpochEndsAt().toISOString(),
+  packInventoryValue: 0, remainingStockInventory: 0, packsRemaining: 247,
+  totalPacksOpened: 0, inventoryPurchases: 0, inventoryAssets: 0,
+  holderAirdropTreasury: 0, packEvReserve: 0, currentPackEv: 0,
+  totalHolderDrops: 0, totalValueAirdropped: 0, proofs: [],
+});

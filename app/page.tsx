@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AIRDROP_INTERVAL_MINUTES, emptySnapshot, type ProtocolSnapshot } from "@/lib/protocol";
 
 const stocks = [
   { ticker: "AAPLx", name: "Apple", color: "#f2f2ee", ink: "#090909" },
@@ -17,8 +18,6 @@ const recent = [
   ["3Fx…aV8", "$50", "HOODx", "$63.40", "+26.8%"],
   ["Bq2…L9n", "$10", "TSLAx", "$9.72", "-2.8%"],
 ];
-const airdrops = [["14:00","7sK…Pq9","NVDAx","$18.42","5fW…oR2"],["13:00","B2m…xL8","AAPLx","$11.06","3kA…Vn7"],["12:00","H8q…cY1","HOODx","$22.75","9jT…mP4"]];
-
 export default function Home() {
   const [tier, setTier] = useState(10);
   const [wallet, setWallet] = useState("");
@@ -26,8 +25,9 @@ export default function Home() {
   const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<(typeof stocks)[number] | null>(null);
   const [walletError, setWalletError] = useState("");
-  const [seconds, setSeconds] = useState(3600);
-  useEffect(() => { const tick=()=>setSeconds(3600-(new Date().getMinutes()*60+new Date().getSeconds())); tick(); const timer=window.setInterval(tick,1000); return()=>window.clearInterval(timer); }, []);
+  const [snapshot, setSnapshot] = useState<ProtocolSnapshot>(emptySnapshot());
+  const [seconds, setSeconds] = useState(AIRDROP_INTERVAL_MINUTES*60);
+  useEffect(() => { let offset=0; let end=Date.parse(snapshot.epochEndsAt); const load=async()=>{try{const r=await fetch("/api/protocol",{cache:"no-store"});const data=await r.json() as ProtocolSnapshot;offset=Date.parse(data.serverNow)-Date.now();end=Date.parse(data.epochEndsAt);setSnapshot(data)}catch{}}; load(); const refresh=window.setInterval(load,15000); const tick=window.setInterval(()=>setSeconds(Math.max(0,Math.ceil((end-(Date.now()+offset))/1000))),250); return()=>{window.clearInterval(tick);window.clearInterval(refresh)}; }, []);
   const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
 
   async function connect() {
@@ -56,9 +56,10 @@ export default function Home() {
         <div className="heroCopy">
           <div className="eyebrow"><span /> LIVE ON SOLANA</div>
           <h1>RIP IT.<br/><em>OWN IT.</em></h1>
-          <p>Crack a pack. Pull tokenized stocks. Straight to your wallet.</p>
+          <p>Rip a stock pack. Hold for stock pack airdrops every {AIRDROP_INTERVAL_MINUTES} minutes.</p>
+          <p className="heroSupport">75% of protocol fees fund holder drops. 25% increases pack expected value.</p>
           <div className="heroActions"><a className="primary" href="#packs">RIP A PACK <b>↓</b></a><button className="textBtn" onClick={() => setSpectating(true)}>SPECTATE LIVE <span>●</span></button></div>
-          <div className="proof"><div><b>100%</b><span>FEES → STOCKS</span></div><div><b>{countdown}</b><span>NEXT AIRDROP</span></div><div><b>24/7</b><span>PROOF POSTED</span></div></div>
+          <div className="proof"><div><b>75/25</b><span>PROTOCOL FEE SPLIT</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT HOLDER DROP</span></div><div><b>{AIRDROP_INTERVAL_MINUTES}M</b><span>SYNCHRONIZED</span></div></div>
         </div>
         <div className="machine" aria-label="Animated pack ripping machine">
           <div className="machineTop"><span>RIP-O-MATIC</span><i>ONLINE</i></div>
@@ -75,13 +76,14 @@ export default function Home() {
       <div className="ticker"><div>{[...stocks,...stocks].map((s,i)=><span key={i}><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
 
       <section className="packs wrap" id="packs">
+        <div className="liveStats">{[["PACK INVENTORY VALUE",snapshot.packInventoryValue],["HOLDER AIRDROP TREASURY",snapshot.holderAirdropTreasury],["CURRENT PACK EV",snapshot.currentPackEv],["PACKS REMAINING",snapshot.packsRemaining],["TOTAL PACKS OPENED",snapshot.totalPacksOpened],["TOTAL HOLDER DROPS",snapshot.totalHolderDrops],["VALUE AIRDROPPED",snapshot.totalValueAirdropped]].map(([label,value],i)=><div key={String(label)}><span>{label}</span><b>{i<3||i===6?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b></div>)}</div>
         <div className="sectionHead"><div><span className="kicker">CHOOSE YOUR RIP</span><h2>Launch pack.<br/>One stock pull.</h2></div><p>The $10 launch pack contains exactly one randomized xStock available on Solana. You pay in USDC. The pull lands in your wallet.</p></div>
         <div className="packGrid">
-          {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?247:0; return <button key={price} disabled={!available} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>
+          {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?snapshot.packsRemaining:0; return <button key={price} disabled={!available} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>
             <span className="chance">{i===0?"THE QUICK RIP":i===1?"CROWD FAVORITE":"THE BIG RIP"}</span>
             <span className={`inventory ${inventory===0?"empty":""}`}>{inventory} PACKS LEFT</span>
             <div className="miniPack photoPack"><img src="/ripstocks-logo.jpg" alt=""/><i>{price}</i></div>
-            <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>{i===0?"1 stock pull":"Unavailable"}<br/><em>{available?"Instant delivery":"Coming soon"}</em></p></div>
+            <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>{i===0?"1 Stock Pull":"Premium Pulls"}<br/>{available&&<>Expected Value <strong className="evValue">${snapshot.currentPackEv.toFixed(2)}</strong><br/></>}<em>{available?"Instant Delivery":"Projected EV · Coming Soon"}</em></p></div>
             {tier===price && <span className="chosen">SELECTED ✓</span>}
             {!available && <span className="soldOut">UNAVAILABLE</span>}
           </button>})}
@@ -97,9 +99,8 @@ export default function Home() {
         <div className="table"><div className="tr labels"><span>RIPPER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>EV</span></div>{recent.map((r,i)=><div className="tr" key={i}><span><i className={`avatar a${i}`}/>{r[0]}</span><span>{r[1]}</span><span><b>{r[2]}</b></span><span>{r[3]}</span><span className={r[4].startsWith("+")?"up":"down"}>{r[4]}</span></div>)}</div>
       </div></section>
 
-      <section className="fly wrap" id="flywheel"><span className="kicker">THE HOURLY HOLDER DROP</span><h2>Every fee.<br/><em>Back to holders.</em></h2><div className="hourly">
-        <div className="hourStep"><b>01</b><span>FEES LAND</span><p>100% of creator fees collect onchain.</p></div><i>→</i><div className="hourStep acid"><b>02</b><span>BUY xSTOCKS</span><p>The full balance buys eligible tokenized stocks.</p></div><i>→</i><div className="hourStep"><b>03</b><span>RANDOM DRAW</span><p>One eligible holder is selected every hour.</p></div><i>→</i><div className="hourStep"><b>04</b><span>INSTANT PROOF</span><p>The signature posts as soon as it lands.</p></div>
-      </div><div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> HOURLY AIRDROP PROOF</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>DRAW</span><span>WINNER</span><span>STOCK</span><span>VALUE</span><span>PROOF</span></div>{airdrops.map((a,i)=><div className="proofRow" key={i}><span>{a[0]}</span><span>{a[1]}</span><span><b>{a[2]}</b></span><span>{a[3]}</span><span><button title="Activates with the live distributor">{a[4]} ↗</button></span></div>)}</div></div><p className="disclaimer">Hourly draws use the configured holder snapshot and verifiable randomness seed. Eligibility and transaction signatures publish with every distribution. Tokenized assets carry market risk. Nothing here is financial advice.</p></section>
+      <section className="fly wrap" id="flywheel"><span className="kicker">HOW IT WORKS</span><h2>Two systems.<br/><em>One clear flywheel.</em></h2><div className="protocolSteps">{[["01","RIP A PACK","Open a $10 stock pack and instantly receive one tokenized stock."],["02","RESTOCK INVENTORY","Pack-sale USDC purchases new stocks only for future paid packs."],["03","SPLIT PROTOCOL FEES","75% funds Holder Airdrops. 25% increases Pack Expected Value."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One eligible holder receives a free stock pack from the Holder Airdrop Treasury."],["05","PROOF","The reward is delivered immediately and proof is published on-chain."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
+      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> HOLDER DROP PROOF</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK RECEIVED</span><span>REWARD VALUE</span><span>TIME</span><span>TRANSACTION PROOF</span></div>{snapshot.proofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{a.winner}</span><span>{a.pack}</span><span><b>{a.stock}</b></span><span>${a.value.toFixed(2)}</span><span>{new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{a.signature.slice(0,4)}…{a.signature.slice(-3)} ↗</a></span></div>)}{snapshot.proofs.length===0&&<div className="emptyProof">No holder drops published yet.</div>}</div></div><p className="disclaimer">Pack-sale USDC belongs only to Pack Inventory and never funds holder drops. Protocol fees are recorded separately: 75% to the Holder Airdrop Treasury and 25% to the Pack EV Reserve. EV is a statistical expected value calculated from remaining inventory; it is not a promise of profit.</p></section>
 
       <footer><div className="wrap"><div className="brand brandImage"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span></div><p>RIP. PULL. REPEAT.</p><div><a href="#packs">PACKS</a><a href="#live">LIVE</a><a href="#flywheel">HOW IT WORKS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
