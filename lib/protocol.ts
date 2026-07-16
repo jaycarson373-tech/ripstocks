@@ -2,6 +2,7 @@ export const AIRDROP_INTERVAL_MINUTES = 20 as const;
 export const AIRDROP_INTERVAL_MS = AIRDROP_INTERVAL_MINUTES * 60 * 1000;
 export const HOLDER_AIRDROP_FEE_BPS = 7_500 as const;
 export const PACK_EV_RESERVE_FEE_BPS = 2_500 as const;
+export const HOLDER_DROP_PACK_BUDGET_USD = 10 as const;
 
 export const PROTOCOL_WALLET_ENV = {
   mainTreasury: "MAIN_TREASURY_WALLET",
@@ -18,6 +19,7 @@ export type ProtocolSnapshot = {
   inventoryPurchases: number;
   inventoryAssets: number;
   holderAirdropTreasury: number;
+  nextHolderPackValue: number;
   packEvReserve: number;
   currentPackEv: number;
   totalHolderDrops: number;
@@ -37,6 +39,6 @@ export const emptySnapshot = (): ProtocolSnapshot => ({
   serverNow: new Date().toISOString(), epochEndsAt: synchronizedEpochEndsAt().toISOString(),
   packInventoryValue: 0, remainingStockInventory: 0, packsRemaining: 247,
   totalPacksOpened: 0, inventoryPurchases: 0, inventoryAssets: 0,
-  holderAirdropTreasury: 0, packEvReserve: 0, currentPackEv: 0,
+  holderAirdropTreasury: 0, nextHolderPackValue: 0, packEvReserve: 0, currentPackEv: 0,
   totalHolderDrops: 0, totalValueAirdropped: 0, proofs: [],
 });

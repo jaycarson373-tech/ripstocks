@@ -112,7 +112,15 @@ export default function Home() {
       <div className="ticker"><div>{[...stocks,...stocks].map((s,i)=><span key={i}><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
 
       <section className="packs wrap" id="packs">
-        <div className="liveStats">{[["PACKS IN INVENTORY",snapshot.packsRemaining],["CURRENT PACK EV",snapshot.currentPackEv],["TOTAL PACKS OPENED",snapshot.totalPacksOpened],["TOTAL HOLDER DROPS",snapshot.totalHolderDrops],["VALUE AIRDROPPED",snapshot.totalValueAirdropped]].map(([label,value],i)=><div key={String(label)}><span>{label}</span><b>{i===1||i===4?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b></div>)}</div>
+        <div className="liveStats">{[
+          ["PACKS IN INVENTORY",snapshot.packsRemaining,false],
+          ["CURRENT PACK EV",snapshot.currentPackEv,true],
+          ["AIRDROP TREASURY",snapshot.holderAirdropTreasury,true],
+          ["NEXT DROP PACK",snapshot.nextHolderPackValue,true],
+          ["TOTAL PACKS OPENED",snapshot.totalPacksOpened,false],
+          ["TOTAL HOLDER DROPS",snapshot.totalHolderDrops,false],
+          ["VALUE AIRDROPPED",snapshot.totalValueAirdropped,true],
+        ].map(([label,value,currency])=><div key={String(label)}><span>{label}</span><b>{currency?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b>{label==="NEXT DROP PACK"&&Number(value)===0?<small>FUNDING</small>:null}</div>)}</div>
         <div className="sectionHead"><div><span className="kicker">CHOOSE YOUR RIP</span><h2>Launch pack.<br/>One stock pull.</h2></div><p>The $10 launch pack contains exactly one randomized xStock available on Solana. You pay in USDC. The pull lands in your wallet.</p></div>
         <div className="packGrid">
           {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?snapshot.packsRemaining:0; return <button key={price} disabled={!available} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>

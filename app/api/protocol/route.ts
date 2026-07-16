@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculatePackEv, emptySnapshot, synchronizedEpochEndsAt, type ProtocolSnapshot } from "@/lib/protocol";
+import { calculatePackEv, emptySnapshot, HOLDER_DROP_PACK_BUDGET_USD, synchronizedEpochEndsAt, type ProtocolSnapshot } from "@/lib/protocol";
 
 export const dynamic = "force-dynamic";
 
@@ -12,5 +12,6 @@ export async function GET() {
   const row = await response.json() as Partial<ProtocolSnapshot>;
   const snapshot = { ...emptySnapshot(), ...row, serverNow:new Date().toISOString(), epochEndsAt:synchronizedEpochEndsAt().toISOString() };
   snapshot.currentPackEv = calculatePackEv(Number(snapshot.remainingStockInventory), Number(snapshot.packsRemaining));
+  snapshot.nextHolderPackValue = Number(snapshot.holderAirdropTreasury) >= HOLDER_DROP_PACK_BUDGET_USD ? HOLDER_DROP_PACK_BUDGET_USD : 0;
   return NextResponse.json(snapshot, { headers: { "Cache-Control": "no-store" } });
 }

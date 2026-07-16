@@ -50,3 +50,9 @@ test("wallet supports Phantom, Backpack, trusted reconnect and disconnect", () =
   assert.match(page, /providerRef\.current\?\.disconnect/);
   assert.match(page, />DISCONNECT</);
 });
+
+test("holder drop math uses one funded $10 pack per epoch", () => {
+  assert.match(protocol, /HOLDER_DROP_PACK_BUDGET_USD = 10/);
+  assert.match(page, /AIRDROP TREASURY/);
+  assert.match(page, /NEXT DROP PACK/);
+});
