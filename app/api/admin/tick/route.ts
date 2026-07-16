@@ -1,4 +1,5 @@
 import { authorized } from "@/lib/automation-auth";
+import { AIRDROP_INTERVAL_MS } from "@/lib/protocol";
 
 export const dynamic="force-dynamic";
 export async function POST(request:Request){
@@ -6,8 +7,9 @@ export async function POST(request:Request){
   const authorization=request.headers.get("authorization")||"";
   const base=new URL(request.url).origin;
   const call=(path:string)=>fetch(`${base}${path}`,{method:"POST",headers:{authorization},cache:"no-store"}).then(async response=>({status:response.status,body:await response.json()}));
-  const main=await call("/api/admin/restock?scope=main");
-  const twentyMinuteBoundary=Math.floor(Date.now()/600_000)%2===0;
+  const twentyMinuteBoundary=Date.now()%AIRDROP_INTERVAL_MS<90_000;
+  const waiting={status:200,body:{ok:true,skipped:"Waiting for the next 20-minute window."}};
+  const main=twentyMinuteBoundary?await call("/api/admin/restock?scope=main"):waiting;
   const holder=twentyMinuteBoundary?await call("/api/admin/restock?scope=holder"):null;
   const airdrop=twentyMinuteBoundary?await call("/api/admin/holder-epoch"):null;
   return Response.json({ok:true,main,holder,airdrop});
