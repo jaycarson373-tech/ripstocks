@@ -106,7 +106,7 @@ export default function Home() {
           <p>Rip a stock pack. Hold for stock pack airdrops every {AIRDROP_INTERVAL_MINUTES} minutes.</p>
           <p className="heroSupport">75% of protocol fees fund holder drops. 25% increases pack expected value.</p>
           <div className="heroActions"><a className="primary" href="#packs">RIP A PACK <b>↓</b></a><button className="textBtn" onClick={() => setSpectating(true)}>SPECTATE LIVE <span>●</span></button></div>
-          <div className="proof"><div><b>75/25</b><span>PROTOCOL FEE SPLIT</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT HOLDER DROP</span></div><div><b>{AIRDROP_INTERVAL_MINUTES}M</b><span>SYNCHRONIZED</span></div></div>
+          <div className="proof"><div><b>75/25</b><span>PROTOCOL FEE SPLIT</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT HOLDER DROP</span></div><div><b>{snapshot.totalPacksOpened}</b><span>PACKS OPENED</span></div></div>
         </div>
         <div className="machine" aria-label="Animated pack ripping machine">
           <div className="machineTop"><span>RIP-O-MATIC</span><i>ONLINE</i></div>
