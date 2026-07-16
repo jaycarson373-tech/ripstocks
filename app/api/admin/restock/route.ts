@@ -23,13 +23,23 @@ async function receivedBalance(connection:Connection,account:PublicKey,beforeAto
   let last=beforeAtoms;
   let decimals=0;
   for(let attempt=0;attempt<12;attempt++){
-    const balance=await connection.getTokenAccountBalance(account,"confirmed");
+    const balance=await connection.getTokenAccountBalance(account,"confirmed").catch(()=>null);
+    if(!balance){await new Promise(resolve=>setTimeout(resolve,750));continue}
     last=BigInt(balance.value.amount||"0");
     decimals=balance.value.decimals;
     if(last>beforeAtoms)return {received:last-beforeAtoms,decimals};
     await new Promise(resolve=>setTimeout(resolve,750));
   }
   return {received:last-beforeAtoms,decimals};
+}
+
+async function tokenBalance(connection:Connection,account:PublicKey){
+  for(let attempt=0;attempt<12;attempt++){
+    const balance=await connection.getTokenAccountBalance(account,"confirmed").catch(()=>null);
+    if(balance)return balance;
+    await new Promise(resolve=>setTimeout(resolve,750));
+  }
+  throw new Error("Token account was not readable after setup");
 }
 
 export async function POST(request:Request){
@@ -65,7 +75,7 @@ export async function POST(request:Request){
     const target=targets[count%targets.length];
     const mint=new PublicKey(target.mint);
     const destination=await ensureTokenAccount(connection,signer,mint);
-    const before=await connection.getTokenAccountBalance(destination,"confirmed");
+    const before=await tokenBalance(connection,destination);
     const beforeAtoms=BigInt(before.value.amount||"0");
     const swap=await swapExactInput({connection,signer,inputMint:usdcMint,outputMint:mint,inputAtoms:BigInt(Math.round(usd*10**USDC_DECIMALS)),destinationTokenAccount:destination});
     const after=await receivedBalance(connection,destination,beforeAtoms);
