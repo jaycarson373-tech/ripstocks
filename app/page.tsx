@@ -7,6 +7,7 @@ import { Transaction } from "@solana/web3.js";
 import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
 const stockPalette=["#65d1ff","#d8ff3e","#815cff","#ef3d4c","#ff5b42","#76e247","#1652f0","#fbbc04","#c9ff38","#ff9900"];
+const RIPSTOCKS_MINT="31aEMecqoVxVB3Lt8U1XFcafmR167cYy77bRQMwMpump";
 type StockDisplay={ticker:string;name:string;color:string;ink:string};
 const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map((stock,index)=>({ticker:stock.symbol,name:stock.name,color:stockPalette[index],ink:index===2||index===3||index===4||index===6?"#fff":"#090909"}));
 export default function Home() {
@@ -90,6 +91,7 @@ export default function Home() {
       <div className="grain" />
       <nav className="nav wrap">
         <a className="brand brandImage" href="#top" aria-label="RipStocks home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span><i>β</i></a>
+        <a className="contractPill" href={`https://solscan.io/token/${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer" title={RIPSTOCKS_MINT}><span>CA</span>{RIPSTOCKS_MINT}</a>
         <div className="navlinks"><a href="#packs">Packs</a><a href="#live">Live rips</a><a href="#flywheel">Flywheel</a></div>
         {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
       </nav>
@@ -156,7 +158,7 @@ export default function Home() {
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">VERIFIED INVENTORY UNIVERSE</span><h2 id="verified-title">10 official xStocks.<br/>Nothing else.</h2></div><p>RipStocks inventory is restricted to these verified Solana mints. Every mint links directly to its on-chain record.</p></div><div className="verifiedGrid">{VERIFIED_XSTOCKS.map((stock,index)=><a key={stock.mint} href={`https://solscan.io/token/${stock.mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><div><b>{stock.symbol}</b><small>{stock.name}</small></div><code>{stock.mint.slice(0,8)}…{stock.mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span></div><p>RIP. PULL. REPEAT.</p><div><a href="#packs">PACKS</a><a href="#live">LIVE</a><a href="#flywheel">HOW IT WORKS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span></div><p>RIP. PULL. REPEAT.</p><div className="footerLinks"><a href={`https://dexscreener.com/solana/${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer">DEXSCREENER ↗</a><a href={`https://pump.fun/coin/${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer">PUMP.FUN ↗</a><a className="footerBuy" href={`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer">BUY $RIPSTOCKS ↗</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
