@@ -7,6 +7,21 @@ import { keypairEnv, publicKeyEnv, requiredEnv, rpcUrl, supabase } from "@/lib/s
 
 export const dynamic="force-dynamic";
 
+type HolderLot = {
+  id: string;
+  symbol: string;
+  mint: string;
+  token_amount: string;
+  decimals: number;
+  token_program: string;
+  purchase_value: number | string;
+};
+
+async function jsonBody<T>(response: Response) {
+  const text = await response.text();
+  return (text ? JSON.parse(text) : null) as T;
+}
+
 async function eligibleHolders(){
   const mint=requiredEnv("HOLDER_TOKEN_MINT");
   const excluded=new Set([process.env.MAIN_TREASURY_WALLET,process.env.HOLDER_AIRDROP_WALLET].filter(Boolean));
@@ -24,20 +39,61 @@ async function eligibleHolders(){
   return [...holders];
 }
 
+async function availableHolderLots(limit=50) {
+  const response=await supabase(`airdrop_inventory_lots?select=id,symbol,mint,token_amount,decimals,token_program,purchase_value&status=eq.available&limit=${limit}`);
+  if(!response.ok)throw new Error(`Could not read holder inventory: ${await response.text()}`);
+  return await jsonBody<HolderLot[]>(response) || [];
+}
+
+async function reserveAirdropLot(epochId:number,winner:string,eligibleCount:number){
+  const existing=await supabase(`airdrop_epochs?select=id&id=eq.${epochId}&limit=1`);
+  if(!existing.ok)throw new Error(`Could not check holder epoch: ${await existing.text()}`);
+  if((await jsonBody<Array<{id:number}>>(existing))?.length)return {skipped:"This holder-drop epoch is already recorded."};
+
+  const lots=await availableHolderLots();
+  if(!lots.length)return {skipped:"No holder inventory available"};
+
+  const startsAt=new Date(epochId*AIRDROP_INTERVAL_MS).toISOString();
+  const endsAt=new Date((epochId+1)*AIRDROP_INTERVAL_MS).toISOString();
+  const created=await supabase("airdrop_epochs",{
+    method:"POST",
+    headers:{Prefer:"resolution=ignore-duplicates,return=representation"},
+    body:JSON.stringify({id:epochId,starts_at:startsAt,ends_at:endsAt,snapshot_at:new Date().toISOString(),eligible_holders:eligibleCount,winner_wallet:winner,status:"snapshotted"})
+  });
+  if(!created.ok)throw new Error(`Could not create holder epoch: ${await created.text()}`);
+  if(!(await jsonBody<Array<{id:number}>>(created))?.length)return {skipped:"This holder-drop epoch is already recorded."};
+
+  for(let attempt=0;attempt<Math.min(lots.length,8);attempt++){
+    const lot=lots[randomInt(lots.length)];
+    const reserved=await supabase(`airdrop_inventory_lots?id=eq.${encodeURIComponent(lot.id)}&status=eq.available`,{
+      method:"PATCH",
+      body:JSON.stringify({status:"reserved",epoch_id:epochId})
+    });
+    if(reserved.ok&&((await jsonBody<HolderLot[]>(reserved))||[]).length)return {lot};
+  }
+
+  await supabase(`airdrop_epochs?id=eq.${epochId}`,{method:"DELETE"});
+  return {skipped:"No holder inventory available"};
+}
+
 export async function POST(request:Request){
   if(!authorized(request))return Response.json({error:"Unauthorized"},{status:401});
   try{
+    const body=await request.json().catch(()=>({})) as {dryRun?:boolean};
     const signer=keypairEnv("HOLDER_AIRDROP_SIGNER_SECRET");
     const wallet=publicKeyEnv("HOLDER_AIRDROP_WALLET");
     if(!signer.publicKey.equals(wallet))throw new Error("Holder signer does not match configured wallet");
     const epochId=Math.floor(Date.now()/AIRDROP_INTERVAL_MS);
     const holders=await eligibleHolders();
+    if(body.dryRun){
+      const lots=await availableHolderLots();
+      return Response.json({ok:true,dryRun:true,epochId,eligibleHolders:holders.length,holderPacksAvailable:lots.length,nextDropAt:new Date((epochId+1)*AIRDROP_INTERVAL_MS).toISOString()});
+    }
     if(!holders.length)return Response.json({ok:true,skipped:"No eligible holders in the synchronized snapshot",epochId});
     const winner=holders[randomInt(holders.length)];
-    const reserve=await supabase("rpc/reserve_airdrop_epoch",{method:"POST",body:JSON.stringify({p_epoch_id:epochId,p_winner: winner,p_eligible_holders:holders.length})});
-    if(!reserve.ok)return Response.json({ok:true,skipped:await reserve.text(),epochId});
-    const [lot]=await reserve.json() as Array<{lot_id:string;symbol:string;mint:string;token_amount:string;decimals:number;token_program:string;purchase_value:number}>;
-    if(!lot)return Response.json({ok:true,skipped:"No holder inventory available",epochId});
+    const reserved=await reserveAirdropLot(epochId,winner,holders.length);
+    if("skipped" in reserved)return Response.json({ok:true,skipped:reserved.skipped,epochId});
+    const lot=reserved.lot;
     const connection=new Connection(rpcUrl(),"confirmed");
     const mint=new PublicKey(lot.mint); const program=new PublicKey(lot.token_program); const owner=new PublicKey(winner);
     const from=getAssociatedTokenAddressSync(mint,wallet,false,program); const to=getAssociatedTokenAddressSync(mint,owner,false,program);
@@ -45,7 +101,7 @@ export async function POST(request:Request){
     const signature=await connection.sendTransaction(transaction,[signer],{skipPreflight:false,maxRetries:3});
     const confirmation=await connection.confirmTransaction(signature,"confirmed");
     if(confirmation.value.err)throw new Error(`Holder payout ${signature} failed`);
-    const complete=await supabase("rpc/complete_airdrop_epoch",{method:"POST",body:JSON.stringify({p_epoch_id:epochId,p_lot_id:lot.lot_id,p_signature:signature})});
+    const complete=await supabase("rpc/complete_airdrop_epoch",{method:"POST",body:JSON.stringify({p_epoch_id:epochId,p_lot_id:lot.id,p_signature:signature})});
     if(!complete.ok)throw new Error(`Payout confirmed, but proof recording needs reconciliation: ${await complete.text()}`);
     return Response.json({ok:true,epochId,eligibleHolders:holders.length,winner,symbol:lot.symbol,value:Number(lot.purchase_value),signature});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"Holder epoch failed"},{status:503})}
