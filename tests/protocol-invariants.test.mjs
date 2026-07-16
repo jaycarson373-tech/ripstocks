@@ -64,5 +64,7 @@ test("checkout reserves before charging and verifies both sides of exact USDC pa
   assert.match(checkoutCreate, /PACK_PRICE_USDC_ATOMS/);
   assert.match(checkoutConfirm, /buyerPre-buyerPost>=PACK_PRICE_USDC_ATOMS/);
   assert.match(checkoutConfirm, /complete_pack_fulfillment/);
+  assert.match(checkoutConfirm, /tokenProgram/);
+  assert.match(schema, /TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb/);
   assert.match(schema, /for update skip locked/);
 });

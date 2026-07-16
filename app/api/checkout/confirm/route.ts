@@ -29,12 +29,12 @@ export async function POST(request:Request){
     if(!paid)return json({error:"The $10 USDC payment was not confirmed"},400);
     const claim=await supabase("rpc/claim_paid_inventory_lot",{method:"POST",body:JSON.stringify({p_order_id:orderId,p_wallet:buyer.toBase58(),p_payment_signature:paymentSignature})});
     if(!claim.ok)return json({error:await claim.text()},409);
-    const [lot]=await claim.json() as Array<{lot_id:string;symbol:string;mint:string;token_amount:string;decimals:number;usd_value:number}>;
+    const [lot]=await claim.json() as Array<{lot_id:string;symbol:string;mint:string;token_amount:string;decimals:number;token_program:string;usd_value:number}>;
     if(!lot)return json({error:"Payment verified; fulfillment queued"},202);
     const signer=keypairEnv("MAIN_TREASURY_SIGNER_SECRET");
     if(!signer.publicKey.equals(treasury))throw new Error("Main Treasury signer does not match its public key");
-    const mint=new PublicKey(lot.mint); const from=getAssociatedTokenAddressSync(mint,treasury); const to=getAssociatedTokenAddressSync(mint,buyer);
-    const payout=new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(treasury,to,buyer,mint),createTransferCheckedInstruction(from,mint,to,treasury,BigInt(lot.token_amount),lot.decimals));
+    const mint=new PublicKey(lot.mint); const tokenProgram=new PublicKey(lot.token_program); const from=getAssociatedTokenAddressSync(mint,treasury,false,tokenProgram); const to=getAssociatedTokenAddressSync(mint,buyer,false,tokenProgram);
+    const payout=new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(treasury,to,buyer,mint,tokenProgram),createTransferCheckedInstruction(from,mint,to,treasury,BigInt(lot.token_amount),lot.decimals,[],tokenProgram));
     const fulfillmentSignature=await connection.sendTransaction(payout,[signer],{skipPreflight:false,maxRetries:3});
     await connection.confirmTransaction(fulfillmentSignature,"confirmed");
     const finish=await supabase("rpc/complete_pack_fulfillment",{method:"POST",body:JSON.stringify({p_order_id:orderId,p_lot_id:lot.lot_id,p_fulfillment_signature:fulfillmentSignature})});

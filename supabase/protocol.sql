@@ -29,7 +29,7 @@ create table if not exists public.inventory_assets (
 create table if not exists public.inventory_lots (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   symbol text not null, mint text not null, token_amount numeric(30,0) not null check(token_amount>0),
-  decimals int not null check(decimals between 0 and 12), usd_value numeric(18,6) not null check(usd_value>0),
+  decimals int not null check(decimals between 0 and 12), token_program text not null default 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', usd_value numeric(18,6) not null check(usd_value>0),
   acquisition_signature text not null, status text not null default 'available' check(status in ('available','reserved','paid','fulfilled','failed')),
   reserved_order_id uuid, reserved_until timestamptz, fulfillment_signature text unique
 );
@@ -83,6 +83,7 @@ create table if not exists public.pack_orders (
 );
 alter table public.pack_orders alter column payment_signature drop not null;
 alter table public.inventory_lots add column if not exists reserved_order_id uuid;
+alter table public.inventory_lots add column if not exists token_program text not null default 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 do $$ begin
   alter table public.inventory_lots add constraint inventory_lots_order_fk foreign key(reserved_order_id) references public.pack_orders(id);
 exception when duplicate_object then null; end $$;
@@ -106,14 +107,15 @@ begin
   return query select v_order;
 end $$;
 
-create or replace function public.claim_paid_inventory_lot(p_order_id uuid,p_wallet text,p_payment_signature text)
-returns table(lot_id uuid,symbol text,mint text,token_amount text,decimals int,usd_value numeric)
+drop function if exists public.claim_paid_inventory_lot(uuid,text,text);
+create function public.claim_paid_inventory_lot(p_order_id uuid,p_wallet text,p_payment_signature text)
+returns table(lot_id uuid,symbol text,mint text,token_amount text,decimals int,token_program text,usd_value numeric)
 language plpgsql security definer set search_path=public as $$
 begin
   update pack_orders set payment_signature=p_payment_signature,status='verified' where id=p_order_id and wallet=p_wallet and status in('pending','verified');
   if not found then raise exception 'Order is unavailable.'; end if;
   update inventory_lots set status='paid' where reserved_order_id=p_order_id and status in('reserved','paid');
-  return query select l.id,l.symbol,l.mint,l.token_amount::text,l.decimals,l.usd_value from inventory_lots l where l.reserved_order_id=p_order_id and l.status='paid';
+  return query select l.id,l.symbol,l.mint,l.token_amount::text,l.decimals,l.token_program,l.usd_value from inventory_lots l where l.reserved_order_id=p_order_id and l.status='paid';
 end $$;
 
 create or replace function public.complete_pack_fulfillment(p_order_id uuid,p_lot_id uuid,p_fulfillment_signature text) returns void
