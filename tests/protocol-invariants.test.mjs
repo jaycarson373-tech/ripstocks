@@ -15,12 +15,17 @@ test("one shared 20-minute interval drives the product", () => {
 test("protocol fees split exactly 75\/25", () => {
   assert.match(schema, /gross_fee_usdc\*\.75/);
   assert.match(schema, /pack_ev_reserve_amount/);
+  assert.match(protocol, /HOLDER_AIRDROP_FEE_BPS = 7_500/);
+  assert.match(protocol, /PACK_EV_RESERVE_FEE_BPS = 2_500/);
 });
 
 test("pack inventory and holder treasury use separate ledgers", () => {
   assert.match(schema, /pack_inventory_ledger/);
   assert.match(schema, /holder_airdrop_treasury_ledger/);
   assert.match(schema, /pack_ev_reserve_ledger/);
+  assert.match(schema, /protocol_wallets/);
+  assert.match(schema, /'pack_inventory','holder_airdrop','pack_ev_reserve'/);
+  assert.match(schema, /protocol_fee_sweeps/);
 });
 
 test("EV is calculated, never a fixed promise", () => {

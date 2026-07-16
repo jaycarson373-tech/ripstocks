@@ -1,5 +1,13 @@
 export const AIRDROP_INTERVAL_MINUTES = 20 as const;
 export const AIRDROP_INTERVAL_MS = AIRDROP_INTERVAL_MINUTES * 60 * 1000;
+export const HOLDER_AIRDROP_FEE_BPS = 7_500 as const;
+export const PACK_EV_RESERVE_FEE_BPS = 2_500 as const;
+
+export const PROTOCOL_WALLET_ENV = {
+  packInventory: "PACK_INVENTORY_WALLET",
+  holderAirdrop: "HOLDER_AIRDROP_WALLET",
+  packEvReserve: "PACK_EV_RESERVE_WALLET",
+} as const;
 
 export type ProtocolSnapshot = {
   serverNow: string;

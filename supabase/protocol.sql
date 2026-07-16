@@ -3,6 +3,13 @@ create extension if not exists pgcrypto;
 create table if not exists public.protocol_config (id boolean primary key default true check(id), airdrop_interval_minutes int not null default 20 check(airdrop_interval_minutes=20));
 insert into public.protocol_config(id,airdrop_interval_minutes) values(true,20) on conflict(id) do update set airdrop_interval_minutes=20;
 
+-- Three explicit public accounts. Private signing material belongs only in Railway.
+create table if not exists public.protocol_wallets (
+  role text primary key check(role in ('pack_inventory','holder_airdrop','pack_ev_reserve')),
+  address text not null unique,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.pack_inventory_ledger (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   entry_type text not null check(entry_type in ('pack_sale','inventory_purchase','inventory_adjustment','pack_fulfillment','ev_reserve_purchase')),
@@ -23,6 +30,16 @@ create table if not exists public.protocol_fee_ledger (
   holder_airdrop_amount numeric(18,6) generated always as (round(gross_fee_usdc*.75,6)) stored,
   pack_ev_reserve_amount numeric(18,6) generated always as (gross_fee_usdc-round(gross_fee_usdc*.75,6)) stored,
   transaction_signature text unique not null
+);
+-- One verified sweep moves each fee allocation into its own wallet. The 25% share
+-- does not stay in the fee collector: it goes to the Pack EV Reserve wallet.
+create table if not exists public.protocol_fee_sweeps (
+  id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
+  fee_ledger_id uuid not null unique references public.protocol_fee_ledger(id),
+  holder_airdrop_amount numeric(18,6) not null check(holder_airdrop_amount>=0),
+  pack_ev_reserve_amount numeric(18,6) not null check(pack_ev_reserve_amount>=0),
+  holder_transfer_signature text not null unique,
+  reserve_transfer_signature text not null unique
 );
 create table if not exists public.holder_airdrop_treasury_ledger (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
@@ -48,6 +65,35 @@ create table if not exists public.airdrop_epochs (
   check(ends_at-starts_at=interval '20 minutes')
 );
 
+-- Railway calls this only after both transfers confirm on Solana. It atomically
+-- records the fee, its exact 75/25 split, and both destination-wallet credits.
+create or replace function public.record_protocol_fee_sweep(
+  p_gross_fee_usdc numeric,
+  p_fee_signature text,
+  p_holder_transfer_signature text,
+  p_reserve_transfer_signature text
+) returns uuid language plpgsql security definer set search_path=public as $$
+declare
+  v_fee_id uuid;
+  v_holder numeric(18,6);
+  v_reserve numeric(18,6);
+begin
+  if p_gross_fee_usdc <= 0 then raise exception 'gross fee must be positive'; end if;
+  v_holder := round(p_gross_fee_usdc * .75, 6);
+  v_reserve := p_gross_fee_usdc - v_holder;
+  insert into protocol_fee_ledger(gross_fee_usdc,transaction_signature)
+    values(p_gross_fee_usdc,p_fee_signature) returning id into v_fee_id;
+  insert into protocol_fee_sweeps(fee_ledger_id,holder_airdrop_amount,pack_ev_reserve_amount,holder_transfer_signature,reserve_transfer_signature)
+    values(v_fee_id,v_holder,v_reserve,p_holder_transfer_signature,p_reserve_transfer_signature);
+  insert into holder_airdrop_treasury_ledger(amount_usdc,entry_type,fee_ledger_id,transaction_signature)
+    values(v_holder,'fee_credit',v_fee_id,p_holder_transfer_signature);
+  insert into pack_ev_reserve_ledger(amount_usdc,entry_type,fee_ledger_id,transaction_signature)
+    values(v_reserve,'fee_credit',v_fee_id,p_reserve_transfer_signature);
+  return v_fee_id;
+end;
+$$;
+revoke all on function public.record_protocol_fee_sweep(numeric,text,text,text) from public,anon,authenticated;
+
 create or replace function public.protocol_public_snapshot() returns jsonb language sql security definer set search_path=public as $$
 with inv as (select coalesce(sum(stock_value_delta),0) stock_value, coalesce(sum(packs_delta),0) packs, count(*) filter(where entry_type in('inventory_purchase','ev_reserve_purchase')) purchases from pack_inventory_ledger),
 opened as (select count(*) n from pack_orders where status='fulfilled'),
@@ -60,8 +106,10 @@ $$;
 grant execute on function public.protocol_public_snapshot() to anon,authenticated;
 
 alter table public.pack_inventory_ledger enable row level security;
+alter table public.protocol_wallets enable row level security;
 alter table public.inventory_assets enable row level security;
 alter table public.protocol_fee_ledger enable row level security;
+alter table public.protocol_fee_sweeps enable row level security;
 alter table public.holder_airdrop_treasury_ledger enable row level security;
 alter table public.pack_ev_reserve_ledger enable row level security;
 alter table public.pack_orders enable row level security;
