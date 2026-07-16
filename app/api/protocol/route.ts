@@ -3,12 +3,26 @@ import { calculatePackEv, emptySnapshot, synchronizedEpochEndsAt, type ProtocolS
 
 export const dynamic = "force-dynamic";
 
+function cleanBase(value:string|undefined){
+  const clean=(value||"").trim().replace(/^(["'])(.*)\1$/,"$2").replace(/\/$/,"");
+  return clean ? (/^https?:\/\//.test(clean) ? clean : `https://${clean}`) : "";
+}
+
 async function rest<T>(url:string,key:string,path:string):Promise<T[]>{
   const response=await fetch(`${url}/rest/v1/${path}`,{headers:{apikey:key,Authorization:`Bearer ${key}`},cache:"no-store"});
   return response.ok?await response.json() as T[]:[];
 }
 
-export async function GET() {
+export async function GET(request:Request) {
+  const railwayBase=cleanBase(process.env.NEXT_PUBLIC_RAILWAY_API_URL||process.env.RAILWAY_API_URL);
+  if(railwayBase){
+    try{
+      if(new URL(railwayBase).host!==new URL(request.url).host){
+        const upstream=await fetch(`${railwayBase}/api/protocol`,{cache:"no-store"});
+        if(upstream.ok)return NextResponse.json(await upstream.json(),{headers:{"Cache-Control":"no-store"}});
+      }
+    }catch{}
+  }
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.json(emptySnapshot(), { headers: { "Cache-Control": "no-store" } });
