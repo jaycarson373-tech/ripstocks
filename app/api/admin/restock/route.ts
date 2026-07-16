@@ -19,6 +19,19 @@ async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof 
   return account;
 }
 
+async function receivedBalance(connection:Connection,account:PublicKey,beforeAtoms:bigint){
+  let last=beforeAtoms;
+  let decimals=0;
+  for(let attempt=0;attempt<12;attempt++){
+    const balance=await connection.getTokenAccountBalance(account,"confirmed");
+    last=BigInt(balance.value.amount||"0");
+    decimals=balance.value.decimals;
+    if(last>beforeAtoms)return {received:last-beforeAtoms,decimals};
+    await new Promise(resolve=>setTimeout(resolve,750));
+  }
+  return {received:last-beforeAtoms,decimals};
+}
+
 export async function POST(request:Request){
   if(!authorized(request))return Response.json({error:"Unauthorized"},{status:401});
   try{
@@ -55,10 +68,10 @@ export async function POST(request:Request){
     const before=await connection.getTokenAccountBalance(destination,"confirmed");
     const beforeAtoms=BigInt(before.value.amount||"0");
     const swap=await swapExactInput({connection,signer,inputMint:usdcMint,outputMint:mint,inputAtoms:BigInt(Math.round(usd*10**USDC_DECIMALS)),destinationTokenAccount:destination});
-    const after=await connection.getTokenAccountBalance(destination,"confirmed");
-    const received=BigInt(after.value.amount)-beforeAtoms;
+    const after=await receivedBalance(connection,destination,beforeAtoms);
+    const received=after.received;
     if(received<=BigInt(0))throw new Error(`Swap ${swap.signature} confirmed without received inventory`);
-    const row=scope==="main"?{symbol:target.symbol,mint:target.mint,token_amount:received.toString(),decimals:after.value.decimals,token_program:TOKEN_2022_PROGRAM_ID.toBase58(),usd_value:usd,acquisition_signature:swap.signature,status:"available"}:{symbol:target.symbol,mint:target.mint,token_amount:received.toString(),decimals:after.value.decimals,token_program:TOKEN_2022_PROGRAM_ID.toBase58(),purchase_value:usd,acquisition_signature:swap.signature,status:"available"};
+    const row=scope==="main"?{symbol:target.symbol,mint:target.mint,token_amount:received.toString(),decimals:after.decimals,token_program:TOKEN_2022_PROGRAM_ID.toBase58(),usd_value:usd,acquisition_signature:swap.signature,status:"available"}:{symbol:target.symbol,mint:target.mint,token_amount:received.toString(),decimals:after.decimals,token_program:TOKEN_2022_PROGRAM_ID.toBase58(),purchase_value:usd,acquisition_signature:swap.signature,status:"available"};
     const inserted=await supabase(countTable,{method:"POST",body:JSON.stringify(row)});
     if(!inserted.ok)throw new Error(`Swap confirmed, but inventory recording needs reconciliation: ${await inserted.text()}`);
     if(scope==="main")await supabase("pack_inventory_ledger",{method:"POST",body:JSON.stringify({entry_type:"inventory_purchase",usdc_delta:-usd,stock_value_delta:usd,packs_delta:1,transaction_signature:swap.signature,metadata:{symbol:target.symbol,mint:target.mint}})});
