@@ -51,6 +51,7 @@ export default function Home() {
     };
   }, []);
   const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
+  const inventoryReady=snapshot.packsRemaining>0;
   const stockStyle=(symbol:string)=>stocks.find(stock=>stock.ticker===symbol)??{ticker:symbol,name:symbol,color:"#caff00",ink:"#080808"};
   const short=(address:string)=>address?`${address.slice(0,4)}…${address.slice(-4)}`:"—";
 
@@ -70,6 +71,7 @@ export default function Home() {
 
   async function openPack() {
     const provider=providerRef.current; if(!provider||!wallet)return connect();
+    if(!inventoryReady){setWalletError("Inventory is restocking. No payment was requested.");return}
     const base=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").replace(/\/$/,"");
     if(!base){setWalletError("Checkout service is unavailable.");return}
     setWalletError(""); setOpening(true); setResult(null);
@@ -132,17 +134,18 @@ export default function Home() {
         ].map(([label,value,currency])=><div key={String(label)}><span>{label}</span><b>{currency?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b></div>)}</div>
         <div className="sectionHead"><div><span className="kicker">CHOOSE YOUR RIP</span><h2>Launch pack.<br/>One stock pull.</h2></div><p>The $10 launch pack contains exactly one randomized xStock available on Solana. You pay in USDC. The pull lands in your wallet.</p></div>
         <div className="packGrid">
-          {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?snapshot.packsRemaining:0; return <button key={price} disabled={!available} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>
+          {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?snapshot.packsRemaining:0; return <div key={price} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>
             <span className="chance">{i===0?"THE QUICK RIP":i===1?"CROWD FAVORITE":"THE BIG RIP"}</span>
             <span className={`inventory ${inventory===0?"empty":""}`}>{inventory} PACKS LEFT</span>
             <div className="miniPack photoPack"><img src="/ripstocks-logo.jpg" alt=""/><i>{price}</i></div>
+            {available&&<button className="packBuy" type="button" disabled={!inventoryReady||opening} onClick={event=>{event.stopPropagation();void (wallet?openPack():connect())}}>{inventoryReady?(wallet?"BUY PACK · 10 USDC":"CONNECT TO BUY"):"RESTOCKING INVENTORY"}</button>}
             <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>{i===0?"1 Stock Pull":"Premium Pulls"}<br/>{available&&<>Expected Value <strong className="evValue">${snapshot.currentPackEv.toFixed(2)}</strong><br/></>}<em>{available?"Instant Delivery":"Projected EV · Coming Soon"}</em></p></div>
             {tier===price && <span className="chosen">SELECTED ✓</span>}
             {!available && <span className="soldOut">UNAVAILABLE</span>}
-          </button>})}
+          </div>})}
         </div>
         <div className="ripBar">
-          <div><span>YOUR PACK</span><b>${tier} RIP</b></div><div><span>PAY WITH</span><b>USDC <i>◎</i></b></div><button onClick={wallet?openPack:connect}>{wallet?`RIP THE $${tier} PACK`:`CONNECT TO RIP`} <span>→</span></button>
+          <div><span>YOUR PACK</span><b>${tier} RIP</b></div><div><span>PAY WITH</span><b>USDC <i>◎</i></b></div><button disabled={!inventoryReady||opening} onClick={wallet?openPack:connect}>{inventoryReady?(wallet?`RIP THE $${tier} PACK`:`CONNECT TO RIP`):"RESTOCKING INVENTORY"} <span>→</span></button>
         </div>
         {walletError && <div className="walletNotice" role="alert">{walletError}</div>}
       </section>
