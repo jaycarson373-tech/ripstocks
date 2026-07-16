@@ -8,7 +8,10 @@ export function average(values: readonly number[]) { return values.length ? tota
 export type XStockTarget = { symbol:string; mint:string; enabled:boolean; weight?:number };
 
 export function parseTargets(raw=process.env.XSTOCK_TARGETS_JSON || "[]") {
-  const targets=(JSON.parse(raw) as XStockTarget[]).filter(target=>target.enabled);
+  const normalized=raw.trim()
+    .replace(/^XSTOCK_TARGETS_JSON\s*=\s*/, "")
+    .replace(/^(["'])([\s\S]*)\1$/, "$2");
+  const targets=(JSON.parse(normalized) as XStockTarget[]).filter(target=>target.enabled);
   if(targets.length!==10) throw new Error("Exactly 10 enabled xStock targets are required");
   return targets;
 }
