@@ -24,6 +24,7 @@ export type ProtocolSnapshot = {
   currentPackEv: number;
   totalHolderDrops: number;
   totalValueAirdropped: number;
+  inventoryLogs: Array<{source:string;message:string;count:number;value:number;time:string;signature:string}>;
   proofs: Array<{winner:string;pack:string;stock:string;value:number;time:string;signature:string}>;
   recentPacks: Array<{wallet:string;pack:string;stock:string;value:number;time:string;paymentSignature:string;fulfillmentSignature:string}>;
 };
@@ -41,5 +42,5 @@ export const emptySnapshot = (): ProtocolSnapshot => ({
   packInventoryValue: 0, remainingStockInventory: 0, packsRemaining: 0,
   totalPacksOpened: 0, inventoryPurchases: 0, inventoryAssets: 0,
   holderAirdropTreasury: 0, holderPacksAvailable: 0, averageHolderDropValue: 0, packEvReserve: 0, currentPackEv: 0,
-  totalHolderDrops: 0, totalValueAirdropped: 0, proofs: [], recentPacks: [],
+  totalHolderDrops: 0, totalValueAirdropped: 0, inventoryLogs: [], proofs: [], recentPacks: [],
 });

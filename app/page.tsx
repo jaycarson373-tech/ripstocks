@@ -139,6 +139,9 @@ export default function Home() {
           ["AVERAGE DROP VALUE",snapshot.averageHolderDropValue,true],
           ["VALUE AIRDROPPED",snapshot.totalValueAirdropped,true],
         ].map(([label,value,currency])=><div key={String(label)}><span>{label}</span><b>{currency?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b></div>)}</div>
+        <div className="inventoryLog" aria-label="Inventory purchase log">
+          {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
+        </div>
         <div className="sectionHead"><div><span className="kicker">CHOOSE YOUR RIP</span><h2>Launch pack.<br/>One stock pull.</h2></div><p>The $10 launch pack contains exactly one randomized xStock available on Solana. You pay in USDC. The pull lands in your wallet.</p></div>
         <div className="packGrid">
           {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?snapshot.packsRemaining:0; return <div key={price} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>
