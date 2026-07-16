@@ -7,6 +7,7 @@ import { keypairEnv, publicKeyEnv, rpcUrl, supabase, USDC_MINT } from "@/lib/ser
 
 export const dynamic="force-dynamic";
 const WRAPPED_SOL=new PublicKey("So11111111111111111111111111111111111111112");
+const LOADER_VERSION="ata-destination-v2";
 
 async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof keypairEnv>,mint:PublicKey){
   const account=getAssociatedTokenAddressSync(mint,payer.publicKey,false,TOKEN_2022_PROGRAM_ID);
@@ -39,7 +40,7 @@ export async function POST(request:Request){
     const table=scope==="main"?"inventory_lots":"airdrop_inventory_lots";
     const tableCheck=await supabase(`${table}?select=id&limit=1`);
     if(!tableCheck.ok)throw new Error(`Database inventory table is unavailable: ${await tableCheck.text()}`);
-    if(dryRun)return Response.json({ok:true,dryRun:true,scope,plannedPacks:budgets.length,totalUsd:20,reserveProtected:true});
+    if(dryRun)return Response.json({ok:true,dryRun:true,scope,plannedPacks:budgets.length,totalUsd:20,reserveProtected:true,loaderVersion:LOADER_VERSION});
     const runKey=`test-load:${scope}:${testId}`;
     const lock=await supabase("automation_runs",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({run_key:runKey,kind:`${scope}_test_load`,status:"running"})});
     const locked=await lock.json() as Array<unknown>;
@@ -62,6 +63,6 @@ export async function POST(request:Request){
       results.push({usd,signature:swap.signature});
     }
     await supabase(`automation_runs?run_key=eq.${encodeURIComponent(runKey)}`,{method:"PATCH",body:JSON.stringify({status:"confirmed",completed_at:new Date().toISOString()})});
-    return Response.json({ok:true,scope,packsAdded:results.length,totalUsd:budgets.reduce((sum,value)=>sum+value,0),transactions:results.map(result=>result.signature)});
+    return Response.json({ok:true,scope,packsAdded:results.length,totalUsd:budgets.reduce((sum,value)=>sum+value,0),loaderVersion:LOADER_VERSION,transactions:results.map(result=>result.signature)});
   }catch(error){return Response.json({error:error instanceof Error?error.message:"Test load failed"},{status:503})}
 }
