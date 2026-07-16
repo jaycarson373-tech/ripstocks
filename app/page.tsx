@@ -10,6 +10,11 @@ const stockPalette=["#65d1ff","#d8ff3e","#815cff","#ef3d4c","#ff5b42","#76e247",
 const RIPSTOCKS_MINT="31aEMecqoVxVB3Lt8U1XFcafmR167cYy77bRQMwMpump";
 type StockDisplay={ticker:string;name:string;color:string;ink:string};
 const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map((stock,index)=>({ticker:stock.symbol,name:stock.name,color:stockPalette[index],ink:index===2||index===3||index===4||index===6?"#fff":"#090909"}));
+function apiBase(){
+  const raw=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").trim().replace(/^["']|["']$/g,"").replace(/\/$/,"");
+  if(!raw)return "";
+  return /^https?:\/\//i.test(raw)?raw:`https://${raw}`;
+}
 export default function Home() {
   const [tier, setTier] = useState(10);
   const [wallet, setWallet] = useState("");
@@ -72,19 +77,19 @@ export default function Home() {
   async function openPack() {
     const provider=providerRef.current; if(!provider||!wallet)return connect();
     if(!inventoryReady){setWalletError("Inventory is restocking. No payment was requested.");return}
-    const base=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").replace(/\/$/,"");
+    const base=apiBase();
     setWalletError(""); setOpening(true); setResult(null);
     try{
       const created=await fetch(`${base}/api/checkout/create`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet})});
       const checkout=await created.json() as {orderId?:string;transaction?:string;error?:string};
-      if(!created.ok||!checkout.orderId||!checkout.transaction)throw new Error(checkout.error||"Could not reserve a pack");
+      if(!created.ok||!checkout.orderId||!checkout.transaction)throw new Error(created.status===409?"Inventory is restocking. Try again in a moment.":"Pack checkout is warming up. Try again in a moment.");
       const bytes=Uint8Array.from(atob(checkout.transaction),c=>c.charCodeAt(0));
       const {signature}=await provider.signAndSendTransaction(Transaction.from(bytes));
       const confirmed=await fetch(`${base}/api/checkout/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:checkout.orderId,paymentSignature:signature,wallet})});
       const pull=await confirmed.json() as {symbol?:string;value?:number;error?:string};
-      if(!confirmed.ok||!pull.symbol)throw new Error(pull.error||"Payment confirmed; delivery is retrying");
+      if(!confirmed.ok||!pull.symbol)throw new Error("Payment received. Delivery is retrying.");
       setPulledValue(Number(pull.value)||0); setOpening(false); setResult(stocks.find(stock=>stock.ticker===pull.symbol)??{ticker:pull.symbol,name:pull.symbol,color:"#caff00",ink:"#080808"});
-    }catch(error){setOpening(false);setWalletError(error instanceof Error?error.message:"Checkout failed. No unverified payment is treated as complete.")}
+    }catch(error){setOpening(false);setWalletError(error instanceof Error&&error.message.includes("User rejected")?"Transaction cancelled. No payment was taken.":"Pack checkout did not start. Refresh and try again.")}
   }
 
   return (
