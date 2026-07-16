@@ -18,6 +18,7 @@ export default function Home() {
   const [result, setResult] = useState<StockDisplay | null>(null);
   const [pulledValue, setPulledValue] = useState(0);
   const [walletError, setWalletError] = useState("");
+  const [copiedCa, setCopiedCa] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const providerRef = useRef<SolanaProvider | null>(null);
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot>(emptySnapshot());
@@ -69,6 +70,12 @@ export default function Home() {
     try { await providerRef.current?.disconnect(); } finally { setWallet(""); setWalletError(""); setConnecting(false); }
   }
 
+  async function copyContract() {
+    await navigator.clipboard.writeText(RIPSTOCKS_MINT);
+    setCopiedCa(true);
+    window.setTimeout(() => setCopiedCa(false), 1400);
+  }
+
   async function openPack() {
     const provider=providerRef.current; if(!provider||!wallet)return connect();
     if(!inventoryReady){setWalletError("Inventory is restocking. No payment was requested.");return}
@@ -92,8 +99,8 @@ export default function Home() {
     <main>
       <div className="grain" />
       <nav className="nav wrap">
-        <a className="brand brandImage" href="#top" aria-label="RipStocks home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span><i>β</i></a>
-        <a className="contractPill" href={`https://solscan.io/token/${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer" title={RIPSTOCKS_MINT}><span>CA</span>{RIPSTOCKS_MINT}</a>
+        <a className="brand brandImage" href="#top" aria-label="RipStocks home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span></a>
+        <button className={`contractPill ${copiedCa?"copied":""}`} type="button" onClick={copyContract} title={RIPSTOCKS_MINT}><span>CA</span>{copiedCa?"COPIED":RIPSTOCKS_MINT}</button>
         <div className="navlinks"><a href="#packs">Packs</a><a href="#live">Live rips</a><a href="#flywheel">Flywheel</a><a href="https://x.com/RipStocks_" target="_blank" rel="noreferrer">X ↗</a></div>
         {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
       </nav>
