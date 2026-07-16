@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const stocks = [
   { ticker: "AAPLx", name: "Apple", color: "#f2f2ee", ink: "#090909" },
@@ -20,14 +20,13 @@ const recent = [
 const airdrops = [["14:00","7sK…Pq9","NVDAx","$18.42","5fW…oR2"],["13:00","B2m…xL8","AAPLx","$11.06","3kA…Vn7"],["12:00","H8q…cY1","HOODx","$22.75","9jT…mP4"]];
 
 export default function Home() {
-  const [tier, setTier] = useState(30);
+  const [tier, setTier] = useState(10);
   const [wallet, setWallet] = useState("");
   const [spectating, setSpectating] = useState(false);
   const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<(typeof stocks)[number] | null>(null);
   const [walletError, setWalletError] = useState("");
   const [seconds, setSeconds] = useState(3600);
-  const pick = useMemo(() => stocks[(tier / 10 + 1) % stocks.length], [tier]);
   useEffect(() => { const tick=()=>setSeconds(3600-(new Date().getMinutes()*60+new Date().getSeconds())); tick(); const timer=window.setInterval(tick,1000); return()=>window.clearInterval(timer); }, []);
   const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
 
@@ -76,14 +75,16 @@ export default function Home() {
       <div className="ticker"><div>{[...stocks,...stocks].map((s,i)=><span key={i}><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
 
       <section className="packs wrap" id="packs">
-        <div className="sectionHead"><div><span className="kicker">CHOOSE YOUR RIP</span><h2>Three packs.<br/>No boring picks.</h2></div><p>Every pack contains a randomized bundle of xStocks available on Solana. You pay in USDC. The pull lands in your wallet.</p></div>
+        <div className="sectionHead"><div><span className="kicker">CHOOSE YOUR RIP</span><h2>Launch pack.<br/>One stock pull.</h2></div><p>The $10 launch pack contains exactly one randomized xStock available on Solana. You pay in USDC. The pull lands in your wallet.</p></div>
         <div className="packGrid">
-          {[10,30,50].map((price, i)=><button key={price} onClick={()=>setTier(price)} className={`packCard p${price} ${tier===price?"selected":""}`}>
+          {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?247:0; return <button key={price} disabled={!available} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>
             <span className="chance">{i===0?"THE QUICK RIP":i===1?"CROWD FAVORITE":"THE BIG RIP"}</span>
+            <span className={`inventory ${inventory===0?"empty":""}`}>{inventory} PACKS LEFT</span>
             <div className="miniPack photoPack"><img src="/ripstocks-logo.jpg" alt=""/><i>{price}</i></div>
-            <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>{i===0?"1–2":i===1?"2–4":"3–6"} stock pulls<br/><em>Instant delivery</em></p></div>
+            <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>{i===0?"1 stock pull":"Unavailable"}<br/><em>{available?"Instant delivery":"Coming soon"}</em></p></div>
             {tier===price && <span className="chosen">SELECTED ✓</span>}
-          </button>)}
+            {!available && <span className="soldOut">UNAVAILABLE</span>}
+          </button>})}
         </div>
         <div className="ripBar">
           <div><span>YOUR PACK</span><b>${tier} RIP</b></div><div><span>PAY WITH</span><b>USDC <i>◎</i></b></div><button onClick={wallet?openPack:connect}>{wallet?`RIP THE $${tier} PACK`:`CONNECT TO RIP`} <span>→</span></button>
