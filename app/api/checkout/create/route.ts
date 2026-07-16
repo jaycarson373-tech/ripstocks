@@ -5,6 +5,12 @@ import { PACK_PRICE_USDC_ATOMS, publicKeyEnv, rpcUrl, supabase, USDC_MINT } from
 
 export const dynamic = "force-dynamic";
 export function OPTIONS(){ return optionsResponse(); }
+const CHECKOUT_VERSION="rest-reserve-v2";
+
+function cleanBase(value:string|undefined){
+  const clean=(value||"").trim().replace(/^(["'])(.*)\1$/,"$2").replace(/\/$/,"");
+  return clean ? (/^https?:\/\//.test(clean) ? clean : `https://${clean}`) : "";
+}
 
 async function reserveInventory(wallet:string){
   const expires=new Date(Date.now()+3*60_000).toISOString();
@@ -28,7 +34,15 @@ async function reserveInventory(wallet:string){
 
 export async function POST(request: Request) {
   try {
-    const { wallet } = await request.json() as { wallet?: string };
+    const body = await request.json() as { wallet?: string; dryRun?: boolean };
+    if(body.dryRun)return json({ok:true,version:CHECKOUT_VERSION});
+    const railwayBase=cleanBase(process.env.NEXT_PUBLIC_RAILWAY_API_URL||process.env.RAILWAY_API_URL);
+    if(railwayBase&&new URL(railwayBase).host!==new URL(request.url).host){
+      const upstream=await fetch(`${railwayBase}/api/checkout/create`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),cache:"no-store"});
+      const data=await upstream.json().catch(()=>({error:"Checkout proxy failed"}));
+      return json(data,upstream.status);
+    }
+    const { wallet } = body;
     const buyer = new PublicKey(wallet || "");
     const treasury = publicKeyEnv("MAIN_TREASURY_WALLET");
     const orderId = await reserveInventory(buyer.toBase58());
