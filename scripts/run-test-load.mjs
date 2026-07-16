@@ -1,5 +1,7 @@
-const base=(process.env.RAILWAY_API_URL||process.env.API_URL||"").replace(/\/$/,"");
-const secret=process.env.AUTOMATION_SECRET||"";
+const clean=value=>(value||"").trim().replace(/^(["'])(.*)\1$/,"$2");
+const rawBase=clean(process.env.RAILWAY_API_URL||process.env.API_URL);
+const base=(/^https?:\/\//.test(rawBase)?rawBase:`https://${rawBase}`).replace(/\/$/,"");
+const secret=clean(process.env.AUTOMATION_SECRET||process.env.CRON_SECRET);
 if(!base||!secret){console.error("Missing RAILWAY_API_URL or AUTOMATION_SECRET");process.exit(1)}
 const run=async(scope,testId)=>{
   const response=await fetch(`${base}/api/admin/test-load`,{method:"POST",headers:{authorization:`Bearer ${secret}`,"content-type":"application/json"},body:JSON.stringify({scope,testId})});
