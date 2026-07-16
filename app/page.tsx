@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const stocks = [
   { ticker: "AAPLx", name: "Apple", color: "#f2f2ee", ink: "#090909" },
@@ -17,6 +17,7 @@ const recent = [
   ["3Fx…aV8", "$50", "HOODx", "$63.40", "+26.8%"],
   ["Bq2…L9n", "$10", "TSLAx", "$9.72", "-2.8%"],
 ];
+const airdrops = [["14:00","7sK…Pq9","NVDAx","$18.42","5fW…oR2"],["13:00","B2m…xL8","AAPLx","$11.06","3kA…Vn7"],["12:00","H8q…cY1","HOODx","$22.75","9jT…mP4"]];
 
 export default function Home() {
   const [tier, setTier] = useState(30);
@@ -24,7 +25,10 @@ export default function Home() {
   const [spectating, setSpectating] = useState(false);
   const [opening, setOpening] = useState(false);
   const [result, setResult] = useState<(typeof stocks)[number] | null>(null);
+  const [seconds, setSeconds] = useState(3600);
   const pick = useMemo(() => stocks[(tier / 10 + 1) % stocks.length], [tier]);
+  useEffect(() => { const tick=()=>setSeconds(3600-(new Date().getMinutes()*60+new Date().getSeconds())); tick(); const timer=window.setInterval(tick,1000); return()=>window.clearInterval(timer); }, []);
+  const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
 
   async function connect() {
     const provider = (window as Window & { solana?: { connect: () => Promise<{ publicKey: { toString: () => string } }> } }).solana;
@@ -54,7 +58,7 @@ export default function Home() {
           <h1>RIP IT.<br/><em>OWN IT.</em></h1>
           <p>Crack a pack. Pull tokenized stocks. Straight to your wallet.</p>
           <div className="heroActions"><a className="primary" href="#packs">RIP A PACK <b>↓</b></a><button className="textBtn" onClick={() => setSpectating(true)}>SPECTATE LIVE <span>●</span></button></div>
-          <div className="proof"><div><b>23</b><span>xSTOCKS</span></div><div><b>$10</b><span>FROM</span></div><div><b>24/7</b><span>ONCHAIN</span></div></div>
+          <div className="proof"><div><b>100%</b><span>FEES → STOCKS</span></div><div><b>{countdown}</b><span>NEXT AIRDROP</span></div><div><b>24/7</b><span>PROOF POSTED</span></div></div>
         </div>
         <div className="machine" aria-label="Animated pack ripping machine">
           <div className="machineTop"><span>RIP-O-MATIC</span><i>ONLINE</i></div>
@@ -90,18 +94,15 @@ export default function Home() {
         <div className="table"><div className="tr labels"><span>RIPPER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>EV</span></div>{recent.map((r,i)=><div className="tr" key={i}><span><i className={`avatar a${i}`}/>{r[0]}</span><span>{r[1]}</span><span><b>{r[2]}</b></span><span>{r[3]}</span><span className={r[4].startsWith("+")?"up":"down"}>{r[4]}</span></div>)}</div>
       </div></section>
 
-      <section className="fly wrap" id="flywheel"><span className="kicker">THE RIPSTOCKS FLYWHEEL</span><h2>More rips.<br/><em>Stronger packs.</em></h2><div className="wheel">
-        <div className="wheelCenter"><b>CREATOR<br/>FEES</b><span>VOLUME IN</span></div>
-        <div className="spoke one"><b>50%</b><span>BUY PACKS</span><p>Purchased and airdropped to holders.</p></div>
-        <div className="spoke two"><b>50%</b><span>STOCK TREASURY</span><p>More inventory. Stronger future EV.</p></div>
-        <div className="spoke three"><b>∞</b><span>REPEAT</span><p>More volume feeds the machine.</p></div>
-      </div><p className="disclaimer">RipStocks is a pack-opening experience using tokenized assets available on Solana. Pack contents vary. Nothing here is financial advice.</p></section>
+      <section className="fly wrap" id="flywheel"><span className="kicker">THE HOURLY HOLDER DROP</span><h2>Every fee.<br/><em>Back to holders.</em></h2><div className="hourly">
+        <div className="hourStep"><b>01</b><span>FEES LAND</span><p>100% of creator fees collect onchain.</p></div><i>→</i><div className="hourStep acid"><b>02</b><span>BUY xSTOCKS</span><p>The full balance buys eligible tokenized stocks.</p></div><i>→</i><div className="hourStep"><b>03</b><span>RANDOM DRAW</span><p>One eligible holder is selected every hour.</p></div><i>→</i><div className="hourStep"><b>04</b><span>INSTANT PROOF</span><p>The signature posts as soon as it lands.</p></div>
+      </div><div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> HOURLY AIRDROP PROOF</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>DRAW</span><span>WINNER</span><span>STOCK</span><span>VALUE</span><span>PROOF</span></div>{airdrops.map((a,i)=><div className="proofRow" key={i}><span>{a[0]}</span><span>{a[1]}</span><span><b>{a[2]}</b></span><span>{a[3]}</span><span><button title="Activates with the live distributor">{a[4]} ↗</button></span></div>)}</div></div><p className="disclaimer">Hourly draws use the configured holder snapshot and verifiable randomness seed. Eligibility and transaction signatures publish with every distribution. Tokenized assets carry market risk. Nothing here is financial advice.</p></section>
 
       <footer><div className="wrap"><div className="brand"><span className="ripmark">R</span><span>RIPSTOCKS</span></div><p>RIP. PULL. REPEAT.</p><div><a href="#packs">PACKS</a><a href="#live">LIVE</a><a href="#flywheel">HOW IT WORKS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
-        {opening ? <><span className="kicker">RIPPING ONCHAIN</span><div className="ripAnim"><div className="pack"><strong>RIP<br/>STOCKS</strong></div></div><p>VERIFYING PULL…</p></> : result && <><span className="kicker">YOU PULLED</span><div className="stockResult" style={{background:result.color,color:result.ink}}><small>xSTOCK</small><b>{result.ticker}</b><span>{result.name}</span></div><h3>${(tier*1.14).toFixed(2)} OF {result.name.toUpperCase()}</h3><p>Delivered to {wallet.slice(0,4)}…{wallet.slice(-4)}</p><button className="primary" onClick={()=>setResult(null)}>RIP ANOTHER →</button></>}
+        {opening ? <><span className="kicker">RIPPING ONCHAIN</span><div className="ripAnim"><div className="pack"><strong>RIP<br/>STOCKS</strong></div></div><p>VERIFYING PULL…</p></> : result && <><span className="kicker">YOU PULLED</span><div className="stockResult" style={{background:result.color,color:result.ink}}><small>xSTOCK</small><b>{result.ticker}</b><span>{result.name}</span></div><h3>${(tier*1.14).toFixed(2)} OF {result.name.toUpperCase()}</h3><p>Delivered to {wallet.slice(0,4)}…{wallet.slice(-4)}</p><div className="instantProof"><span>PROOF</span><b>Posts instantly after mainnet confirmation ↗</b></div><button className="primary" onClick={()=>setResult(null)}>RIP ANOTHER →</button></>}
       </div></div>}
     </main>
   );
