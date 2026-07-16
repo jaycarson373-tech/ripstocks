@@ -37,7 +37,7 @@ export async function POST(request:Request){
     const {scope,testId,dryRun=false,budgets:requestedBudgets}=await request.json() as {scope?:"main"|"holder";testId?:string;dryRun?:boolean;budgets?:number[]};
     if(scope!=="main"&&scope!=="holder")return Response.json({error:"scope must be main or holder"},{status:400});
     if(!testId||!/^[a-zA-Z0-9_-]{8,64}$/.test(testId))return Response.json({error:"A unique testId is required"},{status:400});
-    const budgets=Array.isArray(requestedBudgets)&&requestedBudgets.length?requestedBudgets:(scope==="main"?[10,10]:[5,5,5,5]);
+    const budgets=Array.isArray(requestedBudgets)&&requestedBudgets.length?requestedBudgets:(scope==="main"?[8,12]:[3,5,5,7]);
     if(budgets.length>4||budgets.some(value=>!Number.isFinite(value)||value<=0||value>30))return Response.json({error:"Invalid test budgets"},{status:400});
     const budgetTotal=budgets.reduce((sum,value)=>sum+value,0);
     const signer=keypairEnv(scope==="main"?"MAIN_TREASURY_SIGNER_SECRET":"HOLDER_AIRDROP_SIGNER_SECRET");
