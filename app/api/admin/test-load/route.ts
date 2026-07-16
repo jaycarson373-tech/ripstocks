@@ -11,17 +11,13 @@ const WRAPPED_SOL=new PublicKey("So11111111111111111111111111111111111111112");
 export async function POST(request:Request){
   if(!authorized(request))return Response.json({error:"Unauthorized"},{status:401});
   try{
-    const {scope,testId}=await request.json() as {scope?:"main"|"holder";testId?:string};
+    const {scope,testId,dryRun=false}=await request.json() as {scope?:"main"|"holder";testId?:string;dryRun?:boolean};
     if(scope!=="main"&&scope!=="holder")return Response.json({error:"scope must be main or holder"},{status:400});
     if(!testId||!/^[a-zA-Z0-9_-]{8,64}$/.test(testId))return Response.json({error:"A unique testId is required"},{status:400});
     const budgets=scope==="main"?[10,10]:[5,5,5,5];
     const signer=keypairEnv(scope==="main"?"MAIN_TREASURY_SIGNER_SECRET":"HOLDER_AIRDROP_SIGNER_SECRET");
     const configured=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET");
     if(!signer.publicKey.equals(configured))throw new Error("Signer does not match configured wallet");
-    const runKey=`test-load:${scope}:${testId}`;
-    const lock=await supabase("automation_runs",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({run_key:runKey,kind:`${scope}_test_load`,status:"running"})});
-    const locked=await lock.json() as Array<unknown>;
-    if(!lock.ok||!locked.length)return Response.json({error:"This test load was already submitted"},{status:409});
     const connection=new Connection(rpcUrl(),"confirmed");
     const buffer=Number(process.env.SOL_GAS_BUFFER||0.111);
     const solBalance=(await connection.getBalance(signer.publicKey,"confirmed"))/1e9;
@@ -32,6 +28,13 @@ export async function POST(request:Request){
     if(solBalance-requiredSol<buffer)throw new Error(`Test would breach the ${buffer} SOL reserve`);
     const targets=parseTargets();
     const table=scope==="main"?"inventory_lots":"airdrop_inventory_lots";
+    const tableCheck=await supabase(`${table}?select=id&limit=1`);
+    if(!tableCheck.ok)throw new Error(`Database inventory table is unavailable: ${await tableCheck.text()}`);
+    if(dryRun)return Response.json({ok:true,dryRun:true,scope,plannedPacks:budgets.length,totalUsd:20,reserveProtected:true});
+    const runKey=`test-load:${scope}:${testId}`;
+    const lock=await supabase("automation_runs",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({run_key:runKey,kind:`${scope}_test_load`,status:"running"})});
+    const locked=await lock.json() as Array<unknown>;
+    if(!lock.ok||!locked.length)return Response.json({error:"This test load was already submitted"},{status:409});
     const results:Array<{usd:number;signature:string}>=[];
     for(let index=0;index<budgets.length;index++){
       const usd=budgets[index]; const target=targets[(Date.now()+index)%targets.length]; const mint=new PublicKey(target.mint);
