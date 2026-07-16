@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculatePackEv, emptySnapshot, HOLDER_DROP_PACK_BUDGET_USD, synchronizedEpochEndsAt, type ProtocolSnapshot } from "@/lib/protocol";
+import { calculateHolderDropBudget, calculatePackEv, emptySnapshot, synchronizedEpochEndsAt, type ProtocolSnapshot } from "@/lib/protocol";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +12,8 @@ export async function GET() {
   const row = await response.json() as Partial<ProtocolSnapshot>;
   const snapshot = { ...emptySnapshot(), ...row, serverNow:new Date().toISOString(), epochEndsAt:synchronizedEpochEndsAt().toISOString() };
   snapshot.currentPackEv = calculatePackEv(Number(snapshot.remainingStockInventory), Number(snapshot.packsRemaining));
-  snapshot.nextHolderPackValue = Number(snapshot.holderAirdropTreasury) >= HOLDER_DROP_PACK_BUDGET_USD ? HOLDER_DROP_PACK_BUDGET_USD : 0;
+  snapshot.nextHolderPackValue = calculateHolderDropBudget(Number(snapshot.holderAirdropTreasury));
+  snapshot.holderPacksAvailable = snapshot.nextHolderPackValue > 0 ? Math.floor(Number(snapshot.holderAirdropTreasury) / snapshot.nextHolderPackValue) : 0;
+  snapshot.averageHolderDropValue = Number(snapshot.totalHolderDrops) > 0 ? Number(snapshot.totalValueAirdropped) / Number(snapshot.totalHolderDrops) : 0;
   return NextResponse.json(snapshot, { headers: { "Cache-Control": "no-store" } });
 }

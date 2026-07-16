@@ -8,6 +8,7 @@ const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8")
 const wallet = await readFile(new URL("../lib/solana-wallet.ts", import.meta.url), "utf8");
 const checkoutCreate = await readFile(new URL("../app/api/checkout/create/route.ts", import.meta.url), "utf8");
 const checkoutConfirm = await readFile(new URL("../app/api/checkout/confirm/route.ts", import.meta.url), "utf8");
+const verifiedXstocks = await readFile(new URL("../lib/xstocks.ts", import.meta.url), "utf8");
 
 test("one shared 20-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 20/);
@@ -35,7 +36,7 @@ test("pack inventory and holder treasury use separate ledgers", () => {
 
 test("EV is calculated, never a fixed promise", () => {
   assert.match(protocol, /remainingStockInventory \/ packsRemaining/);
-  assert.doesNotMatch(page, /EV[^\n]*\$\d/);
+  assert.doesNotMatch(page, /Expected Value \$\d/);
 });
 
 test("automatic restocks preserve their funding source", () => {
@@ -53,10 +54,13 @@ test("wallet supports Phantom, Backpack, trusted reconnect and disconnect", () =
   assert.match(page, />DISCONNECT</);
 });
 
-test("holder drop math uses one funded $10 pack per epoch", () => {
-  assert.match(protocol, /HOLDER_DROP_PACK_BUDGET_USD = 10/);
+test("holder drop math adapts to $2, $5 or $10 per epoch", () => {
+  assert.match(protocol, /treasuryValue >= 10/);
+  assert.match(protocol, /treasuryValue >= 5/);
+  assert.match(protocol, /treasuryValue >= 2/);
   assert.match(page, /AIRDROP TREASURY/);
-  assert.match(page, /NEXT DROP PACK/);
+  assert.match(page, /AIRDROP PACKS READY/);
+  assert.match(page, /AVERAGE DROP VALUE/);
 });
 
 test("checkout reserves before charging and verifies both sides of exact USDC payment", () => {
@@ -67,4 +71,10 @@ test("checkout reserves before charging and verifies both sides of exact USDC pa
   assert.match(checkoutConfirm, /tokenProgram/);
   assert.match(schema, /TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb/);
   assert.match(schema, /for update skip locked/);
+});
+
+test("site publishes exactly ten verified inventory mints", () => {
+  assert.equal((verifiedXstocks.match(/symbol:/g) || []).length,10);
+  assert.match(page,/VERIFIED INVENTORY UNIVERSE/);
+  assert.match(verifiedXstocks,/XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1/);
 });
