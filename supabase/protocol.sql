@@ -136,6 +136,14 @@ create table if not exists public.airdrop_epochs (
   status text not null default 'scheduled' check(status in ('scheduled','snapshotted','purchased','distributed','failed')),
   check(ends_at-starts_at=interval '20 minutes')
 );
+create table if not exists public.airdrop_inventory_lots (
+  id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
+  symbol text not null, mint text not null, token_amount numeric(30,0) not null check(token_amount>0),
+  decimals int not null check(decimals between 0 and 12), token_program text not null default 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
+  purchase_value numeric(18,6) not null check(purchase_value>0), acquisition_signature text not null unique,
+  status text not null default 'available' check(status in ('available','reserved','distributed','failed')),
+  epoch_id bigint references public.airdrop_epochs(id), distribution_signature text unique
+);
 
 -- Railway calls this only after both transfers confirm on Solana. It atomically
 -- records the fee, its exact 75/25 split, and both destination-wallet credits.
@@ -170,10 +178,11 @@ create or replace function public.protocol_public_snapshot() returns jsonb langu
 with inv as (select coalesce(sum(stock_value_delta),0) stock_value, coalesce(sum(packs_delta),0) packs, count(*) filter(where entry_type in('inventory_purchase','ev_reserve_purchase')) purchases from pack_inventory_ledger),
 opened as (select count(*) n from pack_orders where status='fulfilled'),
 hat as (select coalesce(sum(amount_usdc),0) balance from holder_airdrop_treasury_ledger),
+airpacks as (select count(*) n from airdrop_inventory_lots where status='available'),
 evr as (select coalesce(sum(amount_usdc),0) balance from pack_ev_reserve_ledger),
 drops as (select count(*) n,coalesce(sum(reward_value),0) value from airdrop_epochs where status='distributed'),
 proofs as (select coalesce(jsonb_agg(jsonb_build_object('winner',winner_wallet,'pack',pack_name,'stock',stock_symbol,'value',reward_value,'time',ends_at,'signature',transaction_signature) order by ends_at desc),'[]'::jsonb) items from (select * from airdrop_epochs where status='distributed' order by ends_at desc limit 12) x)
-select jsonb_build_object('packInventoryValue',inv.stock_value,'remainingStockInventory',inv.stock_value,'packsRemaining',greatest(inv.packs,0),'totalPacksOpened',opened.n,'inventoryPurchases',inv.purchases,'inventoryAssets',(select count(*) from inventory_assets where active),'holderAirdropTreasury',hat.balance,'packEvReserve',evr.balance,'totalHolderDrops',drops.n,'totalValueAirdropped',drops.value,'proofs',proofs.items) from inv,opened,hat,evr,drops,proofs;
+select jsonb_build_object('packInventoryValue',inv.stock_value,'remainingStockInventory',inv.stock_value,'packsRemaining',greatest(inv.packs,0),'totalPacksOpened',opened.n,'inventoryPurchases',inv.purchases,'inventoryAssets',(select count(*) from inventory_assets where active),'holderAirdropTreasury',hat.balance,'holderPacksAvailable',airpacks.n,'packEvReserve',evr.balance,'totalHolderDrops',drops.n,'totalValueAirdropped',drops.value,'proofs',proofs.items) from inv,opened,hat,airpacks,evr,drops,proofs;
 $$;
 grant execute on function public.protocol_public_snapshot() to anon,authenticated;
 
@@ -189,3 +198,4 @@ alter table public.holder_airdrop_treasury_ledger enable row level security;
 alter table public.pack_ev_reserve_ledger enable row level security;
 alter table public.pack_orders enable row level security;
 alter table public.airdrop_epochs enable row level security;
+alter table public.airdrop_inventory_lots enable row level security;

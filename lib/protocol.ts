@@ -18,7 +18,6 @@ export type ProtocolSnapshot = {
   inventoryPurchases: number;
   inventoryAssets: number;
   holderAirdropTreasury: number;
-  nextHolderPackValue: number;
   holderPacksAvailable: number;
   averageHolderDropValue: number;
   packEvReserve: number;
@@ -36,17 +35,10 @@ export function calculatePackEv(remainingStockInventory: number, packsRemaining:
   return packsRemaining > 0 ? remainingStockInventory / packsRemaining : 0;
 }
 
-export function calculateHolderDropBudget(treasuryValue: number) {
-  if (treasuryValue >= 10) return 10;
-  if (treasuryValue >= 5) return 5;
-  if (treasuryValue >= 2) return 2;
-  return 0;
-}
-
 export const emptySnapshot = (): ProtocolSnapshot => ({
   serverNow: new Date().toISOString(), epochEndsAt: synchronizedEpochEndsAt().toISOString(),
   packInventoryValue: 0, remainingStockInventory: 0, packsRemaining: 247,
   totalPacksOpened: 0, inventoryPurchases: 0, inventoryAssets: 0,
-  holderAirdropTreasury: 0, nextHolderPackValue: 0, holderPacksAvailable: 0, averageHolderDropValue: 0, packEvReserve: 0, currentPackEv: 0,
+  holderAirdropTreasury: 0, holderPacksAvailable: 0, averageHolderDropValue: 0, packEvReserve: 0, currentPackEv: 0,
   totalHolderDrops: 0, totalValueAirdropped: 0, proofs: [],
 });

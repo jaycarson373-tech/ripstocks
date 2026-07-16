@@ -9,6 +9,7 @@ const wallet = await readFile(new URL("../lib/solana-wallet.ts", import.meta.url
 const checkoutCreate = await readFile(new URL("../app/api/checkout/create/route.ts", import.meta.url), "utf8");
 const checkoutConfirm = await readFile(new URL("../app/api/checkout/confirm/route.ts", import.meta.url), "utf8");
 const verifiedXstocks = await readFile(new URL("../lib/xstocks.ts", import.meta.url), "utf8");
+const airdropPolicy = await readFile(new URL("../lib/airdrop-policy.ts", import.meta.url), "utf8");
 
 test("one shared 20-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 20/);
@@ -54,13 +55,16 @@ test("wallet supports Phantom, Backpack, trusted reconnect and disconnect", () =
   assert.match(page, />DISCONNECT</);
 });
 
-test("holder drop math adapts to $2, $5 or $10 per epoch", () => {
-  assert.match(protocol, /treasuryValue >= 10/);
-  assert.match(protocol, /treasuryValue >= 5/);
-  assert.match(protocol, /treasuryValue >= 2/);
+test("holder inventory restocks privately in $2-$5 batches", () => {
+  assert.match(airdropPolicy, /AIRDROP_BATCH_TARGET = 15/);
+  assert.match(airdropPolicy, /lastHolderFeeClaim >= 20/);
+  assert.match(airdropPolicy, /return 5/);
+  assert.match(airdropPolicy, /return 2/);
+  assert.match(schema, /airdrop_inventory_lots/);
   assert.match(page, /AIRDROP TREASURY/);
   assert.match(page, /AIRDROP PACKS READY/);
   assert.match(page, /AVERAGE DROP VALUE/);
+  assert.doesNotMatch(page, /NEXT DROP VALUE|\$2, \$5 or \$10/);
 });
 
 test("checkout reserves before charging and verifies both sides of exact USDC payment", () => {
