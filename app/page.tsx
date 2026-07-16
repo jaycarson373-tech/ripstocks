@@ -73,7 +73,6 @@ export default function Home() {
     const provider=providerRef.current; if(!provider||!wallet)return connect();
     if(!inventoryReady){setWalletError("Inventory is restocking. No payment was requested.");return}
     const base=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").replace(/\/$/,"");
-    if(!base){setWalletError("Checkout service is unavailable.");return}
     setWalletError(""); setOpening(true); setResult(null);
     try{
       const created=await fetch(`${base}/api/checkout/create`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet})});
