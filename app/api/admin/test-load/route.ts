@@ -2,7 +2,7 @@ import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { authorized } from "@/lib/automation-auth";
 import { quoteExactInput, swapExactInput } from "@/lib/jupiter";
-import { parseTargets } from "@/lib/inventory-plan";
+import { HOLDER_INVENTORY_LOTS, MAIN_INVENTORY_LOTS, parseTargets } from "@/lib/inventory-plan";
 import { keypairEnv, publicKeyEnv, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
 
 export const dynamic="force-dynamic";
@@ -37,8 +37,8 @@ export async function POST(request:Request){
     const {scope,testId,dryRun=false,budgets:requestedBudgets}=await request.json() as {scope?:"main"|"holder";testId?:string;dryRun?:boolean;budgets?:number[]};
     if(scope!=="main"&&scope!=="holder")return Response.json({error:"scope must be main or holder"},{status:400});
     if(!testId||!/^[a-zA-Z0-9_-]{8,64}$/.test(testId))return Response.json({error:"A unique testId is required"},{status:400});
-    const budgets=Array.isArray(requestedBudgets)&&requestedBudgets.length?requestedBudgets:(scope==="main"?[8,12]:[3,5,5,7]);
-    if(budgets.length>4||budgets.some(value=>!Number.isFinite(value)||value<=0||value>30))return Response.json({error:"Invalid test budgets"},{status:400});
+    const budgets=Array.isArray(requestedBudgets)&&requestedBudgets.length?requestedBudgets:(scope==="main"?[...MAIN_INVENTORY_LOTS]:[...HOLDER_INVENTORY_LOTS]);
+    if(budgets.length>20||budgets.some(value=>!Number.isFinite(value)||value<=0||value>30))return Response.json({error:"Invalid test budgets"},{status:400});
     const budgetTotal=budgets.reduce((sum,value)=>sum+value,0);
     const signer=keypairEnv(scope==="main"?"MAIN_TREASURY_SIGNER_SECRET":"HOLDER_AIRDROP_SIGNER_SECRET");
     const configured=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET");
