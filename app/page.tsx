@@ -16,7 +16,7 @@ function apiBase(){
   return /^https?:\/\//i.test(raw)?raw:`https://${raw}`;
 }
 export default function Home() {
-  const [tier, setTier] = useState(10);
+  const tier = 10;
   const [wallet, setWallet] = useState("");
   const [spectating, setSpectating] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -147,16 +147,15 @@ export default function Home() {
           {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
         </div>
         <div className="sectionHead"><div><span className="kicker">CHOOSE YOUR PACK</span><h2>Crack the seal.<br/>Reveal your pull.</h2></div><p>The $10 launch pack contains exactly one randomized verified asset available on Solana. Pay in USDC and your pull lands directly in your wallet.</p></div>
-        <div className="packGrid">
-          {[10,30,50].map((price, i)=>{const available=price===10; const inventory=available?snapshot.packsRemaining:0; return <div key={price} onClick={()=>available&&setTier(price)} className={`packCard p${price} ${tier===price?"selected":""} ${!available?"unavailable":""}`}>
-            <span className="chance">{i===0?"THE QUICK RIP":i===1?"CROWD FAVORITE":"THE BIG RIP"}</span>
-            <span className={`inventory ${inventory===0?"empty":""}`}>{inventory} PACKS LEFT</span>
-            <div className="miniPack photoPack"><img src="/memepacks-logo.jpg" alt=""/><i>{price}</i></div>
-            {available&&<button className="packBuy" type="button" disabled={!inventoryReady||opening} onClick={event=>{event.stopPropagation();void (wallet?openPack():connect())}}>{inventoryReady?(wallet?"BUY PACK · 10 USDC":"CONNECT TO BUY"):"RESTOCKING INVENTORY"}</button>}
-            <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>{i===0?"1 Meme Pull":"Premium Pulls"}<br/>{available&&<>Expected Value <strong className="evValue">${snapshot.currentPackEv.toFixed(2)}</strong><br/></>}<em>{available?"Instant Delivery":"Projected EV · Coming Soon"}</em></p></div>
-            {tier===price && <span className="chosen">SELECTED ✓</span>}
-            {!available && <span className="soldOut">UNAVAILABLE</span>}
-          </div>})}
+        <div className="packGrid singlePackGrid">
+          <div className="packCard p10 selected">
+            <span className="chance">THE MEMEPACK</span>
+            <span className={`inventory ${snapshot.packsRemaining===0?"empty":""}`}>{snapshot.packsRemaining} PACKS LEFT</span>
+            <div className="miniPack photoPack"><img src="/memepacks-logo.jpg" alt=""/><i>10</i></div>
+            <button className="packBuy" type="button" disabled={!inventoryReady||opening} onClick={()=>void (wallet?openPack():connect())}>{inventoryReady?(wallet?"BUY PACK · 10 USDC":"CONNECT TO BUY"):"RESTOCKING INVENTORY"}</button>
+            <div className="packMeta"><div><b>$10</b><span>USDC</span></div><p>1 Meme Pull<br/>Expected Value <strong className="evValue">${snapshot.currentPackEv.toFixed(2)}</strong><br/><em>Instant Delivery</em></p></div>
+            <span className="chosen">ONLY PACK ✓</span>
+          </div>
         </div>
         <div className="ripBar">
           <div><span>YOUR PACK</span><b>${tier} PACK</b></div><div><span>PAY WITH</span><b>USDC <i>◎</i></b></div><button disabled={!inventoryReady||opening} onClick={wallet?openPack:connect}>{inventoryReady?(wallet?`OPEN THE $${tier} PACK`:`CONNECT TO OPEN`):"RESTOCKING INVENTORY"} <span>→</span></button>
