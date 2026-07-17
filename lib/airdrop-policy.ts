@@ -3,10 +3,7 @@ export const AIRDROP_REFILL_THRESHOLD = 3;
 export const AIRDROP_TREASURY_SPEND_FRACTION = 0.75;
 
 export function airdropLotBudget(lastHolderFeeClaim: number) {
-  if (lastHolderFeeClaim >= 20) return 5;
-  if (lastHolderFeeClaim >= 10) return 4;
-  if (lastHolderFeeClaim >= 5) return 3;
-  return 2;
+  return Math.max(1, Math.min(30, Math.floor(lastHolderFeeClaim)));
 }
 
 export function planAirdropRestock(treasuryValue: number, lastHolderFeeClaim: number, packsReady: number) {
