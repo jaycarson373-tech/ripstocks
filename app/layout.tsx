@@ -17,23 +17,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RipStocks — Rip. Pull. Own.",
-  description: "Open randomized xStock packs on Solana with USDC.",
+  title: "MemePacks — Open the Meme Market",
+  description: "Open packs, reveal iconic Solana meme pulls, and build your collection.",
   openGraph: {
-    title: "RipStocks — Rip. Pull. Own.",
-    description: "Crack randomized xStock packs on Solana with USDC.",
-    images: [{ url: "/ripstocks-banner.jpg", width: 1280, height: 426, alt: "RipStocks stock pack" }],
+    title: "MemePacks — Open the Meme Market",
+    description: "Open packs, reveal your pulls, and build your meme collection.",
+    images: [{ url: "/memepacks-banner.jpeg", width: 1280, height: 426, alt: "MemePacks banner" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RipStocks — Rip. Pull. Own.",
-    description: "Crack randomized xStock packs on Solana with USDC.",
-    images: ["/ripstocks-banner.jpg"],
+    title: "MemePacks — Open the Meme Market",
+    description: "Open packs, reveal your pulls, and build your meme collection.",
+    images: ["/memepacks-banner.jpeg"],
   },
   icons: {
-    icon: "/ripstocks-logo.jpg",
-    shortcut: "/ripstocks-logo.jpg",
-    apple: "/ripstocks-logo.jpg",
+    icon: "/favicon.jpg",
+    shortcut: "/favicon.jpg",
+    apple: "/favicon.jpg",
   },
 };
 
