@@ -17,17 +17,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MemePacks — Open the Meme Market",
-  description: "Open packs, reveal iconic Solana meme pulls, and build your collection.",
+  title: "MemePacks — Rip a Pack",
+  description: "Rip a $10 MemePack and reveal one random pull from Series 001.",
   openGraph: {
-    title: "MemePacks — Open the Meme Market",
-    description: "Open packs, reveal your pulls, and build your meme collection.",
+    title: "MemePacks — Rip a Pack",
+    description: "One sealed pack. One random Series 001 meme pull. Delivered onchain.",
     images: [{ url: "/memepacks-banner.jpeg", width: 1280, height: 426, alt: "MemePacks banner" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "MemePacks — Open the Meme Market",
-    description: "Open packs, reveal your pulls, and build your meme collection.",
+    title: "MemePacks — Rip a Pack",
+    description: "One sealed pack. One random Series 001 meme pull. Delivered onchain.",
     images: ["/memepacks-banner.jpeg"],
   },
   icons: {
