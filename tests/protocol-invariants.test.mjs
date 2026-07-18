@@ -90,14 +90,14 @@ test("site publishes exactly ten verified meme mints", () => {
 
 test("practice loader preserves gas and exact inventory averages", () => {
   assert.match(inventoryPlan,/SOL_GAS_BUFFER = 0\.111/);
-  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[3,3,3,3,3,3,5,7,8,10,12,15,20,25,30\]/);
-  assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30\]/);
-  const main=[3,3,3,3,3,3,5,7,8,10,12,15,20,25,30];
-  const holder=Array.from({length:30},(_,index)=>index+1);
-  assert.equal(main.reduce((a,b)=>a+b,0),150);
+  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[10,10\]/);
+  assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[1,1,1,2,2,2,2,3,3,3\]/);
+  const main=[10,10];
+  const holder=[1,1,1,2,2,2,2,3,3,3];
+  assert.equal(main.reduce((a,b)=>a+b,0),20);
   assert.equal(main.reduce((a,b)=>a+b,0)/main.length,10);
-  assert.equal(holder.reduce((a,b)=>a+b,0),465);
-  assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,15.5);
+  assert.equal(holder.reduce((a,b)=>a+b,0),20);
+  assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,2);
 });
 
 test("protected automation restocks on the shared 5-minute clock and records confirmed output",()=>{

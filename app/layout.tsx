@@ -18,16 +18,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MemePacks — Rip a Pack",
-  description: "Rip a $10 MemePack and reveal one random pull from Series 001.",
+  description: "Rip a $10 MemePack, reveal one random Series 001 pull, and hold $PACKS for holder draws.",
   openGraph: {
     title: "MemePacks — Rip a Pack",
-    description: "One sealed pack. One random Series 001 meme pull. Delivered onchain.",
+    description: "One sealed pack. One random Series 001 pull. Powered by $PACKS.",
     images: [{ url: "/memepacks-banner.jpeg", width: 1280, height: 426, alt: "MemePacks banner" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "MemePacks — Rip a Pack",
-    description: "One sealed pack. One random Series 001 meme pull. Delivered onchain.",
+    description: "One sealed pack. One random Series 001 pull. Powered by $PACKS.",
     images: ["/memepacks-banner.jpeg"],
   },
   icons: {
