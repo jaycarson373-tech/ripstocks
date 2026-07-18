@@ -90,11 +90,11 @@ test("site publishes exactly ten verified meme mints", () => {
 
 test("practice loader preserves gas and exact inventory averages", () => {
   assert.match(inventoryPlan,/SOL_GAS_BUFFER = 0\.111/);
-  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[10,10\]/);
+  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[1,1,1,2,3,5,7,8,10,12,15,20,25,30\]/);
   assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[1,1,1,2,2,2,2,3,3,3\]/);
-  const main=[10,10];
+  const main=[1,1,1,2,3,5,7,8,10,12,15,20,25,30];
   const holder=[1,1,1,2,2,2,2,3,3,3];
-  assert.equal(main.reduce((a,b)=>a+b,0),20);
+  assert.equal(main.reduce((a,b)=>a+b,0),140);
   assert.equal(main.reduce((a,b)=>a+b,0)/main.length,10);
   assert.equal(holder.reduce((a,b)=>a+b,0),20);
   assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,2);
