@@ -17,16 +17,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RipStocks — Rip. Pull. Own.",
+  title: "PackRips — Rip. Pull. Own.",
   description: "Open randomized xStock packs on Solana with USDC.",
   openGraph: {
-    title: "RipStocks — Rip. Pull. Own.",
+    title: "PackRips — Rip. Pull. Own.",
     description: "Crack randomized xStock packs on Solana with USDC.",
-    images: [{ url: "/ripstocks-banner.jpg", width: 1280, height: 426, alt: "RipStocks stock pack" }],
+    images: [{ url: "/ripstocks-banner.jpg", width: 1280, height: 426, alt: "PackRips stock pack" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RipStocks — Rip. Pull. Own.",
+    title: "PackRips — Rip. Pull. Own.",
     description: "Crack randomized xStock packs on Solana with USDC.",
     images: ["/ripstocks-banner.jpg"],
   },

@@ -7,7 +7,6 @@ import { Transaction } from "@solana/web3.js";
 import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
 const stockPalette=["#65d1ff","#d8ff3e","#815cff","#ef3d4c","#ff5b42","#76e247","#1652f0","#fbbc04","#c9ff38","#ff9900"];
-const RIPSTOCKS_MINT="31aEMecqoVxVB3Lt8U1XFcafmR167cYy77bRQMwMpump";
 type StockDisplay={ticker:string;name:string;color:string;ink:string};
 const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map((stock,index)=>({ticker:stock.symbol,name:stock.name,color:stockPalette[index],ink:index===2||index===3||index===4||index===6?"#fff":"#090909"}));
 function apiBase(){
@@ -23,7 +22,6 @@ export default function Home() {
   const [result, setResult] = useState<StockDisplay | null>(null);
   const [pulledValue, setPulledValue] = useState(0);
   const [walletError, setWalletError] = useState("");
-  const [copiedCa, setCopiedCa] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const providerRef = useRef<SolanaProvider | null>(null);
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot>(emptySnapshot());
@@ -75,12 +73,6 @@ export default function Home() {
     try { await providerRef.current?.disconnect(); } finally { setWallet(""); setWalletError(""); setConnecting(false); }
   }
 
-  async function copyContract() {
-    await navigator.clipboard.writeText(RIPSTOCKS_MINT);
-    setCopiedCa(true);
-    window.setTimeout(() => setCopiedCa(false), 1400);
-  }
-
   async function openPack() {
     const provider=providerRef.current; if(!provider||!wallet)return connect();
     if(!inventoryReady){setWalletError("Inventory is restocking. No payment was requested.");return}
@@ -103,13 +95,12 @@ export default function Home() {
     <main>
       <div className="grain" />
       <nav className="nav wrap">
-        <a className="brand brandImage" href="#top" aria-label="RipStocks home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span></a>
-        <button className={`contractPill ${copiedCa?"copied":""}`} type="button" onClick={copyContract} title={RIPSTOCKS_MINT}><span>CA</span>{copiedCa?"COPIED":RIPSTOCKS_MINT}</button>
-        <div className="navlinks"><a href="#packs">Packs</a><a href="#live">Live rips</a><a href="#flywheel">Flywheel</a><a href="https://x.com/RipStocks_" target="_blank" rel="noreferrer">X ↗</a></div>
+        <a className="brand brandImage" href="#top" aria-label="PackRips home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>pack</em>rips</span></a>
+        <div className="navlinks"><a href="#packs">Packs</a><a href="#live">Live rips</a><a href="#flywheel">Flywheel</a><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div>
         {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
       </nav>
 
-      <div className="brandBanner wrap"><img src="/ripstocks-banner.jpg" alt="RipStocks — tokenized stock packs"/></div>
+      <div className="brandBanner wrap"><img src="/ripstocks-banner.jpg" alt="PackRips — tokenized stock packs"/></div>
       <section className="hero wrap" id="top">
         <div className="heroCopy">
           <div className="eyebrow"><span /> LIVE ON SOLANA</div>
@@ -123,7 +114,7 @@ export default function Home() {
           <div className="machineTop"><span>RIP-O-MATIC</span><i>ONLINE</i></div>
           <div className="window">
             <div className="glow" />
-            <img className="heroPackImage" src="/ripstocks-logo.jpg" alt="RipStocks sealed stock pack"/>
+            <img className="heroPackImage" src="/ripstocks-logo.jpg" alt="PackRips sealed stock pack"/>
             <div className="claw">⌄</div>
           </div>
           <div className="belt">{[1,2,3,4,5,6].map(n=><span key={n} />)}</div>
@@ -173,13 +164,13 @@ export default function Home() {
       <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> PAID PACK PROOFS</div><b>INSTANT ONCHAIN DELIVERY</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>RIPPER</span><span>PACK</span><span>STOCK RECEIVED</span><span>VALUE</span><span>TIME</span><span>PAYOUT PROOF</span></div>{snapshot.recentPacks.slice(0,12).map((rip,i)=><div className="proofRow" key={rip.fulfillmentSignature||i}><span>{short(rip.wallet)}</span><span>{rip.pack}</span><span><b>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span>{new Date(rip.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${rip.fulfillmentSignature}`} target="_blank" rel="noreferrer">{short(rip.fulfillmentSignature)} ↗</a></span></div>)}{snapshot.recentPacks.length===0&&<div className="emptyProof">No paid pack proofs published yet.</div>}</div></div>
       <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> HOLDER DROP PROOFS</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK RECEIVED</span><span>REWARD VALUE</span><span>TIME</span><span>TRANSACTION PROOF</span></div>{snapshot.proofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{a.pack}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{snapshot.proofs.length===0&&<div className="emptyProof">No holder drops published yet.</div>}</div></div><p className="disclaimer">Pack-sale USDC belongs only to Pack Inventory and never funds holder drops. Protocol fees are recorded separately: 75% to the Holder Airdrop Treasury and 25% to the Pack EV Reserve. EV is a statistical expected value calculated from remaining inventory; it is not a promise of profit.</p></section>
 
-      <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">VERIFIED INVENTORY UNIVERSE</span><h2 id="verified-title">10 official xStocks.<br/>Nothing else.</h2></div><p>RipStocks inventory is restricted to these verified Solana mints. Every mint links directly to its on-chain record.</p></div><div className="verifiedGrid">{VERIFIED_XSTOCKS.map((stock,index)=><a key={stock.mint} href={`https://solscan.io/token/${stock.mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><div><b>{stock.symbol}</b><small>{stock.name}</small></div><code>{stock.mint.slice(0,8)}…{stock.mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
+      <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">VERIFIED INVENTORY UNIVERSE</span><h2 id="verified-title">10 official xStocks.<br/>Nothing else.</h2></div><p>PackRips inventory is restricted to these verified Solana mints. Every mint links directly to its on-chain record.</p></div><div className="verifiedGrid">{VERIFIED_XSTOCKS.map((stock,index)=><a key={stock.mint} href={`https://solscan.io/token/${stock.mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><div><b>{stock.symbol}</b><small>{stock.name}</small></div><code>{stock.mint.slice(0,8)}…{stock.mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/ripstocks-logo.jpg" alt=""/><span><em>rip</em>stocks</span></div><p>RIP. PULL. REPEAT.</p><div className="footerLinks"><a href="https://x.com/RipStocks_" target="_blank" rel="noreferrer">X</a><a href={`https://dexscreener.com/solana/${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={`https://pump.fun/coin/${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer">PUMP.FUN</a><a className="footerBuy" href={`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${RIPSTOCKS_MINT}`} target="_blank" rel="noreferrer">BUY $RIPSTOCKS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/ripstocks-logo.jpg" alt=""/><span><em>pack</em>rips</span></div><p>RIP. PULL. REPEAT.</p><div className="footerLinks"><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
-        {opening ? <><span className="kicker">RIPPING ONCHAIN</span><div className="ripAnim"><div className="pack"><strong>RIP<br/>STOCKS</strong></div></div><p>VERIFYING PULL…</p></> : result && <><span className="kicker">YOU PULLED</span><div className="stockResult" style={{background:result.color,color:result.ink}}><small>xSTOCK</small><b>{result.ticker}</b><span>{result.name}</span></div><h3>${pulledValue.toFixed(2)} OF {result.name.toUpperCase()}</h3><p>Delivered to {wallet.slice(0,4)}…{wallet.slice(-4)}</p><div className="instantProof"><span>PROOF</span><b>Posts instantly after mainnet confirmation ↗</b></div><button className="primary" onClick={()=>setResult(null)}>RIP ANOTHER →</button></>}
+        {opening ? <><span className="kicker">RIPPING ONCHAIN</span><div className="ripAnim"><div className="pack"><strong>PACK<br/>RIPS</strong></div></div><p>VERIFYING PULL…</p></> : result && <><span className="kicker">YOU PULLED</span><div className="stockResult" style={{background:result.color,color:result.ink}}><small>xSTOCK</small><b>{result.ticker}</b><span>{result.name}</span></div><h3>${pulledValue.toFixed(2)} OF {result.name.toUpperCase()}</h3><p>Delivered to {wallet.slice(0,4)}…{wallet.slice(-4)}</p><div className="instantProof"><span>PROOF</span><b>Posts instantly after mainnet confirmation ↗</b></div><button className="primary" onClick={()=>setResult(null)}>RIP ANOTHER →</button></>}
       </div></div>}
     </main>
   );

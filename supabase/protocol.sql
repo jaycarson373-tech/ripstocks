@@ -1,4 +1,4 @@
--- RipStocks production accounting. Pack-sale funds and protocol fees are never commingled.
+-- PackRips production accounting. Pack-sale funds and protocol fees are never commingled.
 create extension if not exists pgcrypto;
 create table if not exists public.protocol_config (id boolean primary key default true check(id), airdrop_interval_minutes int not null default 20 check(airdrop_interval_minutes=20));
 insert into public.protocol_config(id,airdrop_interval_minutes) values(true,20) on conflict(id) do update set airdrop_interval_minutes=20;
