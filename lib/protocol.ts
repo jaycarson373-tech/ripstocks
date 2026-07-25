@@ -1,5 +1,6 @@
-export const AIRDROP_INTERVAL_MINUTES = 20 as const;
+export const AIRDROP_INTERVAL_MINUTES = 5 as const;
 export const AIRDROP_INTERVAL_MS = AIRDROP_INTERVAL_MINUTES * 60 * 1000;
+export const HOLDER_TICKET_TOKENS = 250_000 as const;
 export const HOLDER_AIRDROP_FEE_BPS = 7_500 as const;
 export const PACK_EV_RESERVE_FEE_BPS = 2_500 as const;
 
@@ -25,7 +26,7 @@ export type ProtocolSnapshot = {
   totalHolderDrops: number;
   totalValueAirdropped: number;
   inventoryLogs: Array<{source:string;message:string;count:number;value:number;time:string;signature:string}>;
-  proofs: Array<{winner:string;pack:string;stock:string;value:number;time:string;signature:string}>;
+  proofs: Array<{winner:string;pack:string;stock:string;value:number;time:string;signature:string;randomSeed?:string;randomSource?:string;totalTickets?:number|string;winningTicket?:number|string}>;
   recentPacks: Array<{wallet:string;pack:string;stock:string;value:number;time:string;paymentSignature:string;fulfillmentSignature:string}>;
 };
 

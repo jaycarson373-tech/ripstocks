@@ -1,7 +1,9 @@
--- PackRips production accounting. Pack-sale funds and protocol fees are never commingled.
+-- StockRips production accounting. Pack-sale funds and protocol fees are never commingled.
 create extension if not exists pgcrypto;
-create table if not exists public.protocol_config (id boolean primary key default true check(id), airdrop_interval_minutes int not null default 20 check(airdrop_interval_minutes=20));
-insert into public.protocol_config(id,airdrop_interval_minutes) values(true,20) on conflict(id) do update set airdrop_interval_minutes=20;
+create table if not exists public.protocol_config (id boolean primary key default true, airdrop_interval_minutes int not null default 5);
+alter table public.protocol_config drop constraint if exists protocol_config_airdrop_interval_minutes_check;
+alter table public.protocol_config add constraint protocol_config_airdrop_interval_minutes_check check(airdrop_interval_minutes=5);
+insert into public.protocol_config(id,airdrop_interval_minutes) values(true,5) on conflict(id) do update set airdrop_interval_minutes=5;
 
 -- Two explicit public accounts. Private signing material belongs only in Railway.
 create table if not exists public.protocol_wallets (
@@ -49,8 +51,8 @@ create table if not exists public.protocol_fee_ledger (
   pack_ev_reserve_amount numeric(18,6) generated always as (gross_fee_usdc-round(gross_fee_usdc*.75,6)) stored,
   transaction_signature text unique not null
 );
--- Fees land in Main Treasury. Each verified 20-minute sweep transfers 75% to
--- Holder Airdrops while the 25% EV allocation remains in Main Treasury.
+-- Fees land in Main Treasury. Each verified 5-minute sweep funds stock-pack
+-- inventory used by holder draws.
 create table if not exists public.protocol_fee_sweeps (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   fee_ledger_id uuid not null unique references public.protocol_fee_ledger(id),
@@ -130,9 +132,17 @@ create table if not exists public.airdrop_epochs (
   id bigint primary key, starts_at timestamptz not null, ends_at timestamptz not null,
   snapshot_at timestamptz, eligible_holders int, winner_wallet text, pack_name text,
   stock_symbol text, reward_value numeric(18,6), transaction_signature text unique,
-  status text not null default 'scheduled' check(status in ('scheduled','snapshotted','purchased','distributed','failed')),
-  check(ends_at-starts_at=interval '20 minutes')
+  status text not null default 'scheduled' check(status in ('scheduled','snapshotted','purchased','distributed','failed'))
 );
+alter table public.airdrop_epochs drop constraint if exists airdrop_epochs_check;
+alter table public.airdrop_epochs drop constraint if exists airdrop_epochs_interval_check;
+alter table public.airdrop_epochs add constraint airdrop_epochs_interval_check check(ends_at-starts_at=interval '5 minutes') not valid;
+alter table public.airdrop_epochs add column if not exists random_seed text;
+alter table public.airdrop_epochs add column if not exists random_source text;
+alter table public.airdrop_epochs add column if not exists holder_snapshot_hash text;
+alter table public.airdrop_epochs add column if not exists total_tickets numeric(30,0);
+alter table public.airdrop_epochs add column if not exists winning_ticket numeric(30,0);
+alter table public.airdrop_epochs add column if not exists ticket_size_tokens numeric(30,6) not null default 250000;
 create table if not exists public.airdrop_inventory_lots (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   symbol text not null, mint text not null, token_amount numeric(30,0) not null check(token_amount>0),
@@ -149,7 +159,7 @@ begin
   if exists(select 1 from airdrop_epochs where id=p_epoch_id) then return; end if;
   select id into v_lot from airdrop_inventory_lots where status='available' order by encode(digest(id::text||p_epoch_id::text,'sha256'),'hex') limit 1 for update skip locked;
   if v_lot is null then return; end if;
-  v_start:=to_timestamp(p_epoch_id*1200); v_end:=v_start+interval '20 minutes';
+  v_start:=to_timestamp(p_epoch_id*300); v_end:=v_start+interval '5 minutes';
   insert into airdrop_epochs(id,starts_at,ends_at,snapshot_at,eligible_holders,winner_wallet,status) values(p_epoch_id,v_start,v_end,now(),p_eligible_holders,p_winner,'snapshotted');
   update airdrop_inventory_lots set status='reserved',epoch_id=p_epoch_id where id=v_lot;
   return query select l.id,l.symbol,l.mint,l.token_amount::text,l.decimals,l.token_program,l.purchase_value from airdrop_inventory_lots l where l.id=v_lot;
@@ -167,6 +177,12 @@ revoke all on function public.complete_airdrop_epoch(bigint,uuid,text) from publ
 create table if not exists public.automation_runs (
   run_key text primary key, kind text not null, status text not null check(status in ('running','confirmed','failed')),
   created_at timestamptz not null default now(), completed_at timestamptz, transaction_signature text unique
+);
+create table if not exists public.live_chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  wallet text not null,
+  message text not null check(length(message) between 1 and 180)
 );
 
 -- Railway calls this only after both transfers confirm on Solana. It atomically
@@ -205,7 +221,7 @@ hat as (select coalesce(sum(amount_usdc),0) balance from holder_airdrop_treasury
 airpacks as (select count(*) n from airdrop_inventory_lots where status='available'),
 evr as (select coalesce(sum(amount_usdc),0) balance from pack_ev_reserve_ledger),
 drops as (select count(*) n,coalesce(sum(reward_value),0) value from airdrop_epochs where status='distributed'),
-proofs as (select coalesce(jsonb_agg(jsonb_build_object('winner',winner_wallet,'pack',pack_name,'stock',stock_symbol,'value',reward_value,'time',ends_at,'signature',transaction_signature) order by ends_at desc),'[]'::jsonb) items from (select * from airdrop_epochs where status='distributed' order by ends_at desc limit 12) x),
+proofs as (select coalesce(jsonb_agg(jsonb_build_object('winner',winner_wallet,'pack',pack_name,'stock',stock_symbol,'value',reward_value,'time',ends_at,'signature',transaction_signature,'randomSeed',random_seed,'randomSource',random_source,'totalTickets',total_tickets,'winningTicket',winning_ticket) order by ends_at desc),'[]'::jsonb) items from (select * from airdrop_epochs where status='distributed' order by ends_at desc limit 12) x),
 recent_packs as (select coalesce(jsonb_agg(jsonb_build_object('wallet',wallet,'pack','$'||tier::text,'stock',stock_symbol,'value',stock_value,'time',created_at,'paymentSignature',payment_signature,'fulfillmentSignature',fulfillment_signature) order by created_at desc),'[]'::jsonb) items from (select * from pack_orders where status='fulfilled' order by created_at desc limit 20) x)
 select jsonb_build_object('packInventoryValue',inv.stock_value,'remainingStockInventory',inv.stock_value,'packsRemaining',greatest(inv.packs,0),'totalPacksOpened',opened.n,'inventoryPurchases',inv.purchases,'inventoryAssets',(select count(*) from inventory_assets where active),'holderAirdropTreasury',hat.balance,'holderPacksAvailable',airpacks.n,'packEvReserve',evr.balance,'totalHolderDrops',drops.n,'totalValueAirdropped',drops.value,'proofs',proofs.items,'recentPacks',recent_packs.items) from inv,opened,hat,airpacks,evr,drops,proofs,recent_packs;
 $$;
@@ -225,3 +241,4 @@ alter table public.pack_orders enable row level security;
 alter table public.airdrop_epochs enable row level security;
 alter table public.airdrop_inventory_lots enable row level security;
 alter table public.automation_runs enable row level security;
+alter table public.live_chat_messages enable row level security;

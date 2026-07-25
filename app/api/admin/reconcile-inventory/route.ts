@@ -14,7 +14,7 @@ export async function POST(request:Request){
     const {scope,signature,usdValue}=await request.json() as {scope?:"main"|"holder";signature?:string;usdValue?:number};
     if(scope!=="main"&&scope!=="holder")return Response.json({error:"scope must be main or holder"},{status:400});
     if(!signature||!/^[1-9A-HJ-NP-Za-km-z]{64,96}$/.test(signature))return Response.json({error:"Valid signature required"},{status:400});
-    if(!Number.isFinite(usdValue)||Number(usdValue)<=0||Number(usdValue)>30)return Response.json({error:"Valid usdValue required"},{status:400});
+    if(!Number.isFinite(usdValue)||Number(usdValue)<=0||Number(usdValue)>50)return Response.json({error:"Valid usdValue required"},{status:400});
     const wallet=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET").toBase58();
     const targets=parseTargets();
     const targetByMint=new Map(targets.map(target=>[target.mint,target]));
