@@ -75,3 +75,31 @@ footer{background:linear-gradient(180deg,#050805,#020302);border-top-color:rgba(
 .drawBar a span{margin-left:18px}
 @media(max-width:1050px){.howWorks{grid-template-columns:1fr}.howGrid{grid-template-columns:repeat(3,1fr)}.howGrid article:nth-child(2),.howGrid article:nth-child(4){transform:none}}
 @media(max-width:700px){.howWorks{padding-top:48px}.howGrid{grid-template-columns:1fr}.howGrid article{min-height:160px}.howIntro{padding:26px}.howIntro h2{font-size:44px}}
+
+:root{--acid:#9fff16;--lime:#77f000;--chrome:#f2f4ee;--paper:#f4f6ed;--black:#020402;--panel:#070b05}
+body{background:radial-gradient(circle at 50% -8%,rgba(122,240,0,.2),transparent 28%),radial-gradient(circle at 12% 18%,rgba(122,240,0,.08),transparent 24%),linear-gradient(180deg,#020402 0,#070a04 45%,#020302 100%)}
+.brandBanner{border-radius:18px;border-color:rgba(159,255,22,.34);background:#000;box-shadow:0 0 70px rgba(122,240,0,.18),inset 0 0 0 1px rgba(255,255,255,.08)}
+.brandBanner img{width:100%;filter:saturate(1.08) contrast(1.08)}
+.hero{padding-top:46px}
+.heroCopy,.heroCopy h1,.heroCopy h1 em,.heroCopy p,.heroSupport,.heroActions a,.heroActions button,.proof div b,.proof div span{font-family:var(--font-geist-sans),Arial,Helvetica,sans-serif}
+.heroCopy h1{font-weight:950;text-transform:uppercase;letter-spacing:-.082em;line-height:.84;font-size:clamp(64px,8.6vw,116px);text-shadow:0 0 34px rgba(159,255,22,.07)}
+.heroCopy h1 em{font-style:normal;font-weight:950;letter-spacing:inherit;-webkit-text-stroke:2px var(--acid);color:transparent}
+.heroCopy p{font-size:18px;line-height:1.45;color:#d7ddd0;letter-spacing:-.025em;max-width:650px}
+.heroSupport{font-size:14px!important;line-height:1.5;color:#91a274!important;font-weight:750;letter-spacing:-.01em!important}
+.eyebrow,.kicker{color:#a7ff2e}
+.heroActions .primary,.heroActions .textBtn{letter-spacing:.02em}
+.proof{border-color:rgba(159,255,22,.22)}
+.proof div b{font-weight:950}
+.machine,.howIntro,.howGrid article,.liveStats,.inventoryLog a,.inventoryLog div,.dropProof,.verifiedGrid{background:linear-gradient(180deg,rgba(12,17,8,.96),rgba(5,8,4,.98));border-color:rgba(159,255,22,.22)}
+.caseMachine .window{background:radial-gradient(circle at 50% 42%,rgba(159,255,22,.18),rgba(10,18,3,.92) 44%,#020402 76%)}
+.ticker{background:#9fff16;color:#061006;box-shadow:0 0 34px rgba(159,255,22,.14)}
+.packs{background:linear-gradient(180deg,transparent,rgba(122,240,0,.025) 16%,transparent 100%)}
+.live{background:linear-gradient(180deg,#050804,#0a1006 48%,#050804);color:var(--paper);border-block:1px solid rgba(159,255,22,.18)}
+.liveHead p{color:#87936f}
+.liveHead button{background:var(--acid);color:#061006;font-weight:900}
+.liveRoom .table{border-top-color:rgba(159,255,22,.4)}
+.tr{border-bottom-color:rgba(159,255,22,.16);color:var(--paper)}
+.tr.labels{color:#7e8b6b}
+.avatar{box-shadow:0 0 20px rgba(159,255,22,.18)}
+.fly{background:radial-gradient(circle at 50% 18%,rgba(159,255,22,.07),transparent 42%)}
+@media(max-width:700px){.heroCopy h1{font-size:56px}.heroCopy p{font-size:16px}.brandBanner{border-radius:0}}
