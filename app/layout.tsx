@@ -22,18 +22,18 @@ export const metadata: Metadata = {
   openGraph: {
     title: "StockRips — RIPS holder stock-pack draws.",
     description: "Every five minutes, eligible RIPS holders enter a provably fair xStock pack draw.",
-    images: [{ url: "/ripstocks-banner.jpg", width: 1280, height: 426, alt: "StockRips stock pack" }],
+    images: [{ url: "/stockrips-banner.jpg", width: 1280, height: 426, alt: "StockRips holder stock-pack draws" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "StockRips — RIPS holder stock-pack draws.",
     description: "Every five minutes, eligible RIPS holders enter a provably fair xStock pack draw.",
-    images: ["/ripstocks-banner.jpg"],
+    images: ["/stockrips-banner.jpg"],
   },
   icons: {
-    icon: "/ripstocks-logo.jpg",
-    shortcut: "/ripstocks-logo.jpg",
-    apple: "/ripstocks-logo.jpg",
+    icon: "/stockrips-logo.jpg",
+    shortcut: "/stockrips-logo.jpg",
+    apple: "/stockrips-logo.jpg",
   },
 };
 

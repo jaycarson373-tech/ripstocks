@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { AIRDROP_INTERVAL_MINUTES, HOLDER_TICKET_TOKENS, emptySnapshot, type ProtocolSnapshot } from "@/lib/protocol";
 import { detectSolanaProvider, type SolanaProvider, type SolanaPublicKey } from "@/lib/solana-wallet";
 import { Transaction } from "@solana/web3.js";
 import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
-const stockPalette=["#65d1ff","#d8ff3e","#815cff","#ef3d4c","#ff5b42","#76e247","#1652f0","#fbbc04","#c9ff38","#ff9900"];
-type StockDisplay={ticker:string;name:string;color:string;ink:string};
+type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string};
 type ChatMessage={id:string;created_at:string;wallet:string;message:string};
-const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map((stock,index)=>({ticker:stock.symbol,name:stock.name,color:stockPalette[index],ink:index===2||index===3||index===4||index===6?"#fff":"#090909"}));
+const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map(stock=>({ticker:stock.symbol,name:stock.name,color:stock.color,ink:stock.ink,logo:stock.logo}));
+function stockVars(stock:StockDisplay){return {"--stock":stock.color,"--stockInk":stock.ink} as CSSProperties}
+function StockLogo({stock,className=""}:{stock:StockDisplay;className?:string}){return <span className={`stockLogo ${className}`} style={stockVars(stock)}><b>{stock.logo}</b></span>}
 function apiBase(){
   const raw=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").trim().replace(/^["']|["']$/g,"").replace(/\/$/,"");
   if(!raw)return "";
@@ -59,7 +60,7 @@ export default function Home() {
   }, []);
   const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
   const inventoryReady=snapshot.packsRemaining>0;
-  const stockStyle=(symbol:string)=>stocks.find(stock=>stock.ticker===symbol)??{ticker:symbol,name:symbol,color:"#caff00",ink:"#080808"};
+  const stockStyle=(symbol:string)=>stocks.find(stock=>stock.ticker===symbol)??{ticker:symbol,name:symbol,color:"#a7ff16",ink:"#080808",logo:symbol.slice(0,1)};
   const short=(address:string)=>address?`${address.slice(0,4)}…${address.slice(-4)}`:"—";
   const latestDrop=snapshot.proofs[0];
 
@@ -104,7 +105,7 @@ export default function Home() {
       const confirmed=await fetch(`${base}/api/checkout/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:checkout.orderId,paymentSignature:signature,wallet})});
       const pull=await confirmed.json() as {symbol?:string;value?:number;error?:string};
       if(!confirmed.ok||!pull.symbol)throw new Error("Payment received. Delivery is retrying.");
-      setPulledValue(Number(pull.value)||0); setOpening(false); setResult(stocks.find(stock=>stock.ticker===pull.symbol)??{ticker:pull.symbol,name:pull.symbol,color:"#caff00",ink:"#080808"});
+      setPulledValue(Number(pull.value)||0); setOpening(false); setResult(stocks.find(stock=>stock.ticker===pull.symbol)??{ticker:pull.symbol,name:pull.symbol,color:"#a7ff16",ink:"#080808",logo:pull.symbol.slice(0,1)});
     }catch(error){setOpening(false);setWalletError(error instanceof Error&&error.message.includes("User rejected")?"Transaction cancelled. No payment was taken.":"Pack checkout did not start. Refresh and try again.")}
   }
 
@@ -112,12 +113,12 @@ export default function Home() {
     <main>
       <div className="grain" />
       <nav className="nav wrap">
-        <a className="brand brandImage" href="#top" aria-label="StockRips home"><img src="/ripstocks-logo.jpg" alt=""/><span><em>stock</em>rips</span></a>
+        <a className="brand brandImage" href="#top" aria-label="StockRips home"><img src="/stockrips-logo.jpg" alt=""/><span><em>stock</em>rips</span></a>
         <div className="navlinks"><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div>
         {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
       </nav>
 
-      <div className="brandBanner wrap"><img src="/ripstocks-banner.jpg" alt="StockRips — tokenized stock pack draws"/></div>
+      <div className="brandBanner wrap"><img src="/stockrips-banner.jpg" alt="StockRips — tokenized stock pack draws"/></div>
       <section className="hero wrap" id="top">
         <div className="heroCopy">
           <div className="eyebrow"><span /> RIPS LIVE ON SOLANA</div>
@@ -132,7 +133,7 @@ export default function Home() {
           <div className="window">
             <div className="glow" />
             <div className="casePointer" />
-            <div className="caseReel">{[...stocks,...stocks].map((stock,index)=><span key={`${stock.ticker}-${index}`} style={{background:stock.color,color:stock.ink}}><b>{stock.ticker}</b><small>${[1,2,3,5,8,10,12,15,20,25,30,40,50][index%13]}</small></span>)}</div>
+            <div className="caseReel">{[...stocks,...stocks].map((stock,index)=><span className="caseCard" key={`${stock.ticker}-${index}`} style={stockVars(stock)}><StockLogo stock={stock} className="caseLogo"/><b>{stock.ticker}</b><small>${[1,2,3,5,8,10,12,15,20,25,30,40,50][index%13]}</small></span>)}</div>
             <div className="caseResult"><small>LATEST WIN</small><b>{latestDrop?.stock || "RIPS"}</b><em>{latestDrop?`$${Number(latestDrop.value).toFixed(2)}`:"ARMED"}</em></div>
           </div>
           <div className="belt">{[1,2,3,4,5,6].map(n=><span key={n} />)}</div>
@@ -140,7 +141,12 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="ticker"><div>{snapshot.proofs.length?[...snapshot.proofs,...snapshot.proofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
+      <div className="ticker"><div>{snapshot.proofs.length?[...snapshot.proofs,...snapshot.proofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><StockLogo stock={s} className="tickerLogo"/><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><StockLogo stock={s} className="tickerLogo"/><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
+
+      <section className="winUniverse wrap" aria-label="Approved xStocks in the StockRips case">
+        <div><span className="kicker">10 STOCKS IN ROTATION</span><p>Each holder draw spins through the approved xStock universe before a funded pack is airdropped.</p></div>
+        <div className="winLogoGrid">{stocks.map(stock=><div key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock}/><b>{stock.ticker}</b><span>{stock.name}</span></div>)}</div>
+      </section>
 
       <section className="packs wrap" id="draw">
         <div className="liveStats">{[
@@ -160,7 +166,7 @@ export default function Home() {
           {[10,30,50].map((price, i)=><div key={price} className={`packCard p${price} unavailable`}>
             <span className="chance">{i===0?"CLASSIC GACHA":i===1?"MULTI-PULL":"WHALE CASE"}</span>
             <span className="inventory empty">COMING SOON</span>
-            <div className="miniPack photoPack"><img src="/ripstocks-logo.jpg" alt=""/><i>{price}</i></div>
+            <div className="miniPack photoPack"><img src="/stockrips-logo.jpg" alt=""/><i>{price}</i></div>
             <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>Paid gacha pack<br/><em>Coming Soon</em></p></div>
             <span className="soldOut">COMING SOON</span>
           </div>)}
@@ -174,7 +180,7 @@ export default function Home() {
       <section className="live" id="live"><div className="wrap">
         <div className="liveHead"><div><span className="liveDot"/> LIVE CASE ROOM</div><p>Everyone can watch the draw, proof, and chat.</p><button onClick={()=>setSpectating(!spectating)}>{spectating?"WATCHING LIVE":"SPECTATE"} ◉</button></div>
         <div className="liveRoom">
-          <div className="table"><div className="tr labels"><span>WINNER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>PROOF</span></div>{snapshot.proofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{rip.pack}</span><span><b className="stockBadge" style={{background:style.color,color:style.ink}}>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{snapshot.proofs.length===0&&<div className="emptyProof">Waiting for the first confirmed RIPS holder draw.</div>}</div>
+          <div className="table"><div className="tr labels"><span>WINNER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>PROOF</span></div>{snapshot.proofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{rip.pack}</span><span><b className="stockBadge" style={stockVars(style)}><StockLogo stock={style} className="badgeLogo"/>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{snapshot.proofs.length===0&&<div className="emptyProof">Waiting for the first confirmed RIPS holder draw.</div>}</div>
           <aside className="liveChat" aria-label="Live spectator chat">
             <div className="chatHead"><b>LIVE CHAT</b><span>{chatMessages.length||"0"} MSGS</span></div>
             <div className="chatStream">{chatMessages.length?chatMessages.map(message=><div key={message.id}><span>{short(message.wallet)}</span><p>{message.message}</p></div>):<div><span>SYSTEM</span><p>Chat opens once the live table is migrated.</p></div>}</div>
@@ -186,9 +192,9 @@ export default function Home() {
       <section className="fly wrap" id="flywheel"><span className="kicker">HOW IT WORKS</span><h2>RIPS tickets.<br/><em>Stock case draws.</em></h2><div className="protocolSteps">{[["01","HOLD RIPS",`${HOLDER_TICKET_TOKENS.toLocaleString()} RIPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","FEES FUND PACKS","Protocol fees are used to stock the treasury with tokenized stock packs from $1 to $50."],["03","PUBLIC SEED","Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One weighted holder is selected and the StockRips case reel resolves to the funded xStock pack."],["05","PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
       <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STOCKRIPS DRAW PROOFS</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{snapshot.proofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{a.pack}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{snapshot.proofs.length===0&&<div className="emptyProof">No StockRips holder draws published yet.</div>}</div></div><p className="disclaimer">StockRips draws are statistical holder rewards funded by treasury inventory. 250k RIPS equals one ticket. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
 
-      <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">VERIFIED INVENTORY UNIVERSE</span><h2 id="verified-title">10 official xStocks.<br/>Nothing else.</h2></div><p>StockRips inventory is restricted to verified Solana xStock mints. Every mint links directly to its on-chain record.</p></div><div className="verifiedGrid">{VERIFIED_XSTOCKS.map((stock,index)=><a key={stock.mint} href={`https://solscan.io/token/${stock.mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><div><b>{stock.symbol}</b><small>{stock.name}</small></div><code>{stock.mint.slice(0,8)}…{stock.mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
+      <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN WIN?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded into the case.</h2></div><p>StockRips inventory is restricted to this approved Solana xStock universe. Every draw resolves to one of these treasury-funded stock packs.</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/ripstocks-logo.jpg" alt=""/><span><em>stock</em>rips</span></div><p>TICKER: RIPS</p><div className="footerLinks"><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/stockrips-logo.jpg" alt=""/><span><em>stock</em>rips</span></div><p>TICKER: RIPS</p><div className="footerLinks"><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
