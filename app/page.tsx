@@ -62,7 +62,14 @@ export default function Home() {
   const inventoryReady=snapshot.packsRemaining>0;
   const stockStyle=(symbol:string)=>stocks.find(stock=>stock.ticker===symbol)??{ticker:symbol,name:symbol,color:"#a7ff16",ink:"#080808",logo:symbol.slice(0,1)};
   const short=(address:string)=>address?`${address.slice(0,4)}…${address.slice(-4)}`:"—";
-  const latestDrop=snapshot.proofs[0];
+  const approvedSymbols=new Set(stocks.map(stock=>stock.ticker));
+  const stockProofs=snapshot.proofs.filter(proof=>approvedSymbols.has(proof.stock));
+  const staleProofsHidden=snapshot.proofs.length!==stockProofs.length;
+  const latestDrop=stockProofs[0];
+  const proofPackLabel=(value:number|string)=>`$${Number(value).toFixed(2)} STOCK PACK`;
+  const displayedDropCount=staleProofsHidden?stockProofs.length:Number(snapshot.totalHolderDrops);
+  const displayedValueAirdropped=staleProofsHidden?stockProofs.reduce((sum,proof)=>sum+Number(proof.value),0):Number(snapshot.totalValueAirdropped);
+  const displayedAverageDrop=displayedDropCount>0?displayedValueAirdropped/displayedDropCount:Number(snapshot.averageHolderDropValue);
 
   useEffect(()=>{const load=async()=>{try{const r=await fetch("/api/chat",{cache:"no-store"});const data=await r.json() as {messages?:ChatMessage[]};setChatMessages(data.messages||[])}catch{}};load();const timer=window.setInterval(load,5000);return()=>window.clearInterval(timer)},[]);
 
@@ -126,7 +133,7 @@ export default function Home() {
           <p>Every {AIRDROP_INTERVAL_MINUTES} minutes, one eligible holder wins a funded xStock pack from the StockRips treasury.</p>
           <p className="heroSupport">{HOLDER_TICKET_TOKENS.toLocaleString()} RIPS = 1 ticket. Draws use a public blockhash seed and post proof after payout.</p>
           <div className="heroActions"><a className="primary" href="#draw">WATCH NEXT DRAW <b>↓</b></a><button className="textBtn" onClick={() => setSpectating(true)}>OPEN LIVE ROOM <span>●</span></button></div>
-          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>RIPS PER TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT CASE DRAW</span></div><div><b>{snapshot.totalHolderDrops}</b><span>PACKS AIRDROPPED</span></div></div>
+          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>RIPS PER TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT CASE DRAW</span></div><div><b>{displayedDropCount}</b><span>PACKS AIRDROPPED</span></div></div>
         </div>
         <div className="machine caseMachine" aria-label="Animated StockRips case opening machine">
           <div className="machineTop"><span>STOCKRIPS CASE</span><i>LIVE</i></div>
@@ -141,7 +148,7 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="ticker"><div>{snapshot.proofs.length?[...snapshot.proofs,...snapshot.proofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><StockLogo stock={s} className="tickerLogo"/><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><StockLogo stock={s} className="tickerLogo"/><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
+      <div className="ticker"><div>{stockProofs.length?[...stockProofs,...stockProofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><StockLogo stock={s} className="tickerLogo"/><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><StockLogo stock={s} className="tickerLogo"/><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
 
       <section className="winUniverse wrap" aria-label="Approved xStocks in the StockRips case">
         <div><span className="kicker">10 STOCKS IN ROTATION</span><p>Each holder draw spins through the approved xStock universe before a funded pack is airdropped.</p></div>
@@ -171,9 +178,9 @@ export default function Home() {
           ["CURRENT DRAW EV",snapshot.averageHolderDropValue,true],
           ["STOCK PACK TREASURY",snapshot.holderAirdropTreasury,true],
           ["RIPS PER TICKET",HOLDER_TICKET_TOKENS,false],
-          ["DRAWS COMPLETED",snapshot.totalHolderDrops,false],
-          ["AVERAGE DROP VALUE",snapshot.averageHolderDropValue,true],
-          ["VALUE AIRDROPPED",snapshot.totalValueAirdropped,true],
+          ["DRAWS COMPLETED",displayedDropCount,false],
+          ["AVERAGE DROP VALUE",displayedAverageDrop,true],
+          ["VALUE AIRDROPPED",displayedValueAirdropped,true],
         ].map(([label,value,currency])=><div key={String(label)}><span>{label}</span><b>{currency?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b></div>)}</div>
         <div className="inventoryLog" aria-label="Inventory purchase log">
           {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
@@ -188,7 +195,7 @@ export default function Home() {
       <section className="live" id="live"><div className="wrap">
         <div className="liveHead"><div><span className="liveDot"/> LIVE CASE ROOM</div><p>Everyone can watch the draw, proof, and chat.</p><button onClick={()=>setSpectating(!spectating)}>{spectating?"WATCHING LIVE":"SPECTATE"} ◉</button></div>
         <div className="liveRoom">
-          <div className="table"><div className="tr labels"><span>WINNER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>PROOF</span></div>{snapshot.proofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{rip.pack}</span><span><b className="stockBadge" style={stockVars(style)}><StockLogo stock={style} className="badgeLogo"/>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{snapshot.proofs.length===0&&<div className="emptyProof">Waiting for the first confirmed RIPS holder draw.</div>}</div>
+          <div className="table"><div className="tr labels"><span>WINNER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>PROOF</span></div>{stockProofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{proofPackLabel(rip.value)}</span><span><b className="stockBadge" style={stockVars(style)}><StockLogo stock={style} className="badgeLogo"/>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{stockProofs.length===0&&<div className="emptyProof">Waiting for the first confirmed RIPS holder draw.</div>}</div>
           <aside className="liveChat" aria-label="Live spectator chat">
             <div className="chatHead"><b>LIVE CHAT</b><span>{chatMessages.length||"0"} MSGS</span></div>
             <div className="chatStream">{chatMessages.length?chatMessages.map(message=><div key={message.id}><span>{short(message.wallet)}</span><p>{message.message}</p></div>):<div><span>SYSTEM</span><p>Chat opens once the live table is migrated.</p></div>}</div>
@@ -198,7 +205,7 @@ export default function Home() {
       </div></section>
 
       <section className="fly wrap" id="flywheel"><span className="kicker">PROOF ENGINE</span><h2>Fair seed.<br/><em>On-chain receipt.</em></h2><div className="protocolSteps">{[["01","HOLDER SNAPSHOT",`${HOLDER_TICKET_TOKENS.toLocaleString()} RIPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","FUNDED INVENTORY","Protocol fees are used to stock the treasury with tokenized stock packs from $1 to $50."],["03","PUBLIC SEED","Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One weighted holder is selected and the StockRips case reel resolves to the funded xStock pack."],["05","PUBLISHED PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
-      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STOCKRIPS DRAW PROOFS</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{snapshot.proofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{a.pack}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{snapshot.proofs.length===0&&<div className="emptyProof">No StockRips holder draws published yet.</div>}</div></div><p className="disclaimer">StockRips draws are statistical holder rewards funded by treasury inventory. 250k RIPS equals one ticket. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
+      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STOCKRIPS DRAW PROOFS</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{stockProofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{proofPackLabel(a.value)}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{stockProofs.length===0&&<div className="emptyProof">No StockRips holder draws published yet.</div>}</div></div><p className="disclaimer">StockRips draws are statistical holder rewards funded by treasury inventory. 250k RIPS equals one ticket. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN WIN?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded into the case.</h2></div><p>StockRips inventory is restricted to this approved Solana xStock universe. Every draw resolves to one of these treasury-funded stock packs.</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
