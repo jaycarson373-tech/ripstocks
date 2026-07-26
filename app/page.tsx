@@ -186,6 +186,15 @@ export default function Home() {
           {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
         </div>
         <div className="sectionHead"><div><span className="kicker">LIVE HOLDER CASE</span><h2>One draw.<br/>Every five minutes.</h2></div><p>Fees stock the treasury with xStock packs from $1 to $50. The draw picks one weighted RIPS holder, spins the case reel, sends the winning pack, and posts proof.</p></div>
+        <div className="gachaTeaser" aria-label="Gacha packs coming soon">
+          <div className="teaserPack"><img src="/stockrips-logo.jpg" alt=""/><span>SOON</span></div>
+          <div>
+            <span className="kicker">GACHA PACKS COMING SOON</span>
+            <h3>Rip paid stock packs after the holder case goes live.</h3>
+            <p>A separate paid-pack mode is planned for later. The live launch is focused on RIPS holder draws, treasury-funded xStock packs, and public proof.</p>
+          </div>
+          <b>LOCKED</b>
+        </div>
         <div className="ripBar drawBar">
           <div><span>NEXT CASE DRAW</span><b>{countdown}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} RIPS = 1 TICKET</b></div><a href="#live">WATCH LIVE ROOM <span>→</span></a>
         </div>

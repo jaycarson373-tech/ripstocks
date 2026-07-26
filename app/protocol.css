@@ -103,3 +103,13 @@ body{background:radial-gradient(circle at 50% -8%,rgba(122,240,0,.2),transparent
 .avatar{box-shadow:0 0 20px rgba(159,255,22,.18)}
 .fly{background:radial-gradient(circle at 50% 18%,rgba(159,255,22,.07),transparent 42%)}
 @media(max-width:700px){.heroCopy h1{font-size:56px}.heroCopy p{font-size:16px}.brandBanner{border-radius:0}}
+
+.gachaTeaser{margin:36px 0 18px;display:grid;grid-template-columns:150px 1fr auto;gap:24px;align-items:center;border:1px solid rgba(159,255,22,.22);background:linear-gradient(100deg,rgba(159,255,22,.09),rgba(8,12,5,.96) 34%,rgba(2,4,2,.98));padding:18px 22px;border-radius:26px;box-shadow:0 0 48px rgba(159,255,22,.06);position:relative;overflow:hidden}
+.gachaTeaser:before{content:"";position:absolute;inset:-40%;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.07) 48%,transparent 55%);transform:translateX(-28%);pointer-events:none}
+.teaserPack{height:130px;border-radius:22px;position:relative;display:grid;place-items:center;background:radial-gradient(circle,rgba(159,255,22,.18),rgba(0,0,0,.9) 58%);border:1px solid rgba(159,255,22,.28);box-shadow:inset 0 0 28px rgba(159,255,22,.09)}
+.teaserPack img{width:92px;height:92px;border-radius:50%;object-fit:cover;filter:saturate(1.08) contrast(1.1)}
+.teaserPack span{position:absolute;right:10px;bottom:10px;background:var(--acid);color:#061006;border-radius:999px;padding:5px 9px;font:950 9px var(--font-geist-mono);letter-spacing:.08em}
+.gachaTeaser h3{margin:10px 0 8px;font-size:clamp(24px,3vw,38px);line-height:.95;letter-spacing:-.055em;text-transform:uppercase}
+.gachaTeaser p{max-width:680px;margin:0;color:#899579;font-size:13px;line-height:1.55}
+.gachaTeaser>b{justify-self:end;border:1px solid rgba(159,255,22,.38);color:var(--acid);border-radius:999px;padding:10px 14px;font:950 10px var(--font-geist-mono);letter-spacing:.12em}
+@media(max-width:800px){.gachaTeaser{grid-template-columns:92px 1fr;gap:16px;border-radius:20px}.teaserPack{height:92px;border-radius:18px}.teaserPack img{width:64px;height:64px}.gachaTeaser>b{grid-column:1/-1;justify-self:start}.gachaTeaser h3{font-size:25px}}
