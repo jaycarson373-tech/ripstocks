@@ -58,3 +58,18 @@ body{background:radial-gradient(circle at 50% 0,rgba(80,255,20,.12),transparent 
 footer{background:linear-gradient(180deg,#050805,#020302);border-top-color:rgba(149,255,22,.18)}
 @media(max-width:1000px){.hero{grid-template-columns:1fr}.winUniverse{grid-template-columns:1fr}.winLogoGrid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:700px){.brandBanner{border-radius:0}.winLogoGrid{grid-template-columns:1fr}.verifiedGrid a{grid-template-columns:28px 42px 1fr 20px}.verifiedGrid code{display:none}.caseReel .caseCard{width:96px;height:108px}.caseLogo{--size:42px}}
+
+.howWorks{padding:70px 0 30px;display:grid;grid-template-columns:.85fr 1.15fr;gap:28px;align-items:stretch}
+.howIntro{border:1px solid rgba(149,255,22,.22);background:radial-gradient(circle at 80% 12%,rgba(149,255,22,.13),transparent 36%),linear-gradient(180deg,#0c1208,#050805);padding:34px;border-radius:26px;box-shadow:0 0 48px rgba(149,255,22,.06)}
+.howIntro h2{margin:16px 0 0;font-size:clamp(42px,5.6vw,76px);line-height:.9;letter-spacing:-.07em;text-transform:uppercase}
+.howIntro p{max-width:440px;margin:24px 0 0;color:#8a9579;font-size:14px;line-height:1.65}
+.howGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.howGrid article{min-height:245px;border:1px solid rgba(149,255,22,.18);background:linear-gradient(180deg,#0d1308,#060806);padding:20px 16px;display:flex;flex-direction:column;position:relative;overflow:hidden;border-radius:20px}
+.howGrid article:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.06),transparent 35%,rgba(149,255,22,.06));opacity:.7;pointer-events:none}
+.howGrid article b{position:relative;color:var(--acid);font:950 38px var(--font-geist-mono);letter-spacing:-.12em;margin-bottom:auto;text-shadow:0 0 18px rgba(149,255,22,.18)}
+.howGrid article span{position:relative;color:#f6f8ef;font:950 10px var(--font-geist-mono);letter-spacing:.13em}
+.howGrid article p{position:relative;margin:12px 0 0;color:#7c876e;font-size:11px;line-height:1.5}
+.howGrid article:nth-child(2),.howGrid article:nth-child(4){transform:translateY(18px)}
+.howGrid article:hover{border-color:rgba(149,255,22,.48);box-shadow:0 0 30px rgba(149,255,22,.07)}
+@media(max-width:1050px){.howWorks{grid-template-columns:1fr}.howGrid{grid-template-columns:repeat(3,1fr)}.howGrid article:nth-child(2),.howGrid article:nth-child(4){transform:none}}
+@media(max-width:700px){.howWorks{padding-top:48px}.howGrid{grid-template-columns:1fr}.howGrid article{min-height:160px}.howIntro{padding:26px}.howIntro h2{font-size:44px}}

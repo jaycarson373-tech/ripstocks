@@ -114,7 +114,7 @@ export default function Home() {
       <div className="grain" />
       <nav className="nav wrap">
         <a className="brand brandImage" href="#top" aria-label="StockRips home"><img src="/stockrips-logo.jpg" alt=""/><span><em>stock</em>rips</span></a>
-        <div className="navlinks"><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div>
+        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div>
         {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
       </nav>
 
@@ -146,6 +146,23 @@ export default function Home() {
       <section className="winUniverse wrap" aria-label="Approved xStocks in the StockRips case">
         <div><span className="kicker">10 STOCKS IN ROTATION</span><p>Each holder draw spins through the approved xStock universe before a funded pack is airdropped.</p></div>
         <div className="winLogoGrid">{stocks.map(stock=><div key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock}/><b>{stock.ticker}</b><span>{stock.name}</span></div>)}</div>
+      </section>
+
+      <section className="howWorks wrap" id="how" aria-labelledby="how-title">
+        <div className="howIntro">
+          <span className="kicker">HOW IT WORKS</span>
+          <h2 id="how-title">Hold RIPS.<br/>Watch the case spin.</h2>
+          <p>No paid pack mint is needed for the main utility. The protocol funds stock packs, snapshots holders, spins the case, and posts the proof after each confirmed drop.</p>
+        </div>
+        <div className="howGrid">
+          {[
+            ["01","HOLD RIPS",`${HOLDER_TICKET_TOKENS.toLocaleString()} RIPS equals one weighted ticket for the next draw.`],
+            ["02","TREASURY STOCKS PACKS","Protocol fees refill the stock-pack treasury with approved Solana xStocks."],
+            ["03","5-MINUTE SNAPSHOT","Every five minutes, eligible holders are counted and the draw seed is locked."],
+            ["04","CASE SPINS","The live case reel resolves to one funded xStock pack from the approved universe."],
+            ["05","AIRDROP + PROOF","The pack is sent to the winner and the transaction proof appears on the site."]
+          ].map(step=><article key={step[0]}><b>{step[0]}</b><span>{step[1]}</span><p>{step[2]}</p></article>)}
+        </div>
       </section>
 
       <section className="packs wrap" id="draw">
@@ -189,7 +206,7 @@ export default function Home() {
         </div>
       </div></section>
 
-      <section className="fly wrap" id="flywheel"><span className="kicker">HOW IT WORKS</span><h2>RIPS tickets.<br/><em>Stock case draws.</em></h2><div className="protocolSteps">{[["01","HOLD RIPS",`${HOLDER_TICKET_TOKENS.toLocaleString()} RIPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","FEES FUND PACKS","Protocol fees are used to stock the treasury with tokenized stock packs from $1 to $50."],["03","PUBLIC SEED","Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One weighted holder is selected and the StockRips case reel resolves to the funded xStock pack."],["05","PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
+      <section className="fly wrap" id="flywheel"><span className="kicker">PROOF ENGINE</span><h2>Fair seed.<br/><em>On-chain receipt.</em></h2><div className="protocolSteps">{[["01","HOLDER SNAPSHOT",`${HOLDER_TICKET_TOKENS.toLocaleString()} RIPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","FUNDED INVENTORY","Protocol fees are used to stock the treasury with tokenized stock packs from $1 to $50."],["03","PUBLIC SEED","Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One weighted holder is selected and the StockRips case reel resolves to the funded xStock pack."],["05","PUBLISHED PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
       <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STOCKRIPS DRAW PROOFS</div><b>NEXT DRAW {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>PACK</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{snapshot.proofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{a.pack}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{snapshot.proofs.length===0&&<div className="emptyProof">No StockRips holder draws published yet.</div>}</div></div><p className="disclaimer">StockRips draws are statistical holder rewards funded by treasury inventory. 250k RIPS equals one ticket. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN WIN?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded into the case.</h2></div><p>StockRips inventory is restricted to this approved Solana xStock universe. Every draw resolves to one of these treasury-funded stock packs.</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
