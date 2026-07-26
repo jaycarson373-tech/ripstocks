@@ -69,8 +69,9 @@ export async function POST(request:Request){
     const countTable=scope==="main"?"inventory_lots":"airdrop_inventory_lots";
     const countResponse=await supabase(`${countTable}?select=id`,{headers:{Prefer:"count=exact"}});
     const count=Number(countResponse.headers.get("content-range")?.split("/")[1]||0);
-    const usd=lots[count%lots.length];
-    if(availableUsdc<usd)return Response.json({ok:true,skipped:"Insufficient available USDC for the next inventory lot",availableUsdc,nextLotUsd:usd});
+    const affordableLots=lots.filter(value=>value<=availableUsdc);
+    if(!affordableLots.length)return Response.json({ok:true,skipped:"Insufficient available USDC for the next inventory lot",availableUsdc,nextLotUsd:Math.min(...lots)});
+    const usd=affordableLots[count%affordableLots.length];
     const targets=parseTargets();
     const target=targets[count%targets.length];
     const mint=new PublicKey(target.mint);

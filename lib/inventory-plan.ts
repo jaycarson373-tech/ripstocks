@@ -1,6 +1,6 @@
 export const SOL_GAS_BUFFER = 0.111;
 export const MAIN_INVENTORY_LOTS = [1,2,3,5,8,10,12,15,20,25,30,40,50] as const;
-export const HOLDER_INVENTORY_LOTS = [1,2,3,5,8,10,12,15,20,25,30,40,50] as const;
+export const HOLDER_INVENTORY_LOTS = [1,2,3,4,5] as const;
 
 export function total(values: readonly number[]) { return values.reduce((sum,value)=>sum+value,0); }
 export function average(values: readonly number[]) { return values.length ? total(values)/values.length : 0; }

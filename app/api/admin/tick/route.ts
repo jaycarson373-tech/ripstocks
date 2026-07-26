@@ -11,10 +11,13 @@ export async function POST(request:Request){
     const body=text?JSON.parse(text):null;
     return {status:response.status,body};
   }).catch(error=>({status:503,body:{ok:false,error:error instanceof Error?error.message:"Automation call failed"}}));
+  const currentSlot=Math.floor(Date.now()/AIRDROP_INTERVAL_MS);
   const drawWindow=Date.now()%AIRDROP_INTERVAL_MS<75_000;
+  const restockWindow=drawWindow&&currentSlot%3===0;
   const waiting={status:200,body:{ok:true,skipped:"Waiting for the next 5-minute draw window."}};
-  const main=drawWindow?await call("/api/admin/restock?scope=main"):waiting;
-  const holder=drawWindow?await call("/api/admin/restock?scope=holder"):null;
+  const restockWaiting={status:200,body:{ok:true,skipped:"Waiting for the next 15-minute restock window."}};
+  const main=restockWindow?await call("/api/admin/restock?scope=main"):restockWaiting;
+  const holder=restockWindow?await call("/api/admin/restock?scope=holder"):restockWaiting;
   const airdrop=drawWindow?await call("/api/admin/holder-epoch"):null;
   return Response.json({ok:true,main,holder,airdrop});
 }

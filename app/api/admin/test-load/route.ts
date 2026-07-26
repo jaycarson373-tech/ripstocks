@@ -9,6 +9,27 @@ export const dynamic="force-dynamic";
 const WRAPPED_SOL=new PublicKey("So11111111111111111111111111111111111111112");
 const LOADER_VERSION="ata-destination-v2";
 
+function bootstrapBudgets(scope:"main"|"holder",requestedBudgets?:number[]){
+  if(Array.isArray(requestedBudgets)&&requestedBudgets.length)return requestedBudgets;
+  const cycle=scope==="main"?[...MAIN_INVENTORY_LOTS]:[...HOLDER_INVENTORY_LOTS];
+  const target=Number(process.env[scope==="main"?"MAIN_INVENTORY_BUDGET_USD":"HOLDER_INVENTORY_BUDGET_USD"]||0);
+  if(!Number.isFinite(target)||target<=0)return cycle;
+  const budgets:number[]=[];
+  let total=0;
+  for(let index=0;index<80;index++){
+    const usd=cycle[index%cycle.length];
+    if(total+usd>target){
+      const affordable=[...cycle].reverse().find(value=>total+value<=target);
+      if(affordable){budgets.push(affordable);total+=affordable}
+      break;
+    }
+    budgets.push(usd);
+    total+=usd;
+    if(total>=target)break;
+  }
+  return budgets.length?budgets:cycle;
+}
+
 async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof keypairEnv>,mint:PublicKey){
   const account=getAssociatedTokenAddressSync(mint,payer.publicKey,false,TOKEN_2022_PROGRAM_ID);
   const transaction=new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(payer.publicKey,account,payer.publicKey,mint,TOKEN_2022_PROGRAM_ID));
@@ -47,8 +68,8 @@ export async function POST(request:Request){
     const {scope,testId,dryRun=false,budgets:requestedBudgets}=await request.json() as {scope?:"main"|"holder";testId?:string;dryRun?:boolean;budgets?:number[]};
     if(scope!=="main"&&scope!=="holder")return Response.json({error:"scope must be main or holder"},{status:400});
     if(!testId||!/^[a-zA-Z0-9_-]{8,64}$/.test(testId))return Response.json({error:"A unique testId is required"},{status:400});
-    const budgets=Array.isArray(requestedBudgets)&&requestedBudgets.length?requestedBudgets:(scope==="main"?[...MAIN_INVENTORY_LOTS]:[...HOLDER_INVENTORY_LOTS]);
-    if(budgets.length>20||budgets.some(value=>!Number.isFinite(value)||value<=0||value>50))return Response.json({error:"Invalid test budgets"},{status:400});
+    const budgets=bootstrapBudgets(scope,requestedBudgets);
+    if(budgets.length>80||budgets.some(value=>!Number.isFinite(value)||value<=0||value>50))return Response.json({error:"Invalid test budgets"},{status:400});
     const budgetTotal=budgets.reduce((sum,value)=>sum+value,0);
     const signer=keypairEnv(scope==="main"?"MAIN_TREASURY_SIGNER_SECRET":"HOLDER_AIRDROP_SIGNER_SECRET");
     const configured=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET");
