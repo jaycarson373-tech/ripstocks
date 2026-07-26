@@ -113,3 +113,18 @@ body{background:radial-gradient(circle at 50% -8%,rgba(122,240,0,.2),transparent
 .gachaTeaser p{max-width:680px;margin:0;color:#899579;font-size:13px;line-height:1.55}
 .gachaTeaser>b{justify-self:end;border:1px solid rgba(159,255,22,.38);color:var(--acid);border-radius:999px;padding:10px 14px;font:950 10px var(--font-geist-mono);letter-spacing:.12em}
 @media(max-width:800px){.gachaTeaser{grid-template-columns:92px 1fr;gap:16px;border-radius:20px}.teaserPack{height:92px;border-radius:18px}.teaserPack img{width:64px;height:64px}.gachaTeaser>b{grid-column:1/-1;justify-self:start}.gachaTeaser h3{font-size:25px}}
+
+.stockLogo{position:relative;overflow:hidden}
+.stockLogo img{position:absolute;inset:18%;width:64%;height:64%;object-fit:contain;z-index:2;filter:drop-shadow(0 4px 7px rgba(0,0,0,.35))}
+.stockLogo img+ b{opacity:0}
+.stockLogo b{position:relative;z-index:1}
+.heroCopy>p:first-of-type{font-family:var(--font-geist-mono),monospace!important;color:#f5f8ef!important;font-size:15px!important;font-weight:800!important;letter-spacing:.02em!important;text-transform:uppercase}
+.heroSupport{font-family:var(--font-geist-mono),monospace!important;color:var(--acid)!important;font-size:12px!important;font-weight:900!important;letter-spacing:.04em!important;text-transform:uppercase}
+.topLiveChat{margin-top:34px;background:linear-gradient(180deg,#070d05,#030503);color:#f3f6ed;border:1px solid rgba(159,255,22,.28);border-radius:24px;min-height:0;display:grid;grid-template-columns:180px 1fr 360px;align-items:stretch;overflow:hidden;box-shadow:0 0 48px rgba(159,255,22,.08)}
+.topLiveChat .chatHead{border:0;border-right:1px solid rgba(159,255,22,.18);align-content:center;flex-direction:column;justify-content:center;gap:8px}
+.topLiveChat .chatStream{max-height:138px;display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:8px;padding:12px;overflow:auto}
+.topLiveChat .chatStream div{min-width:0}
+.topLiveChat .chatComposer{border-top:0;border-left:1px solid rgba(159,255,22,.18)}
+.liveRoom{grid-template-columns:1fr}
+.liveChat{display:none}
+@media(max-width:1000px){.topLiveChat{grid-template-columns:1fr}.topLiveChat .chatHead{border-right:0;border-bottom:1px solid rgba(159,255,22,.18);flex-direction:row;justify-content:space-between}.topLiveChat .chatStream{grid-template-columns:1fr;max-height:220px}.topLiveChat .chatComposer{border-left:0;border-top:1px solid rgba(159,255,22,.18)}}

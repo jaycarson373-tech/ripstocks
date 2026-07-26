@@ -6,11 +6,11 @@ import { detectSolanaProvider, type SolanaProvider, type SolanaPublicKey } from 
 import { Transaction } from "@solana/web3.js";
 import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
-type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string};
+type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string;logoUrl?:string};
 type ChatMessage={id:string;created_at:string;wallet:string;message:string};
-const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map(stock=>({ticker:stock.symbol,name:stock.name,color:stock.color,ink:stock.ink,logo:stock.logo}));
+const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map(stock=>({ticker:stock.symbol,name:stock.name,color:stock.color,ink:stock.ink,logo:stock.logo,logoUrl:stock.logoUrl}));
 function stockVars(stock:StockDisplay){return {"--stock":stock.color,"--stockInk":stock.ink} as CSSProperties}
-function StockLogo({stock,className=""}:{stock:StockDisplay;className?:string}){return <span className={`stockLogo ${className}`} style={stockVars(stock)}><b>{stock.logo}</b></span>}
+function StockLogo({stock,className=""}:{stock:StockDisplay;className?:string}){return <span className={`stockLogo ${className}`} style={stockVars(stock)}>{stock.logoUrl&&<img src={stock.logoUrl} alt={`${stock.name} logo`} loading="lazy" onError={event=>{event.currentTarget.style.display="none"}}/>}<b>{stock.logo}</b></span>}
 function apiBase(){
   const raw=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").trim().replace(/^["']|["']$/g,"").replace(/\/$/,"");
   if(!raw)return "";
@@ -150,6 +150,12 @@ export default function Home() {
 
       <div className="ticker"><div>{stockProofs.length?[...stockProofs,...stockProofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><StockLogo stock={s} className="tickerLogo"/><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><StockLogo stock={s} className="tickerLogo"/><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
 
+      <section className="topLiveChat wrap" aria-label="Live spectator chat">
+        <div className="chatHead"><b>LIVE CHAT</b><span>{chatMessages.length||"0"} MSGS</span></div>
+        <div className="chatStream">{chatMessages.length?chatMessages.map(message=><div key={message.id}><span>{short(message.wallet)}</span><p>{message.message}</p></div>):<div><span>SYSTEM</span><p>Chat opens with the first draw.</p></div>}</div>
+        <div className="chatComposer"><input value={chatInput} onChange={event=>setChatInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void sendChat()}} placeholder={wallet?"Say something live…":"Connect wallet or chat as spectator"} maxLength={180}/><button type="button" onClick={()=>void sendChat()}>SEND</button></div>
+      </section>
+
       <section className="winUniverse wrap" aria-label="Approved xStocks in the StockRips case">
         <div><span className="kicker">10 STOCKS IN ROTATION</span><p>Each holder draw spins through the approved xStock universe before a funded pack is airdropped.</p></div>
         <div className="winLogoGrid">{stocks.map(stock=><div key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock}/><b>{stock.ticker}</b><span>{stock.name}</span></div>)}</div>
@@ -176,7 +182,7 @@ export default function Home() {
         <div className="liveStats">{[
           ["TREASURY PACKS READY",snapshot.holderPacksAvailable,false],
           ["CURRENT DRAW EV",snapshot.averageHolderDropValue,true],
-          ["STOCK PACK TREASURY",snapshot.holderAirdropTreasury,true],
+          ["TREASURY BALANCE",snapshot.holderAirdropTreasury,true],
           ["RIPS PER TICKET",HOLDER_TICKET_TOKENS,false],
           ["DRAWS COMPLETED",displayedDropCount,false],
           ["AVERAGE DROP VALUE",displayedAverageDrop,true],
@@ -205,11 +211,6 @@ export default function Home() {
         <div className="liveHead"><div><span className="liveDot"/> LIVE CASE ROOM</div><p>Everyone can watch the draw, proof, and chat.</p><button onClick={()=>setSpectating(!spectating)}>{spectating?"WATCHING LIVE":"SPECTATE"} ◉</button></div>
         <div className="liveRoom">
           <div className="table"><div className="tr labels"><span>WINNER</span><span>PACK</span><span>PULLED</span><span>VALUE</span><span>PROOF</span></div>{stockProofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{proofPackLabel(rip.value)}</span><span><b className="stockBadge" style={stockVars(style)}><StockLogo stock={style} className="badgeLogo"/>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{stockProofs.length===0&&<div className="emptyProof">Waiting for the first confirmed RIPS holder draw.</div>}</div>
-          <aside className="liveChat" aria-label="Live spectator chat">
-            <div className="chatHead"><b>LIVE CHAT</b><span>{chatMessages.length||"0"} MSGS</span></div>
-            <div className="chatStream">{chatMessages.length?chatMessages.map(message=><div key={message.id}><span>{short(message.wallet)}</span><p>{message.message}</p></div>):<div><span>SYSTEM</span><p>Chat opens once the live table is migrated.</p></div>}</div>
-            <div className="chatComposer"><input value={chatInput} onChange={event=>setChatInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void sendChat()}} placeholder={wallet?"Say something live…":"Connect wallet or chat as spectator"} maxLength={180}/><button type="button" onClick={()=>void sendChat()}>SEND</button></div>
-          </aside>
         </div>
       </div></section>
 
