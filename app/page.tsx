@@ -8,6 +8,11 @@ import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
 type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string;logoUrl?:string};
 type ChatMessage={id:string;created_at:string;wallet:string;message:string};
+const DEFAULT_RIPS_MINT="GUmtbfXHEKyB1SwpyevMHwXa9nx2LT9gKD1a738Vpump";
+const RIPS_MINT=(process.env.NEXT_PUBLIC_RIPS_MINT||DEFAULT_RIPS_MINT).trim();
+const X_URL=(process.env.NEXT_PUBLIC_X_URL||"https://x.com/StockRips").trim();
+const JUPITER_BUY_URL=`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${RIPS_MINT}`;
+const DEXSCREENER_URL=`https://dexscreener.com/solana/${RIPS_MINT}`;
 const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map(stock=>({ticker:stock.symbol,name:stock.name,color:stock.color,ink:stock.ink,logo:stock.logo,logoUrl:stock.logoUrl}));
 function stockVars(stock:StockDisplay){return {"--stock":stock.color,"--stockInk":stock.ink} as CSSProperties}
 function StockLogo({stock,className=""}:{stock:StockDisplay;className?:string}){return <span className={`stockLogo ${className}`} style={stockVars(stock)}>{stock.logoUrl&&<img src={stock.logoUrl} alt={`${stock.name} logo`} loading="lazy" onError={event=>{event.currentTarget.style.display="none"}}/>}<b>{stock.logo}</b></span>}
@@ -27,6 +32,7 @@ export default function Home() {
   const [connecting, setConnecting] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [copiedCa, setCopiedCa] = useState(false);
   const providerRef = useRef<SolanaProvider | null>(null);
   const [snapshot, setSnapshot] = useState<ProtocolSnapshot>(emptySnapshot());
   const [seconds, setSeconds] = useState(AIRDROP_INTERVAL_MINUTES*60);
@@ -84,6 +90,16 @@ export default function Home() {
     }catch{}
   }
 
+  async function copyCa() {
+    try {
+      await navigator.clipboard.writeText(RIPS_MINT);
+      setCopiedCa(true);
+      window.setTimeout(()=>setCopiedCa(false),1400);
+    } catch {
+      setCopiedCa(false);
+    }
+  }
+
   async function connect() {
     const provider = providerRef.current ?? detectSolanaProvider();
     if (provider) {
@@ -121,7 +137,8 @@ export default function Home() {
       <div className="grain" />
       <nav className="nav wrap">
         <a className="brand brandImage" href="#top" aria-label="StockRips home"><img src="/stockrips-logo.jpg" alt=""/><span><em>stock</em>rips</span></a>
-        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div>
+        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href={X_URL} target="_blank" rel="noreferrer">X</a></div>
+        <button className="caPill headerCa" type="button" onClick={()=>void copyCa()} aria-label="Copy RIPS contract address"><span>CA</span>{RIPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button>
         {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
       </nav>
 
@@ -132,7 +149,7 @@ export default function Home() {
           <h1>HOLD RIPS.<br/><em>SPIN STOCKS.</em></h1>
           <p>Every {AIRDROP_INTERVAL_MINUTES} minutes, one eligible holder wins a funded xStock pack from the StockRips treasury.</p>
           <p className="heroSupport">{HOLDER_TICKET_TOKENS.toLocaleString()} RIPS = 1 ticket. Draws use a public blockhash seed and post proof after payout.</p>
-          <div className="heroActions"><a className="primary" href="#draw">WATCH NEXT DRAW <b>↓</b></a><button className="textBtn" onClick={() => setSpectating(true)}>OPEN LIVE ROOM <span>●</span></button></div>
+          <div className="heroActions"><a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a><button className="textBtn" onClick={() => setSpectating(true)}>OPEN LIVE ROOM <span>●</span></button></div>
           <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>RIPS PER TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT CASE DRAW</span></div><div><b>{displayedDropCount}</b><span>PACKS AIRDROPPED</span></div></div>
         </div>
         <div className="machine caseMachine" aria-label="Animated StockRips case opening machine">
@@ -219,7 +236,7 @@ export default function Home() {
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN WIN?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded into the case.</h2></div><p>StockRips inventory is restricted to this approved Solana xStock universe. Every draw resolves to one of these treasury-funded stock packs.</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/stockrips-logo.jpg" alt=""/><span><em>stock</em>rips</span></div><p>TICKER: RIPS</p><div className="footerLinks"><a href="#" aria-disabled="true" onClick={(event)=>event.preventDefault()}>X</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/stockrips-logo.jpg" alt=""/><span><em>stock</em>rips</span></div><button className="caPill footerCa" type="button" onClick={()=>void copyCa()}><span>CA</span>{RIPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button><div className="footerLinks"><a href={X_URL} target="_blank" rel="noreferrer">X</a><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $RIPS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>

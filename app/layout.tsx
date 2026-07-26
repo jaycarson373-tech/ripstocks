@@ -17,6 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://stockrips.fun"),
   title: "StockRips — RIPS holder stock-pack draws.",
   description: "Hold RIPS for provably fair xStock pack draws on Solana.",
   openGraph: {
