@@ -1,4 +1,4 @@
--- StockRips production accounting. Pack-sale funds and protocol fees are never commingled.
+-- StockDrop production accounting. Treasury funds and protocol fees are never commingled.
 create extension if not exists pgcrypto;
 create table if not exists public.protocol_config (id boolean primary key default true, airdrop_interval_minutes int not null default 5);
 alter table public.protocol_config drop constraint if exists protocol_config_airdrop_interval_minutes_check;
@@ -51,7 +51,7 @@ create table if not exists public.protocol_fee_ledger (
   pack_ev_reserve_amount numeric(18,6) generated always as (gross_fee_usdc-round(gross_fee_usdc*.75,6)) stored,
   transaction_signature text unique not null
 );
--- Fees land in Main Treasury. Each verified 5-minute sweep funds stock-pack
+-- Fees land in Main Treasury. Each verified 15-minute sweep funds stock-drop
 -- inventory used by holder draws.
 create table if not exists public.protocol_fee_sweeps (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
@@ -136,7 +136,7 @@ create table if not exists public.airdrop_epochs (
 );
 alter table public.airdrop_epochs drop constraint if exists airdrop_epochs_check;
 alter table public.airdrop_epochs drop constraint if exists airdrop_epochs_interval_check;
-alter table public.airdrop_epochs add constraint airdrop_epochs_interval_check check(ends_at-starts_at=interval '5 minutes') not valid;
+alter table public.airdrop_epochs add constraint airdrop_epochs_interval_check check(ends_at-starts_at=interval '15 minutes') not valid;
 alter table public.airdrop_epochs add column if not exists random_seed text;
 alter table public.airdrop_epochs add column if not exists random_source text;
 alter table public.airdrop_epochs add column if not exists holder_snapshot_hash text;
@@ -159,7 +159,7 @@ begin
   if exists(select 1 from airdrop_epochs where id=p_epoch_id) then return; end if;
   select id into v_lot from airdrop_inventory_lots where status='available' order by encode(digest(id::text||p_epoch_id::text,'sha256'),'hex') limit 1 for update skip locked;
   if v_lot is null then return; end if;
-  v_start:=to_timestamp(p_epoch_id*300); v_end:=v_start+interval '5 minutes';
+  v_start:=to_timestamp(p_epoch_id*900); v_end:=v_start+interval '15 minutes';
   insert into airdrop_epochs(id,starts_at,ends_at,snapshot_at,eligible_holders,winner_wallet,status) values(p_epoch_id,v_start,v_end,now(),p_eligible_holders,p_winner,'snapshotted');
   update airdrop_inventory_lots set status='reserved',epoch_id=p_epoch_id where id=v_lot;
   return query select l.id,l.symbol,l.mint,l.token_amount::text,l.decimals,l.token_program,l.purchase_value from airdrop_inventory_lots l where l.id=v_lot;
@@ -169,7 +169,7 @@ language plpgsql security definer set search_path=public as $$
 begin
   update airdrop_inventory_lots set status='distributed',distribution_signature=p_signature where id=p_lot_id and epoch_id=p_epoch_id and status='reserved';
   if not found then raise exception 'Airdrop lot cannot be completed'; end if;
-  update airdrop_epochs e set pack_name='$'||l.purchase_value::text||' HOLDER PACK',stock_symbol=l.symbol,reward_value=l.purchase_value,transaction_signature=p_signature,status='distributed' from airdrop_inventory_lots l where e.id=p_epoch_id and l.id=p_lot_id;
+  update airdrop_epochs e set pack_name='$'||l.purchase_value::text||' STOCK DROP',stock_symbol=l.symbol,reward_value=l.purchase_value,transaction_signature=p_signature,status='distributed' from airdrop_inventory_lots l where e.id=p_epoch_id and l.id=p_lot_id;
   insert into holder_airdrop_treasury_ledger(amount_usdc,entry_type,transaction_signature) select -purchase_value,'airdrop',p_signature from airdrop_inventory_lots where id=p_lot_id;
 end $$;
 revoke all on function public.reserve_airdrop_epoch(bigint,text,int) from public,anon,authenticated;

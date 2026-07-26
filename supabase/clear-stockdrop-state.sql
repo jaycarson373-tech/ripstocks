@@ -1,4 +1,4 @@
--- One-time pre-launch cleanup for StockRips.
+-- One-time pre-launch cleanup for StockDrop.
 -- Run this only when you intentionally want to wipe old test / meme-pack history.
 -- It keeps protocol config and wallet records, but clears inventories, proofs,
 -- old purchases, chat, automation locks, and fee accounting rows.

@@ -1,4 +1,4 @@
-export const AIRDROP_INTERVAL_MINUTES = 5 as const;
+export const AIRDROP_INTERVAL_MINUTES = 15 as const;
 export const AIRDROP_INTERVAL_MS = AIRDROP_INTERVAL_MINUTES * 60 * 1000;
 export const HOLDER_TICKET_TOKENS = 250_000 as const;
 export const HOLDER_AIRDROP_FEE_BPS = 7_500 as const;

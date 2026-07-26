@@ -15,10 +15,10 @@ const restock = await readFile(new URL("../app/api/admin/restock/route.ts", impo
 const holderEpoch = await readFile(new URL("../app/api/admin/holder-epoch/route.ts", import.meta.url), "utf8");
 const tick = await readFile(new URL("../app/api/admin/tick/route.ts", import.meta.url), "utf8");
 
-test("one shared 20-minute interval drives the product", () => {
-  assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 20/);
+test("one shared 15-minute interval drives the product", () => {
+  assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 15/);
   assert.doesNotMatch(page, /hourly|60 minutes|every hour/i);
-  assert.match(schema, /interval '20 minutes'/);
+  assert.match(schema, /interval '15 minutes'/);
 });
 
 test("protocol fees split exactly 75\/25", () => {
@@ -49,7 +49,7 @@ test("EV is calculated, never a fixed promise", () => {
 test("automatic restocks preserve their funding source", () => {
   assert.match(schema, /inventory_restock_jobs/);
   assert.match(schema, /source in \('pack_sale','pack_ev_reserve'\)/);
-  assert.match(page, /RESTOCK INVENTORY/);
+  assert.match(page, /TREASURY FUNDS STOCKS/);
   assert.doesNotMatch(page, /HOLDER AIRDROP TREASURY",snapshot\.holderAirdropTreasury/);
 });
 
@@ -67,14 +67,15 @@ test("holder inventory restocks privately in $2-$5 batches", () => {
   assert.match(airdropPolicy, /return 5/);
   assert.match(airdropPolicy, /return 2/);
   assert.match(schema, /airdrop_inventory_lots/);
-  assert.match(page, /AIRDROP TREASURY/);
-  assert.match(page, /AIRDROP PACKS READY/);
+  assert.match(page, /STOCKDROP TREASURY/);
+  assert.match(page, /TREASURY DROPS READY/);
   assert.match(page, /AVERAGE DROP VALUE/);
   assert.doesNotMatch(page, /NEXT DROP VALUE|\$2, \$5 or \$10/);
 });
 
 test("checkout reserves before charging and verifies both sides of exact USDC payment", () => {
-  assert.match(checkoutCreate, /reserve_pack_checkout/);
+  assert.match(checkoutCreate, /async function reserveInventory/);
+  assert.match(checkoutCreate, /status=eq\.available/);
   assert.match(checkoutCreate, /PACK_PRICE_USDC_ATOMS/);
   assert.match(checkoutConfirm, /buyerPre-buyerPost>=PACK_PRICE_USDC_ATOMS/);
   assert.match(checkoutConfirm, /complete_pack_fulfillment/);
@@ -85,24 +86,24 @@ test("checkout reserves before charging and verifies both sides of exact USDC pa
 
 test("site publishes exactly ten verified inventory mints", () => {
   assert.equal((verifiedXstocks.match(/symbol:/g) || []).length,10);
-  assert.match(page,/VERIFIED INVENTORY UNIVERSE/);
+  assert.match(page,/WHICH STOCKS CAN DROP/);
   assert.match(verifiedXstocks,/XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1/);
 });
 
 test("practice loader preserves gas and exact inventory averages", () => {
   assert.match(inventoryPlan,/SOL_GAS_BUFFER = 0\.111/);
-  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[3,3,3,3,3,3,5,7,8,10,12,15,20,25,30\]/);
-  assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[2,3,4,5,5,5,5,7,7,7\]/);
-  const main=[3,3,3,3,3,3,5,7,8,10,12,15,20,25,30];
-  const holder=[2,3,4,5,5,5,5,7,7,7];
-  assert.equal(main.reduce((a,b)=>a+b,0),150);
-  assert.equal(main.reduce((a,b)=>a+b,0)/main.length,10);
-  assert.equal(holder.reduce((a,b)=>a+b,0),50);
-  assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,5);
+  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[1,2,3,5,8,10,12,15,20,25,30,40,50\]/);
+  assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[1,2,3,4,5\]/);
+  const main=[1,2,3,5,8,10,12,15,20,25,30,40,50];
+  const holder=[1,2,3,4,5];
+  assert.equal(main.reduce((a,b)=>a+b,0),221);
+  assert.equal(holder.reduce((a,b)=>a+b,0),15);
+  assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,3);
 });
 
-test("protected automation restocks on 10/20-minute clocks and records confirmed output",()=>{
-  assert.match(tick,/600_000/);
+test("protected automation restocks on the shared 15-minute clock and records confirmed output",()=>{
+  assert.match(tick,/AIRDROP_INTERVAL_MS/);
+  assert.match(restock,/AIRDROP_INTERVAL_MS/);
   assert.match(tick,/restock\?scope=main/);
   assert.match(tick,/restock\?scope=holder/);
   assert.match(restock,/SOL_GAS_BUFFER/);
@@ -114,10 +115,10 @@ test("protected automation restocks on 10/20-minute clocks and records confirmed
 test("holder epochs snapshot owners, reserve inventory, transfer, and publish proof",()=>{
   assert.match(holderEpoch,/HOLDER_TOKEN_MINT/);
   assert.match(holderEpoch,/getTokenAccounts/);
-  assert.match(holderEpoch,/reserve_airdrop_epoch/);
+  assert.match(holderEpoch,/reserveAvailableLotForEpoch/);
   assert.match(holderEpoch,/complete_airdrop_epoch/);
   assert.match(schema,/status='distributed'/);
-  assert.match(page,/PAID PACK PROOFS/);
-  assert.match(page,/HOLDER DROP PROOFS/);
-  assert.match(page,/snapshot\.recentPacks/);
+  assert.match(page,/STOCKDROP PROOFS/);
+  assert.match(page,/No StockDrop holder drops published yet/);
+  assert.match(page,/stockProofs/);
 });
