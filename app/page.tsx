@@ -179,17 +179,8 @@ export default function Home() {
           {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
         </div>
         <div className="sectionHead"><div><span className="kicker">LIVE HOLDER CASE</span><h2>One draw.<br/>Every five minutes.</h2></div><p>Fees stock the treasury with xStock packs from $1 to $50. The draw picks one weighted RIPS holder, spins the case reel, sends the winning pack, and posts proof.</p></div>
-        <div className="packGrid legacyGacha">
-          {[10,30,50].map((price, i)=><div key={price} className={`packCard p${price} unavailable`}>
-            <span className="chance">{i===0?"CLASSIC GACHA":i===1?"MULTI-PULL":"WHALE CASE"}</span>
-            <span className="inventory empty">COMING SOON</span>
-            <div className="miniPack photoPack"><img src="/stockrips-logo.jpg" alt=""/><i>{price}</i></div>
-            <div className="packMeta"><div><b>${price}</b><span>USDC</span></div><p>Paid gacha pack<br/><em>Coming Soon</em></p></div>
-            <span className="soldOut">COMING SOON</span>
-          </div>)}
-        </div>
         <div className="ripBar drawBar">
-          <div><span>NEXT CASE DRAW</span><b>{countdown}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} RIPS = 1 TICKET</b></div><button disabled type="button">PAID GACHA COMING SOON <span>→</span></button>
+          <div><span>NEXT CASE DRAW</span><b>{countdown}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} RIPS = 1 TICKET</b></div><a href="#live">WATCH LIVE ROOM <span>→</span></a>
         </div>
         {walletError && <div className="walletNotice" role="alert">{walletError}</div>}
       </section>

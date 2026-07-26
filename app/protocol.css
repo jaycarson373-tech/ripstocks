@@ -71,5 +71,7 @@ footer{background:linear-gradient(180deg,#050805,#020302);border-top-color:rgba(
 .howGrid article p{position:relative;margin:12px 0 0;color:#7c876e;font-size:11px;line-height:1.5}
 .howGrid article:nth-child(2),.howGrid article:nth-child(4){transform:translateY(18px)}
 .howGrid article:hover{border-color:rgba(149,255,22,.48);box-shadow:0 0 30px rgba(149,255,22,.07)}
+.drawBar a{height:62px;background:var(--acid);color:#071007;text-decoration:none;font-weight:950;display:flex;align-items:center;justify-content:center;box-shadow:5px 5px 0 rgba(88,128,12,.85)}
+.drawBar a span{margin-left:18px}
 @media(max-width:1050px){.howWorks{grid-template-columns:1fr}.howGrid{grid-template-columns:repeat(3,1fr)}.howGrid article:nth-child(2),.howGrid article:nth-child(4){transform:none}}
 @media(max-width:700px){.howWorks{padding-top:48px}.howGrid{grid-template-columns:1fr}.howGrid article{min-height:160px}.howIntro{padding:26px}.howIntro h2{font-size:44px}}
