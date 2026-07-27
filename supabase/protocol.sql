@@ -1,9 +1,9 @@
--- StockDrop production accounting. Treasury funds and protocol fees are never commingled.
+-- Stock Drops production accounting. Treasury funds and protocol fees are never commingled.
 create extension if not exists pgcrypto;
-create table if not exists public.protocol_config (id boolean primary key default true, airdrop_interval_minutes int not null default 5);
+create table if not exists public.protocol_config (id boolean primary key default true, airdrop_interval_minutes int not null default 15);
 alter table public.protocol_config drop constraint if exists protocol_config_airdrop_interval_minutes_check;
-alter table public.protocol_config add constraint protocol_config_airdrop_interval_minutes_check check(airdrop_interval_minutes=5);
-insert into public.protocol_config(id,airdrop_interval_minutes) values(true,5) on conflict(id) do update set airdrop_interval_minutes=5;
+alter table public.protocol_config add constraint protocol_config_airdrop_interval_minutes_check check(airdrop_interval_minutes=15);
+insert into public.protocol_config(id,airdrop_interval_minutes) values(true,15) on conflict(id) do update set airdrop_interval_minutes=15;
 
 -- Two explicit public accounts. Private signing material belongs only in Railway.
 create table if not exists public.protocol_wallets (

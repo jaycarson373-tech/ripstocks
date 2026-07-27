@@ -67,7 +67,7 @@ test("holder inventory restocks privately in $2-$5 batches", () => {
   assert.match(airdropPolicy, /return 5/);
   assert.match(airdropPolicy, /return 2/);
   assert.match(schema, /airdrop_inventory_lots/);
-  assert.match(page, /STOCKDROP TREASURY/);
+  assert.match(page, /STOCK DROPS TREASURY/);
   assert.match(page, /TREASURY DROPS READY/);
   assert.match(page, /AVERAGE DROP VALUE/);
   assert.doesNotMatch(page, /NEXT DROP VALUE|\$2, \$5 or \$10/);
@@ -118,7 +118,7 @@ test("holder epochs snapshot owners, reserve inventory, transfer, and publish pr
   assert.match(holderEpoch,/reserveAvailableLotForEpoch/);
   assert.match(holderEpoch,/complete_airdrop_epoch/);
   assert.match(schema,/status='distributed'/);
-  assert.match(page,/STOCKDROP PROOFS/);
-  assert.match(page,/No StockDrop holder drops published yet/);
+  assert.match(page,/STOCK DROPS PROOFS/);
+  assert.match(page,/No Stock Drops holder drops published yet/);
   assert.match(page,/stockProofs/);
 });

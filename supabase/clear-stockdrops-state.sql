@@ -1,5 +1,5 @@
--- One-time pre-launch cleanup for StockDrop.
--- Run this only when you intentionally want to wipe old test / meme-pack history.
+-- One-time pre-launch cleanup for Stock Drops.
+-- Run this only when you intentionally want to wipe old test / launch history.
 -- It keeps protocol config and wallet records, but clears inventories, proofs,
 -- old purchases, chat, automation locks, and fee accounting rows.
 
@@ -27,7 +27,7 @@ set locked_until = '-infinity'
 where id = true;
 
 update public.protocol_config
-set airdrop_interval_minutes = 5
+set airdrop_interval_minutes = 15
 where id = true;
 
 commit;

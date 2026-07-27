@@ -137,3 +137,44 @@ footer .wrap{gap:18px}
 @media(max-width:1160px){.headerCa{display:none}}
 @media(max-width:1000px){.topLiveChat{grid-template-columns:1fr}.topLiveChat .chatHead{border-right:0;border-bottom:1px solid rgba(159,255,22,.18);flex-direction:row;justify-content:space-between}.topLiveChat .chatStream{grid-template-columns:1fr;max-height:220px}.topLiveChat .chatComposer{border-left:0;border-top:1px solid rgba(159,255,22,.18)}footer .wrap{align-items:flex-start}.footerCa{width:100%;max-width:100%;justify-content:flex-start}.footerLinks{justify-content:flex-start}}
 @media(max-width:700px){.caPill{width:100%;max-width:100%;border-radius:18px}.footerLinks{gap:14px}}
+
+/* Stock Drops professional skin */
+:root{--acid:#2cf7b3;--lime:#2cf7b3;--chrome:#dfe7e4;--paper:#eef3f1;--black:#010101;--panel:#060808;--purple:#19231f}
+body{background:radial-gradient(circle at 50% -10%,rgba(44,247,179,.13),transparent 26%),radial-gradient(circle at 8% 20%,rgba(255,255,255,.045),transparent 22%),linear-gradient(180deg,#010101 0,#050606 44%,#010101 100%)}
+.grain{opacity:.022}
+.nav{height:78px;border-bottom:1px solid rgba(223,231,228,.12);background:rgba(1,1,1,.78)}
+.brandImage>img{border-radius:14px;border-color:rgba(223,231,228,.26);box-shadow:0 0 34px rgba(44,247,179,.1);background:#010101}
+.brandImage span{text-shadow:none;letter-spacing:-1.4px}
+.brandImage em{color:#f3f7f5}
+.brandImage span{color:var(--acid)}
+.brandBanner{margin-top:18px;border-color:rgba(223,231,228,.14);border-radius:18px;box-shadow:0 18px 70px rgba(0,0,0,.5),0 0 60px rgba(44,247,179,.06),inset 0 0 0 1px rgba(255,255,255,.04)}
+.hero{padding-top:54px}
+.eyebrow,.kicker{color:var(--acid);letter-spacing:.2em}
+.heroCopy h1{font-size:clamp(62px,8vw,108px);letter-spacing:-.075em;text-shadow:none}
+.heroCopy h1 em{color:#dfe7e4;-webkit-text-stroke:0;filter:none}
+.heroCopy>p:first-of-type{color:#eef3f1!important;font-weight:750!important;letter-spacing:.01em!important}
+.heroSupport{color:#84f5cf!important}
+.primary,.wallet,.drawBar a{background:#e7eeeb;color:#030404;box-shadow:0 8px 28px rgba(44,247,179,.12)}
+.primary:hover,.wallet:hover,.drawBar a:hover{background:var(--acid)}
+.textBtn{color:#dce4e1}
+.proof{border:1px solid rgba(223,231,228,.13);background:rgba(255,255,255,.025);border-radius:18px;padding:14px 16px}
+.nextDrop{border-color:rgba(44,247,179,.3);background:rgba(44,247,179,.045)}
+.machine,.howIntro,.howGrid article,.liveStats,.inventoryLog a,.inventoryLog div,.dropProof,.verifiedGrid,.gachaTeaser,.topLiveChat{background:linear-gradient(180deg,rgba(9,11,11,.96),rgba(3,4,4,.98));border-color:rgba(223,231,228,.12);box-shadow:0 20px 60px rgba(0,0,0,.35),0 0 34px rgba(44,247,179,.045)}
+.machine{box-shadow:22px 22px 0 rgba(255,255,255,.035),0 28px 80px rgba(0,0,0,.42);border-radius:24px}
+.machineTop,.machineBase{background:#050606;border-color:rgba(223,231,228,.1);color:#dfe7e4}
+.caseMachine .window{background:radial-gradient(circle at 50% 42%,rgba(44,247,179,.13),rgba(8,11,10,.94) 44%,#010101 76%);border-color:rgba(223,231,228,.12)}
+.casePointer{background:linear-gradient(180deg,transparent,var(--acid),transparent);box-shadow:0 0 18px rgba(44,247,179,.5)}
+.caseReel .caseCard{border-color:rgba(223,231,228,.22);box-shadow:0 20px 34px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.13)}
+.caseResult{border-color:rgba(44,247,179,.38);background:rgba(1,1,1,.82);box-shadow:0 0 30px rgba(44,247,179,.08)}
+.ticker{background:#030404;color:#dfe7e4;border-block-color:rgba(223,231,228,.12);box-shadow:none}
+.ticker b{color:var(--acid)}
+.winLogoGrid div,.verifiedGrid a{background:linear-gradient(180deg,#080a0a,#030404);border-color:rgba(223,231,228,.12)}
+.live{background:linear-gradient(180deg,#030404,#070908 52%,#010101);border-block-color:rgba(223,231,228,.1)}
+.liveHead button{background:#dfe7e4;color:#030404}
+.tr{border-bottom-color:rgba(223,231,228,.1)}
+.gachaTeaser{background:linear-gradient(100deg,rgba(44,247,179,.055),rgba(8,10,10,.98) 34%,rgba(1,1,1,.99))}
+.teaserPack{background:radial-gradient(circle,rgba(44,247,179,.11),rgba(0,0,0,.94) 62%);border-color:rgba(223,231,228,.14)}
+.gachaTeaser>b,.teaserPack span{background:#dfe7e4;color:#030404}
+.caPill{border-color:rgba(223,231,228,.16);background:rgba(255,255,255,.035);box-shadow:none}
+.caPill b{background:var(--acid);color:#030404}
+footer{background:#010101;border-top-color:rgba(223,231,228,.1)}

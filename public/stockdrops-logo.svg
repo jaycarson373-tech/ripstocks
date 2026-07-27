@@ -1,0 +1,32 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="104" fill="#030404"/>
+  <circle cx="256" cy="256" r="211" fill="url(#g)" stroke="url(#ring)" stroke-width="8"/>
+  <circle cx="256" cy="256" r="172" stroke="#111817" stroke-width="2"/>
+  <path d="M134 192C151 130 198 91 256 91C314 91 361 130 378 192H134Z" fill="url(#chrome)"/>
+  <path d="M148 194H364L322 266H190L148 194Z" fill="#101918" stroke="#2cf7b3" stroke-width="4"/>
+  <path d="M190 266L256 344L322 266" stroke="#dfe9e6" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 344C256 344 212 394 212 424C212 449 231 468 256 468C281 468 300 449 300 424C300 394 256 344 256 344Z" fill="#2cf7b3"/>
+  <path d="M171 176C195 141 223 124 256 124C289 124 317 141 341 176" stroke="#030404" stroke-width="11" stroke-linecap="round"/>
+  <path d="M164 219H348" stroke="#2cf7b3" stroke-width="7" stroke-linecap="round" opacity=".85"/>
+  <path d="M220 300H292" stroke="#030404" stroke-width="10" stroke-linecap="round"/>
+  <text x="256" y="72" fill="#dfe9e6" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="34" font-weight="900" letter-spacing="2">DROPS</text>
+  <defs>
+    <radialGradient id="g" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 205) rotate(90) scale(260)">
+      <stop stop-color="#102421"/>
+      <stop offset=".48" stop-color="#050807"/>
+      <stop offset="1" stop-color="#010101"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="94" y1="82" x2="416" y2="436" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f5faf7"/>
+      <stop offset=".42" stop-color="#63716e"/>
+      <stop offset=".7" stop-color="#2cf7b3"/>
+      <stop offset="1" stop-color="#111514"/>
+    </linearGradient>
+    <linearGradient id="chrome" x1="136" y1="91" x2="376" y2="192" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset=".32" stop-color="#8d9895"/>
+      <stop offset=".68" stop-color="#f8fffc"/>
+      <stop offset="1" stop-color="#56605d"/>
+    </linearGradient>
+  </defs>
+</svg>

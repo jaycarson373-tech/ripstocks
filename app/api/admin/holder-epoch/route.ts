@@ -38,7 +38,7 @@ function sha256(input:string) {
 }
 
 function holderTicketAtoms() {
-  const decimals=Number(process.env.STOCKDROP_TOKEN_DECIMALS||process.env.HOLDER_TOKEN_DECIMALS||6);
+  const decimals=Number(process.env.STOCKDROPS_TOKEN_DECIMALS||process.env.HOLDER_TOKEN_DECIMALS||6);
   const tokens=Number(process.env.HOLDER_TICKET_TOKENS||250_000);
   return BigInt(Math.trunc(tokens * 10 ** decimals));
 }
@@ -53,7 +53,7 @@ async function eligibleHolders(){
   const mint=requiredEnv("HOLDER_TOKEN_MINT");
   const excluded=new Set([process.env.MAIN_TREASURY_WALLET,process.env.HOLDER_AIRDROP_WALLET].filter(Boolean));
   const holders=new Map<string,HolderTicket>();
-  const defaultDecimals=Number(process.env.STOCKDROP_TOKEN_DECIMALS||process.env.HOLDER_TOKEN_DECIMALS||6);
+  const defaultDecimals=Number(process.env.STOCKDROPS_TOKEN_DECIMALS||process.env.HOLDER_TOKEN_DECIMALS||6);
   const ticketAtoms=holderTicketAtoms();
   let cursor:string|undefined;
   for(let page=0;page<10;page++){
@@ -79,7 +79,7 @@ function pickWinner(holders:HolderTicket[],epochId:number,randomSource:string):F
   const totalTickets=holders.reduce((sum,holder)=>sum+holder.tickets,BigInt(0));
   if(totalTickets<=BigInt(0))throw new Error("No eligible holder tickets");
   const holderHash=sha256(holders.map(holder=>`${holder.owner}:${holder.tickets.toString()}`).join("|"));
-  const randomSeed=sha256(`stockdrop-drop:${epochId}:${randomSource}:${holderHash}:${totalTickets.toString()}`);
+  const randomSeed=sha256(`stockdrops-drop:${epochId}:${randomSource}:${holderHash}:${totalTickets.toString()}`);
   const winningTicket=BigInt(`0x${randomSeed}`)%totalTickets;
   let cursor=BigInt(0);
   for(const holder of holders){
@@ -175,7 +175,7 @@ export async function POST(request:Request){
       const lots=await availableHolderLots();
       return Response.json({ok:true,dryRun:true,epochId,eligibleHolders:holders.length,totalTickets:fair?.totalTickets.toString()||"0",ticketSizeTokens:Number(process.env.HOLDER_TICKET_TOKENS||250_000),winningTicket:fair?.winningTicket.toString()||null,randomSeed:fair?.randomSeed||null,randomSource:fair?.randomSource||null,holderPacksAvailable:lots.length,nextDropAt:new Date((epochId+1)*AIRDROP_INTERVAL_MS).toISOString()});
     }
-    if(!fair)return Response.json({ok:true,skipped:"No eligible holder has at least one 250k DROP ticket",epochId});
+    if(!fair)return Response.json({ok:true,skipped:"No eligible holder has at least one 250k DROPS ticket",epochId});
     const reserved=await reserveAirdropLot(epochId,fair);
     if("skipped" in reserved)return Response.json({ok:true,skipped:reserved.skipped,epochId});
     const lot=reserved.lot;
