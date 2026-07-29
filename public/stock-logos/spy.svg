@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="S&P 500">
+  <rect width="64" height="64" rx="16" fill="#f4f7f2"/>
+  <path d="M12 18h40v5H12zm0 23h40v5H12z" fill="#1c2a23" opacity=".82"/>
+  <text x="32" y="38" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="17" font-weight="900" fill="#09110d">S&amp;P</text>
+</svg>

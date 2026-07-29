@@ -146,14 +146,14 @@ export default function Home() {
       <section className="hero wrap" id="top">
         <div className="heroCopy">
           <div className="eyebrow"><span /> STOCK DROPS LIVE ON SOLANA</div>
-          <h1>HOLD DROPS.<br/><em>GET STOCKS.</em></h1>
-          <p>Every {AIRDROP_INTERVAL_MINUTES} minutes, one eligible holder is selected to receive a funded xStock airdrop from the Stock Drops treasury.</p>
-          <p className="heroSupport">{HOLDER_TICKET_TOKENS.toLocaleString()} DROPS = 1 ticket. Draws use a public blockhash seed and post proof after payout.</p>
+          <h1>Hold Drops.<br/><em>Receive stocks.</em></h1>
+          <p>Every {AIRDROP_INTERVAL_MINUTES} minutes, eligible holders enter a weighted draw for a treasury-funded xStock airdrop.</p>
+          <p className="heroSupport">{HOLDER_TICKET_TOKENS.toLocaleString()} DROPS = 1 ticket · public seed · proof posted after payout.</p>
           <div className="heroActions"><a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a><button className="textBtn" onClick={() => setSpectating(true)}>OPEN LIVE ROOM <span>●</span></button></div>
-          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS PER TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT STOCK DROP</span></div><div><b>{displayedDropCount}</b><span>STOCKS AIRDROPPED</span></div></div>
+          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS / TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT DRAW</span></div><div><b>{displayedDropCount}</b><span>DROPS SENT</span></div></div>
         </div>
         <div className="machine caseMachine" aria-label="Animated Stock Drops selection machine">
-          <div className="machineTop"><span>STOCK DROPS SELECTOR</span><i>LIVE</i></div>
+          <div className="machineTop"><span>xSTOCK DRAW ENGINE</span><i>LIVE</i></div>
           <div className="window">
             <div className="glow" />
             <div className="casePointer" />
