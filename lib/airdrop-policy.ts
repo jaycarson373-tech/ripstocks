@@ -1,6 +1,6 @@
 export const AIRDROP_BATCH_TARGET = 15;
 export const AIRDROP_REFILL_THRESHOLD = 3;
-export const AIRDROP_TREASURY_SPEND_FRACTION = 0.75;
+export const AIRDROP_TREASURY_SPEND_FRACTION = 0.80;
 
 export function airdropLotBudget(lastHolderFeeClaim: number) {
   if (lastHolderFeeClaim >= 20) return 5;

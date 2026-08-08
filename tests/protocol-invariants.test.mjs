@@ -21,11 +21,11 @@ test("one shared 15-minute interval drives the product", () => {
   assert.match(schema, /interval '15 minutes'/);
 });
 
-test("protocol fees split exactly 75\/25", () => {
-  assert.match(schema, /gross_fee_usdc\*\.75/);
+test("protocol fees split exactly 80\/20", () => {
+  assert.match(schema, /gross_fee_usdc\*\.80/);
   assert.match(schema, /pack_ev_reserve_amount/);
-  assert.match(protocol, /HOLDER_AIRDROP_FEE_BPS = 7_500/);
-  assert.match(protocol, /PACK_EV_RESERVE_FEE_BPS = 2_500/);
+  assert.match(protocol, /HOLDER_AIRDROP_FEE_BPS = 8_000/);
+  assert.match(protocol, /PACK_EV_RESERVE_FEE_BPS = 2_000/);
 });
 
 test("pack inventory and holder treasury use separate ledgers", () => {
@@ -49,7 +49,7 @@ test("EV is calculated, never a fixed promise", () => {
 test("automatic restocks preserve their funding source", () => {
   assert.match(schema, /inventory_restock_jobs/);
   assert.match(schema, /source in \('pack_sale','pack_ev_reserve'\)/);
-  assert.match(page, /TREASURY FUNDS STOCKS/);
+  assert.match(page, /FEES ROUTE 80\/20/);
   assert.doesNotMatch(page, /HOLDER AIRDROP TREASURY",snapshot\.holderAirdropTreasury/);
 });
 
@@ -65,9 +65,10 @@ test("holder inventory restocks privately in $2-$5 batches", () => {
   assert.match(airdropPolicy, /AIRDROP_BATCH_TARGET = 15/);
   assert.match(airdropPolicy, /lastHolderFeeClaim >= 20/);
   assert.match(airdropPolicy, /return 5/);
+  assert.match(airdropPolicy, /AIRDROP_TREASURY_SPEND_FRACTION = 0\.80/);
   assert.match(airdropPolicy, /return 2/);
   assert.match(schema, /airdrop_inventory_lots/);
-  assert.match(page, /STOCK DROPS TREASURY/);
+  assert.match(page, /GACHA PACKS COMING SOON/);
   assert.match(page, /TREASURY DROPS READY/);
   assert.match(page, /AVERAGE DROP VALUE/);
   assert.doesNotMatch(page, /NEXT DROP VALUE|\$2, \$5 or \$10/);

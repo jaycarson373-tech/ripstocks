@@ -19,16 +19,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://stockdrops.fun"),
   title: "Stock Drops — holder stock airdrops.",
-  description: "Hold DROPS for provably fair xStock airdrops on Solana.",
+  description: "Hold DROPS for 15-minute xStock holder drops and jackpot routing on Solana.",
   openGraph: {
     title: "Stock Drops — holder stock airdrops.",
-    description: "Every 15 minutes, one eligible holder receives a funded xStock airdrop.",
+    description: "Every 15 minutes, creator fees fund a random xStock drop for one eligible holder.",
     images: [{ url: "/stockdrops-banner.svg", width: 1280, height: 426, alt: "Stock Drops holder stock airdrops" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Stock Drops — holder stock airdrops.",
-    description: "Every 15 minutes, one eligible holder receives a funded xStock airdrop.",
+    description: "Every 15 minutes, creator fees fund a random xStock drop for one eligible holder.",
     images: ["/stockdrops-banner.svg"],
   },
   icons: {

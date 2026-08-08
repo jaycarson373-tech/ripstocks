@@ -47,8 +47,8 @@ create table if not exists public.inventory_restock_jobs (
 create table if not exists public.protocol_fee_ledger (
   id uuid primary key default gen_random_uuid(), created_at timestamptz not null default now(),
   gross_fee_usdc numeric(18,6) not null check(gross_fee_usdc>=0),
-  holder_airdrop_amount numeric(18,6) generated always as (round(gross_fee_usdc*.75,6)) stored,
-  pack_ev_reserve_amount numeric(18,6) generated always as (gross_fee_usdc-round(gross_fee_usdc*.75,6)) stored,
+  holder_airdrop_amount numeric(18,6) generated always as (round(gross_fee_usdc*.80,6)) stored,
+  pack_ev_reserve_amount numeric(18,6) generated always as (gross_fee_usdc-round(gross_fee_usdc*.80,6)) stored,
   transaction_signature text unique not null
 );
 -- Fees land in Main Treasury. Each verified 15-minute sweep funds stock-drop
@@ -186,7 +186,7 @@ create table if not exists public.live_chat_messages (
 );
 
 -- Railway calls this only after both transfers confirm on Solana. It atomically
--- records the fee, its exact 75/25 split, and both destination-wallet credits.
+-- records the fee, its exact 80/20 split, and both destination-wallet credits.
 create or replace function public.record_protocol_fee_sweep(
   p_gross_fee_usdc numeric,
   p_fee_signature text,
@@ -198,7 +198,7 @@ declare
   v_reserve numeric(18,6);
 begin
   if p_gross_fee_usdc <= 0 then raise exception 'gross fee must be positive'; end if;
-  v_holder := round(p_gross_fee_usdc * .75, 6);
+  v_holder := round(p_gross_fee_usdc * .80, 6);
   v_reserve := p_gross_fee_usdc - v_holder;
   insert into protocol_fee_ledger(gross_fee_usdc,transaction_signature)
     values(p_gross_fee_usdc,p_fee_signature) returning id into v_fee_id;
