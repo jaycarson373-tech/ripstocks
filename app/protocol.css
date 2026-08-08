@@ -235,7 +235,7 @@ main{color:#eef4f1}
 @media(max-width:1000px){.hero{grid-template-columns:1fr;gap:34px}.machine{min-height:430px}.proof{grid-template-columns:1fr 1fr}.proof div:last-child{grid-column:1/-1;border-top:1px solid var(--line)}}
 @media(max-width:700px){.nav{height:auto;padding-block:16px}.brandBanner{margin-inline:0;border-radius:0}.hero{padding-top:42px}.heroCopy h1{font-size:58px}.proof{grid-template-columns:1fr}.proof div{border-right:0;border-bottom:1px solid var(--line)}.proof div:last-child{border-bottom:0}.caseReel .caseCard{width:104px;height:120px}.caseLogo{--size:46px}.verifiedGrid a{grid-template-columns:28px 46px 1fr 18px}}
 
-/* StonkPacks-inspired structure, Stock Drops-native skin */
+/* Stock Drops routing board */
 .dropDesk{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:42px;padding:0 0 18px}
 .deskCard{min-height:180px;border:1px solid var(--line);border-radius:22px;background:
   linear-gradient(rgba(255,255,255,.032) 1px,transparent 1px),
