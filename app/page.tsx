@@ -153,7 +153,7 @@ export default function Home() {
             {stocks.map(stock=><span key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock} className="heroDropLogo"/><b>{stock.ticker}</b></span>)}
           </div>
           <div className="heroActions"><a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a><button className="textBtn" onClick={() => setSpectating(true)}>OPEN LIVE ROOM <span>●</span></button></div>
-          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS / TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT DRAW</span></div><div><b>1/20</b><span>JACKPOT ODDS</span></div></div>
+          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS / TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT DRAW</span></div><div><b>20%</b><span>JACKPOT FUND</span></div></div>
         </div>
         <div className="machine caseMachine" aria-label="Animated Stonk Drops selection machine">
           <div className="machineTop"><span>STONK DROP PICKER</span><i>LIVE</i></div>
@@ -177,8 +177,8 @@ export default function Home() {
           <p>80% of fees buy random xStocks for 5-minute holder drops. 20% stacks the jackpot, so volume keeps feeding the next rewards.</p>
         </div>
         <div className="deskCard"><b>80%</b><span>Stock-drop fund</span><p>Used to buy the next random xStock for holder airdrops.</p></div>
-        <div className="deskCard"><b>20%</b><span>Jackpot fund</span><p>Accumulates until a jackpot draw hits.</p></div>
-        <div className="deskCard"><b>1/20</b><span>Jackpot hit rate</span><p>Average clear is roughly every five hours.</p></div>
+        <div className="deskCard"><b>20%</b><span>Jackpot fund</span><p>Accumulates separately as the reserve grows.</p></div>
+        <div className="deskCard"><b>5m</b><span>Live draw loop</span><p>Every epoch can restock inventory, snapshot holders, and publish proof.</p></div>
       </section>
 
       <section className="topLiveChat wrap" aria-label="Live spectator chat">
@@ -222,7 +222,7 @@ export default function Home() {
         <div className="inventoryLog" aria-label="Inventory purchase log">
           {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
         </div>
-        <div className="sectionHead"><div><span className="kicker">LIVE HOLDER DROP</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. Jackpot draws clear on roughly 1 in 20 epochs.</p></div>
+        <div className="sectionHead"><div><span className="kicker">LIVE HOLDER DROP</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. The jackpot fund is tracked separately as the reserve grows.</p></div>
         <div className="gachaTeaser" aria-label="Gacha packs coming soon">
           <div className="teaserPack"><img src="/brand/stockdrops-logo.png" alt=""/><span>SOON</span></div>
           <div>
