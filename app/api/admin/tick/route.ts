@@ -14,8 +14,8 @@ export async function POST(request:Request){
   const currentSlot=Math.floor(Date.now()/AIRDROP_INTERVAL_MS);
   const drawWindow=Date.now()%AIRDROP_INTERVAL_MS<75_000;
   const restockWindow=drawWindow;
-  const waiting={status:200,body:{ok:true,skipped:"Waiting for the next 15-minute draw window."}};
-  const restockWaiting={status:200,body:{ok:true,skipped:"Waiting for the next 15-minute restock window."}};
+  const waiting={status:200,body:{ok:true,skipped:"Waiting for the next 5-minute draw window."}};
+  const restockWaiting={status:200,body:{ok:true,skipped:"Waiting for the next 5-minute restock window."}};
   const main=restockWindow?await call("/api/admin/restock?scope=main"):restockWaiting;
   const holder=restockWindow?await call("/api/admin/restock?scope=holder"):restockWaiting;
   const airdrop=drawWindow?await call("/api/admin/holder-epoch"):null;

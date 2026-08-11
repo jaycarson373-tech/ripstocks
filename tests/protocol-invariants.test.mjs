@@ -15,10 +15,10 @@ const restock = await readFile(new URL("../app/api/admin/restock/route.ts", impo
 const holderEpoch = await readFile(new URL("../app/api/admin/holder-epoch/route.ts", import.meta.url), "utf8");
 const tick = await readFile(new URL("../app/api/admin/tick/route.ts", import.meta.url), "utf8");
 
-test("one shared 15-minute interval drives the product", () => {
-  assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 15/);
+test("one shared 5-minute interval drives the product", () => {
+  assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 5/);
   assert.doesNotMatch(page, /hourly|60 minutes|every hour/i);
-  assert.match(schema, /interval '15 minutes'/);
+  assert.match(schema, /interval '5 minutes'/);
 });
 
 test("protocol fees split exactly 80\/20", () => {
@@ -93,16 +93,16 @@ test("site publishes exactly ten verified inventory mints", () => {
 
 test("practice loader preserves gas and exact inventory averages", () => {
   assert.match(inventoryPlan,/SOL_GAS_BUFFER = 0\.111/);
-  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[1,2,3,5,8,10,12,15,20,25,30,40,50\]/);
+  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[1,2,3,5,8,10,12,15,20,25,30\]/);
   assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[1,2,3,4,5\]/);
-  const main=[1,2,3,5,8,10,12,15,20,25,30,40,50];
+  const main=[1,2,3,5,8,10,12,15,20,25,30];
   const holder=[1,2,3,4,5];
-  assert.equal(main.reduce((a,b)=>a+b,0),221);
+  assert.equal(main.reduce((a,b)=>a+b,0),131);
   assert.equal(holder.reduce((a,b)=>a+b,0),15);
   assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,3);
 });
 
-test("protected automation restocks on the shared 15-minute clock and records confirmed output",()=>{
+test("protected automation restocks on the shared 5-minute clock and records confirmed output",()=>{
   assert.match(tick,/AIRDROP_INTERVAL_MS/);
   assert.match(restock,/AIRDROP_INTERVAL_MS/);
   assert.match(tick,/restock\?scope=main/);

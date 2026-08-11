@@ -160,7 +160,7 @@ export default function Home() {
           <div className="window">
             <div className="glow" />
             <div className="casePointer" />
-            <div className="caseReel">{[...stocks,...stocks].map((stock,index)=><span className="caseCard" key={`${stock.ticker}-${index}`} style={stockVars(stock)}><StockLogo stock={stock} className="caseLogo"/><b>{stock.ticker}</b><small>${[1,2,3,5,8,10,12,15,20,25,30,40,50][index%13]}</small></span>)}</div>
+            <div className="caseReel">{[...stocks,...stocks].map((stock,index)=><span className="caseCard" key={`${stock.ticker}-${index}`} style={stockVars(stock)}><StockLogo stock={stock} className="caseLogo"/><b>{stock.ticker}</b><small>${[1,2,3,5,8,10,12,15,20,25,30][index%11]}</small></span>)}</div>
             <div className="caseResult"><small>LATEST DROP</small><b>{latestDrop?.stock || "DROPS"}</b><em>{latestDrop?`$${Number(latestDrop.value).toFixed(2)}`:"ARMED"}</em></div>
           </div>
           <div className="belt">{[1,2,3,4,5,6].map(n=><span key={n} />)}</div>
@@ -174,7 +174,7 @@ export default function Home() {
         <div className="deskCard wide">
           <span className="kicker">LIVE ROUTING</span>
           <h2>The flywheel buys stocks for holders.</h2>
-          <p>80% of fees buy random xStocks for 15-minute holder drops. 20% stacks the jackpot, so volume keeps feeding the next rewards.</p>
+          <p>80% of fees buy random xStocks for 5-minute holder drops. 20% stacks the jackpot, so volume keeps feeding the next rewards.</p>
         </div>
         <div className="deskCard"><b>80%</b><span>Stock-drop fund</span><p>Used to buy the next random xStock for holder airdrops.</p></div>
         <div className="deskCard"><b>20%</b><span>Jackpot fund</span><p>Accumulates until a jackpot draw hits.</p></div>
@@ -222,13 +222,13 @@ export default function Home() {
         <div className="inventoryLog" aria-label="Inventory purchase log">
           {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
         </div>
-        <div className="sectionHead"><div><span className="kicker">LIVE HOLDER DROP</span><h2>One stock.<br/>Every 15 minutes.</h2></div><p>Fees stock the treasury with xStock drops from $1 to $50. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. Jackpot draws clear on roughly 1 in 20 epochs.</p></div>
+        <div className="sectionHead"><div><span className="kicker">LIVE HOLDER DROP</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. Jackpot draws clear on roughly 1 in 20 epochs.</p></div>
         <div className="gachaTeaser" aria-label="Gacha packs coming soon">
           <div className="teaserPack"><img src="/brand/stockdrops-logo.png" alt=""/><span>SOON</span></div>
           <div>
             <span className="kicker">GACHA PACKS COMING SOON</span>
             <h3>Holder drops are live first.</h3>
-            <p>The live product is the Stonk Drop Picker: treasury-funded xStocks, weighted holder draws, jackpot routing, and public proof every 15 minutes.</p>
+            <p>The live product is the Stonk Drop Picker: treasury-funded xStocks, weighted holder draws, jackpot routing, and public proof every 5 minutes.</p>
           </div>
           <b>COMING SOON</b>
         </div>
@@ -245,7 +245,7 @@ export default function Home() {
         </div>
       </div></section>
 
-      <section className="fly wrap" id="flywheel"><span className="kicker">PROOF ENGINE</span><h2>Fair seed.<br/><em>On-chain receipt.</em></h2><div className="protocolSteps">{[["01","HOLDER SNAPSHOT",`${HOLDER_TICKET_TOKENS.toLocaleString()} DROPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","80/20 ROUTING","80% of creator fees funds stock drops. 20% accrues to the jackpot reserve."],["03","PUBLIC SEED","Each draw combines the 15-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One weighted holder is selected and Stonk Drops resolves to one funded xStock drop."],["05","PUBLISHED PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
+      <section className="fly wrap" id="flywheel"><span className="kicker">PROOF ENGINE</span><h2>Fair seed.<br/><em>On-chain receipt.</em></h2><div className="protocolSteps">{[["01","HOLDER SNAPSHOT",`${HOLDER_TICKET_TOKENS.toLocaleString()} DROPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","80/20 ROUTING","80% of creator fees funds stock drops. 20% accrues to the jackpot reserve."],["03","PUBLIC SEED","Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One weighted holder is selected and Stonk Drops resolves to one funded xStock drop."],["05","PUBLISHED PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
       <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STONK DROPS PROOFS</div><b>NEXT DROP {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>DROP</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{stockProofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{proofPackLabel(a.value)}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{stockProofs.length===0&&<div className="emptyProof">No Stonk Drops holder drops published yet.</div>}</div></div><p className="disclaimer">Stonk Drops draws are statistical holder rewards funded by treasury inventory. 250k DROPS equals one ticket. 80% of creator fees funds stock drops and 20% accrues to the jackpot reserve. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN DROP?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded for airdrops.</h2></div><p>Stonk Drops inventory is restricted to this approved Solana xStock universe. Every draw resolves to one treasury-funded stock drop.</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>

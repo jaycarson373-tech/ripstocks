@@ -27,7 +27,7 @@ set locked_until = '-infinity'
 where id = true;
 
 update public.protocol_config
-set airdrop_interval_minutes = 15
+set airdrop_interval_minutes = 5
 where id = true;
 
 commit;
