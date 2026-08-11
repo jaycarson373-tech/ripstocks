@@ -1,7 +1,7 @@
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { corsHeaders, json, optionsResponse } from "@/lib/cors";
-import { PACK_PRICE_USDC_ATOMS, publicKeyEnv, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
+import { json, optionsResponse } from "@/lib/cors";
+import { PACK_PRICE_USDC_ATOMS, protocolWallet, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
 
 export const dynamic = "force-dynamic";
 export function OPTIONS(){ return optionsResponse(); }
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
     const { wallet } = body;
     const buyer = new PublicKey(wallet || "");
-    const treasury = publicKeyEnv("MAIN_TREASURY_WALLET");
+    const treasury = protocolWallet();
     const orderId = await reserveInventory(buyer.toBase58());
     if (!orderId) return json({error:"No verified packs are available."},409);
     const mint = new PublicKey(USDC_MINT);

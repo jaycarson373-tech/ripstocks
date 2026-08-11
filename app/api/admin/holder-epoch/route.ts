@@ -3,7 +3,7 @@ import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { authorized } from "@/lib/automation-auth";
 import { AIRDROP_INTERVAL_MS } from "@/lib/protocol";
-import { keypairEnv, publicKeyEnv, requiredEnv, rpcUrl, supabase } from "@/lib/server-config";
+import { protocolSigner, protocolWallet, requiredEnv, rpcUrl, supabase } from "@/lib/server-config";
 
 export const dynamic="force-dynamic";
 
@@ -51,7 +51,7 @@ function amountToAtoms(amount:string|number,decimals:number) {
 
 async function eligibleHolders(){
   const mint=requiredEnv("HOLDER_TOKEN_MINT");
-  const excluded=new Set([process.env.MAIN_TREASURY_WALLET,process.env.HOLDER_AIRDROP_WALLET].filter(Boolean));
+  const excluded=new Set([protocolWallet().toBase58()]);
   const holders=new Map<string,HolderTicket>();
   const defaultDecimals=Number(process.env.STOCKDROPS_TOKEN_DECIMALS||process.env.HOLDER_TOKEN_DECIMALS||6);
   const ticketAtoms=holderTicketAtoms();
@@ -115,7 +115,7 @@ async function reserveAvailableLotForEpoch(epochId:number,lots?:HolderLot[]) {
   return null;
 }
 
-async function createEpoch(epoch:any){
+async function createEpoch(epoch:Record<string,unknown>){
   const extended=await supabase("airdrop_epochs",{
     method:"POST",
     headers:{Prefer:"resolution=ignore-duplicates,return=representation"},
@@ -124,7 +124,8 @@ async function createEpoch(epoch:any){
   if(extended.ok)return extended;
   const text=await extended.text();
   if(!/column|schema cache|random_seed|total_tickets|winning_ticket|ticket_size_tokens/i.test(text))throw new Error(`Could not create holder epoch: ${text}`);
-  const {random_seed,random_source,total_tickets,winning_ticket,ticket_size_tokens,holder_snapshot_hash,...baseEpoch}=epoch;
+  const baseEpoch={...epoch};
+  for(const field of ["random_seed","random_source","total_tickets","winning_ticket","ticket_size_tokens","holder_snapshot_hash"])delete baseEpoch[field];
   return supabase("airdrop_epochs",{
     method:"POST",
     headers:{Prefer:"resolution=ignore-duplicates,return=representation"},
@@ -163,9 +164,8 @@ export async function POST(request:Request){
   if(!authorized(request))return Response.json({error:"Unauthorized"},{status:401});
   try{
     const body=await request.json().catch(()=>({})) as {dryRun?:boolean};
-    const signer=keypairEnv("HOLDER_AIRDROP_SIGNER_SECRET");
-    const wallet=publicKeyEnv("HOLDER_AIRDROP_WALLET");
-    if(!signer.publicKey.equals(wallet))throw new Error("Holder signer does not match configured wallet");
+    const signer=protocolSigner();
+    const wallet=protocolWallet();
     const connection=new Connection(rpcUrl(),"confirmed");
     const epochId=Math.floor(Date.now()/AIRDROP_INTERVAL_MS);
     const holders=await eligibleHolders();

@@ -18,6 +18,32 @@ export function keypairEnv(name: string) {
   return Keypair.fromSecretKey(bytes);
 }
 
+function firstConfiguredEnv(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  throw new Error(`Missing ${names[0]}`);
+}
+
+/**
+ * Stonk Drops intentionally uses one operational wallet for fee collection,
+ * inventory custody, and holder-drop signing. The legacy names remain as
+ * fallbacks so an existing deployment can migrate without moving funds.
+ */
+export function protocolWallet() {
+  return new PublicKey(firstConfiguredEnv("PROTOCOL_WALLET", "MAIN_TREASURY_WALLET", "HOLDER_AIRDROP_WALLET"));
+}
+
+export function protocolSigner() {
+  const raw = firstConfiguredEnv("PROTOCOL_SIGNER_SECRET", "MAIN_TREASURY_SIGNER_SECRET", "HOLDER_AIRDROP_SIGNER_SECRET");
+  const bytes = raw.startsWith("[") ? Uint8Array.from(JSON.parse(raw) as number[]) : bs58.decode(raw);
+  const signer = Keypair.fromSecretKey(bytes);
+  const wallet = protocolWallet();
+  if (!signer.publicKey.equals(wallet)) throw new Error("Protocol signer does not match PROTOCOL_WALLET");
+  return signer;
+}
+
 export function rpcUrl() { return process.env.HELIUS_RPC_URL || requiredEnv("SOLANA_RPC_URL"); }
 
 export function supabaseConfig() {

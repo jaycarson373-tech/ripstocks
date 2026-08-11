@@ -3,7 +3,7 @@ import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAd
 import { authorized } from "@/lib/automation-auth";
 import { quoteExactInput, swapExactInput } from "@/lib/jupiter";
 import { HOLDER_INVENTORY_LOTS, MAIN_INVENTORY_LOTS, parseTargets } from "@/lib/inventory-plan";
-import { keypairEnv, publicKeyEnv, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
+import { protocolSigner, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
 
 export const dynamic="force-dynamic";
 const WRAPPED_SOL=new PublicKey("So11111111111111111111111111111111111111112");
@@ -30,7 +30,7 @@ function bootstrapBudgets(scope:"main"|"holder",requestedBudgets?:number[]){
   return budgets.length?budgets:cycle;
 }
 
-async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof keypairEnv>,mint:PublicKey){
+async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof protocolSigner>,mint:PublicKey){
   const account=getAssociatedTokenAddressSync(mint,payer.publicKey,false,TOKEN_2022_PROGRAM_ID);
   const transaction=new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(payer.publicKey,account,payer.publicKey,mint,TOKEN_2022_PROGRAM_ID));
   const signature=await connection.sendTransaction(transaction,[payer],{skipPreflight:false,maxRetries:3});
@@ -71,9 +71,7 @@ export async function POST(request:Request){
     const budgets=bootstrapBudgets(scope,requestedBudgets);
     if(budgets.length>80||budgets.some(value=>!Number.isFinite(value)||value<=0||value>30))return Response.json({error:"Invalid test budgets"},{status:400});
     const budgetTotal=budgets.reduce((sum,value)=>sum+value,0);
-    const signer=keypairEnv(scope==="main"?"MAIN_TREASURY_SIGNER_SECRET":"HOLDER_AIRDROP_SIGNER_SECRET");
-    const configured=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET");
-    if(!signer.publicKey.equals(configured))throw new Error("Signer does not match configured wallet");
+    const signer=protocolSigner();
     const connection=new Connection(rpcUrl(),"confirmed");
     const buffer=Number(process.env.SOL_GAS_BUFFER||0.111);
     const solBalance=(await connection.getBalance(signer.publicKey,"confirmed"))/1e9;

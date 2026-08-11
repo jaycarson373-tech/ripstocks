@@ -1,8 +1,8 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { authorized } from "@/lib/automation-auth";
 import { parseTargets } from "@/lib/inventory-plan";
-import { publicKeyEnv, rpcUrl, supabase } from "@/lib/server-config";
+import { protocolWallet, rpcUrl, supabase } from "@/lib/server-config";
 
 export const dynamic="force-dynamic";
 
@@ -15,7 +15,7 @@ export async function POST(request:Request){
     if(scope!=="main"&&scope!=="holder")return Response.json({error:"scope must be main or holder"},{status:400});
     if(!signature||!/^[1-9A-HJ-NP-Za-km-z]{64,96}$/.test(signature))return Response.json({error:"Valid signature required"},{status:400});
     if(!Number.isFinite(usdValue)||Number(usdValue)<=0||Number(usdValue)>50)return Response.json({error:"Valid usdValue required"},{status:400});
-    const wallet=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET").toBase58();
+    const wallet=protocolWallet().toBase58();
     const targets=parseTargets();
     const targetByMint=new Map(targets.map(target=>[target.mint,target]));
     const table=scope==="main"?"inventory_lots":"airdrop_inventory_lots";

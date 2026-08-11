@@ -139,13 +139,13 @@ export default function Home() {
 
   return (
     <main>
+      <div className="pageBackdrop" aria-hidden="true" />
       <div className="grain" />
       <nav className="nav wrap">
         <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></a>
         <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Room</a><a href="#flywheel">Proof</a></div>
         <div className="navActions">
           <button className={`caPill headerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()} aria-label={HAS_MINT?"Copy Stonk Drops contract address":"Stonk Drops contract address coming soon"}><span>CA</span>{HAS_MINT?STOCKDROPS_MINT:"SOON"}<b>{HAS_MINT?(copiedCa?"COPIED":"COPY"):"SOON"}</b></button>
-          <span className="soonPill">SOON</span>
           {HAS_X?<a className="xPill" href={X_URL} target="_blank" rel="noreferrer">X</a>:<span className="xPill isSoon">X SOON</span>}
         </div>
       </nav>
@@ -231,15 +231,6 @@ export default function Home() {
           {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Draw inventory logs begin once the drop engine is activated</b><i>+0</i><em>{drawsLive?"LIVE":"PENDING"}</em></div>}
         </div>
         <div className="sectionHead"><div><span className="kicker">{drawsLive?"LIVE HOLDER DROP":"HOLDER DROP PREVIEW"}</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>{drawsLive?"Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. The jackpot fund is tracked separately as the reserve grows.":"Once draws start, accumulated fees will stock the treasury with xStock drops from $1 to $30. The draw will pick one weighted holder, run the selector, send the winning stock drop, and post proof."}</p></div>
-        <div className="gachaTeaser" aria-label="Gacha packs coming soon">
-          <div className="teaserPack"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span>SOON</span></div>
-          <div>
-            <span className="kicker">GACHA PACKS COMING SOON</span>
-            <h3>Holder drops launch first.</h3>
-            <p>The Stonk Drop Picker will run treasury-funded xStocks, weighted holder draws, jackpot routing, and public proof every 5 minutes once activated.</p>
-          </div>
-          <b>COMING SOON</b>
-        </div>
         <div className="ripBar drawBar">
           <div><span>{drawsLive?"NEXT STOCK DROP":"STOCK DROP STATUS"}</span><b>{drawStatus}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} DROPS = 1 TICKET</b></div><a href="#live">WATCH ROOM <span>→</span></a>
         </div>
