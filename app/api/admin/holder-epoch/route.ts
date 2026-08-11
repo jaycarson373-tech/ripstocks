@@ -164,6 +164,8 @@ export async function POST(request:Request){
   if(!authorized(request))return Response.json({error:"Unauthorized"},{status:401});
   try{
     const body=await request.json().catch(()=>({})) as {dryRun?:boolean};
+    const drawsLive=/^(true|1|yes)$/i.test((process.env.DRAWS_LIVE||"").trim());
+    if(!body.dryRun&&!drawsLive)return Response.json({ok:true,skipped:"Holder drops are disabled"});
     const signer=protocolSigner();
     const wallet=protocolWallet();
     const connection=new Connection(rpcUrl(),"confirmed");
