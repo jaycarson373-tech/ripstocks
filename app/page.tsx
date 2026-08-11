@@ -136,7 +136,7 @@ export default function Home() {
     <main>
       <div className="grain" />
       <nav className="nav wrap">
-        <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/stockdrops-logo.svg" alt=""/><span><em>stonk</em>drops</span></a>
+        <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stockdrops-logo.png" alt=""/><span><em>stonk</em>drops</span></a>
         <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href={X_URL} target="_blank" rel="noreferrer">X</a></div>
         <button className="caPill headerCa" type="button" onClick={()=>void copyCa()} aria-label="Copy Stonk Drops contract address"><span>CA</span>{STOCKDROPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button>
         {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
@@ -224,7 +224,7 @@ export default function Home() {
         </div>
         <div className="sectionHead"><div><span className="kicker">LIVE HOLDER DROP</span><h2>One stock.<br/>Every 15 minutes.</h2></div><p>Fees stock the treasury with xStock drops from $1 to $50. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. Jackpot draws clear on roughly 1 in 20 epochs.</p></div>
         <div className="gachaTeaser" aria-label="Gacha packs coming soon">
-          <div className="teaserPack"><img src="/stockdrops-logo.svg" alt=""/><span>SOON</span></div>
+          <div className="teaserPack"><img src="/brand/stockdrops-logo.png" alt=""/><span>SOON</span></div>
           <div>
             <span className="kicker">GACHA PACKS COMING SOON</span>
             <h3>Holder drops are live first.</h3>
@@ -250,7 +250,7 @@ export default function Home() {
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN DROP?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded for airdrops.</h2></div><p>Stonk Drops inventory is restricted to this approved Solana xStock universe. Every draw resolves to one treasury-funded stock drop.</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/stockdrops-logo.svg" alt=""/><span><em>stonk</em>drops</span></div><button className="caPill footerCa" type="button" onClick={()=>void copyCa()}><span>CA</span>{STOCKDROPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button><div className="footerLinks"><a href={X_URL} target="_blank" rel="noreferrer">X</a><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stockdrops-logo.png" alt=""/><span><em>stonk</em>drops</span></div><button className="caPill footerCa" type="button" onClick={()=>void copyCa()}><span>CA</span>{STOCKDROPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button><div className="footerLinks"><a href={X_URL} target="_blank" rel="noreferrer">X</a><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>

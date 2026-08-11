@@ -32,9 +32,9 @@ export const metadata: Metadata = {
     images: ["/stockdrops-banner.svg"],
   },
   icons: {
-    icon: "/stockdrops-logo.svg",
-    shortcut: "/stockdrops-logo.svg",
-    apple: "/stockdrops-logo.svg",
+    icon: "/brand/stockdrops-logo.png",
+    shortcut: "/brand/stockdrops-logo.png",
+    apple: "/brand/stockdrops-logo.png",
   },
 };
 
