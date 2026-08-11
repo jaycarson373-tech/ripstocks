@@ -127,6 +127,7 @@ body{background:radial-gradient(circle at 50% -8%,rgba(122,240,0,.2),transparent
 .topLiveChat .chatComposer{border-top:0;border-left:1px solid rgba(159,255,22,.18)}
 .liveRoom{grid-template-columns:1fr}
 .liveChat{display:none}
+.preDrawBanner{margin-top:18px;border:1px solid rgba(55,245,186,.35);background:rgba(55,245,186,.08);color:#dffdf3;padding:13px 16px;border-radius:16px;text-align:center;font:950 11px var(--font-geist-sans),Arial,sans-serif;letter-spacing:.08em}
 .caPill{max-width:330px;min-width:0;border:1px solid rgba(159,255,22,.38);background:rgba(159,255,22,.09);color:#f6f8ef;border-radius:999px;padding:11px 13px;display:inline-flex;align-items:center;gap:9px;cursor:pointer;font:900 10px var(--font-geist-mono),monospace;letter-spacing:.06em;white-space:nowrap;overflow:hidden;box-shadow:0 0 22px rgba(159,255,22,.08)}
 .caPill span{color:var(--acid)}
 .caPill b{margin-left:auto;background:var(--acid);color:#061006;border-radius:999px;padding:4px 7px;font-size:8px}

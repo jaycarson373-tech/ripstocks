@@ -14,6 +14,8 @@ const inventoryPlan = await readFile(new URL("../lib/inventory-plan.ts", import.
 const restock = await readFile(new URL("../app/api/admin/restock/route.ts", import.meta.url), "utf8");
 const holderEpoch = await readFile(new URL("../app/api/admin/holder-epoch/route.ts", import.meta.url), "utf8");
 const tick = await readFile(new URL("../app/api/admin/tick/route.ts", import.meta.url), "utf8");
+const protocolRoute = await readFile(new URL("../app/api/protocol/route.ts", import.meta.url), "utf8");
+const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
 test("one shared 5-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 5/);
@@ -91,6 +93,20 @@ test("site publishes exactly ten verified inventory mints", () => {
   assert.match(verifiedXstocks,/XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1/);
 });
 
+test("draw live gate defaults off and removes pre-draw urgency", () => {
+  assert.match(envExample, /DRAWS_LIVE=false/);
+  assert.doesNotMatch(envExample, /NEXT_PUBLIC_DRAWS_LIVE/);
+  assert.match(protocolRoute, /process\.env\.DRAWS_LIVE/);
+  assert.match(protocolRoute, /drawsLive\(\)/);
+  assert.match(protocol, /drawsLive: false/);
+  assert.match(page, /DRAWS HAVE NOT STARTED/);
+  assert.match(page, /AWAITING FIRST DRAW/);
+  assert.match(page, /NO DROPS YET/);
+  assert.match(page, /OPEN DROP ROOM/);
+  assert.match(page, /Draw inventory logs begin once the drop engine is activated/);
+  assert.doesNotMatch(page, /Waiting for the first confirmed holder stock drop|Waiting for the next wallet purchase|Holder drops are live first|Chat opens once the live table is migrated/);
+});
+
 test("practice loader preserves gas and exact inventory averages", () => {
   assert.match(inventoryPlan,/SOL_GAS_BUFFER = 0\.111/);
   assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[1,2,3,5,8,10,12,15,20,25,30\]/);
@@ -120,6 +136,6 @@ test("holder epochs snapshot owners, reserve inventory, transfer, and publish pr
   assert.match(holderEpoch,/complete_airdrop_epoch/);
   assert.match(schema,/status='distributed'/);
   assert.match(page,/STONK DROPS PROOFS/);
-  assert.match(page,/No Stonk Drops holder drops published yet/);
+  assert.match(page,/Proof rows begin once the drop engine is activated/);
   assert.match(page,/stockProofs/);
 });

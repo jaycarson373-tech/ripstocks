@@ -8,6 +8,10 @@ function cleanBase(value:string|undefined){
   return clean ? (/^https?:\/\//.test(clean) ? clean : `https://${clean}`) : "";
 }
 
+function drawsLive() {
+  return /^(true|1|yes)$/i.test((process.env.DRAWS_LIVE || "").trim());
+}
+
 async function rest<T>(url:string,key:string,path:string):Promise<T[]>{
   const response=await fetch(`${url}/rest/v1/${path}`,{headers:{apikey:key,Authorization:`Bearer ${key}`},cache:"no-store"});
   return response.ok?await response.json() as T[]:[];
@@ -25,11 +29,11 @@ export async function GET(request:Request) {
   }
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return NextResponse.json(emptySnapshot(), { headers: { "Cache-Control": "no-store" } });
+  if (!url || !key) return NextResponse.json({ ...emptySnapshot(), drawsLive: drawsLive() }, { headers: { "Cache-Control": "no-store" } });
   const response = await fetch(`${url}/rest/v1/rpc/protocol_public_snapshot`, { method:"POST", headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"}, body:"{}", cache:"no-store" });
-  if (!response.ok) return NextResponse.json(emptySnapshot(), { status: 200, headers: { "Cache-Control": "no-store" } });
+  if (!response.ok) return NextResponse.json({ ...emptySnapshot(), drawsLive: drawsLive() }, { status: 200, headers: { "Cache-Control": "no-store" } });
   const row = await response.json() as Partial<ProtocolSnapshot>;
-  const snapshot = { ...emptySnapshot(), ...row, serverNow:new Date().toISOString(), epochEndsAt:synchronizedEpochEndsAt().toISOString() };
+  const snapshot = { ...emptySnapshot(), ...row, drawsLive: drawsLive(), serverNow:new Date().toISOString(), epochEndsAt:synchronizedEpochEndsAt().toISOString() };
   const [mainLogs,holderLogs,holderInventory]=await Promise.all([
     rest<{created_at:string;usd_value:number;acquisition_signature:string}>(url,key,"inventory_lots?select=created_at,usd_value,acquisition_signature&order=created_at.desc&limit=8"),
     rest<{created_at:string;purchase_value:number;acquisition_signature:string}>(url,key,"airdrop_inventory_lots?select=created_at,purchase_value,acquisition_signature&order=created_at.desc&limit=8"),
