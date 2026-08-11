@@ -119,7 +119,7 @@ test("holder epochs snapshot owners, reserve inventory, transfer, and publish pr
   assert.match(holderEpoch,/reserveAvailableLotForEpoch/);
   assert.match(holderEpoch,/complete_airdrop_epoch/);
   assert.match(schema,/status='distributed'/);
-  assert.match(page,/STOCK DROPS PROOFS/);
-  assert.match(page,/No Stock Drops holder drops published yet/);
+  assert.match(page,/STONK DROPS PROOFS/);
+  assert.match(page,/No Stonk Drops holder drops published yet/);
   assert.match(page,/stockProofs/);
 });

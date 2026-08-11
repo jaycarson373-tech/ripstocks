@@ -24,7 +24,7 @@
     <path d="M111 163L156 216L201 163" stroke="#E8EEEC" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M156 216C156 216 125 250 125 270C125 287 139 301 156 301C173 301 187 287 187 270C187 250 156 216 156 216Z" fill="#2CF7B3"/>
   </g>
-  <text x="70" y="158" fill="#F2F5F4" font-family="Arial Black, Arial, sans-serif" font-size="82" font-weight="900" letter-spacing="-5">STOCK</text>
+  <text x="70" y="158" fill="#F2F5F4" font-family="Arial Black, Arial, sans-serif" font-size="82" font-weight="900" letter-spacing="-5">STONK</text>
   <text x="70" y="245" fill="#DDE7E4" font-family="Arial Black, Arial, sans-serif" font-size="92" font-weight="900" letter-spacing="-5">DROPS</text>
   <text x="73" y="296" fill="#2CF7B3" font-family="monospace" font-size="22" font-weight="800" letter-spacing="5">TICKER: DROPS • EVERY 15 MINUTES</text>
   <g font-family="Arial, sans-serif" font-size="28" font-weight="800" fill="#EAFFF7">

@@ -9,7 +9,7 @@
   <path d="M171 176C195 141 223 124 256 124C289 124 317 141 341 176" stroke="#030404" stroke-width="11" stroke-linecap="round"/>
   <path d="M164 219H348" stroke="#2cf7b3" stroke-width="7" stroke-linecap="round" opacity=".85"/>
   <path d="M220 300H292" stroke="#030404" stroke-width="10" stroke-linecap="round"/>
-  <text x="256" y="72" fill="#dfe9e6" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="34" font-weight="900" letter-spacing="2">DROPS</text>
+  <text x="256" y="72" fill="#dfe9e6" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="34" font-weight="900" letter-spacing="2">STONK</text>
   <defs>
     <radialGradient id="g" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 205) rotate(90) scale(260)">
       <stop stop-color="#102421"/>

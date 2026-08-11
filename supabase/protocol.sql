@@ -1,4 +1,4 @@
--- Stock Drops production accounting. Treasury funds and protocol fees are never commingled.
+-- Stonk Drops production accounting. Treasury funds and protocol fees are never commingled.
 create extension if not exists pgcrypto;
 create table if not exists public.protocol_config (id boolean primary key default true, airdrop_interval_minutes int not null default 15);
 alter table public.protocol_config drop constraint if exists protocol_config_airdrop_interval_minutes_check;

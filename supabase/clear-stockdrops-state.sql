@@ -1,4 +1,4 @@
--- One-time pre-launch cleanup for Stock Drops.
+-- One-time pre-launch cleanup for Stonk Drops.
 -- Run this only when you intentionally want to wipe old test / launch history.
 -- It keeps protocol config and wallet records, but clears inventories, proofs,
 -- old purchases, chat, automation locks, and fee accounting rows.

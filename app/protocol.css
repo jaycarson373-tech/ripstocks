@@ -138,7 +138,7 @@ footer .wrap{gap:18px}
 @media(max-width:1000px){.topLiveChat{grid-template-columns:1fr}.topLiveChat .chatHead{border-right:0;border-bottom:1px solid rgba(159,255,22,.18);flex-direction:row;justify-content:space-between}.topLiveChat .chatStream{grid-template-columns:1fr;max-height:220px}.topLiveChat .chatComposer{border-left:0;border-top:1px solid rgba(159,255,22,.18)}footer .wrap{align-items:flex-start}.footerCa{width:100%;max-width:100%;justify-content:flex-start}.footerLinks{justify-content:flex-start}}
 @media(max-width:700px){.caPill{width:100%;max-width:100%;border-radius:18px}.footerLinks{gap:14px}}
 
-/* Stock Drops professional skin */
+/* Stonk Drops professional skin */
 :root{--acid:#2cf7b3;--lime:#2cf7b3;--chrome:#dfe7e4;--paper:#eef3f1;--black:#010101;--panel:#060808;--purple:#19231f}
 body{background:radial-gradient(circle at 50% -10%,rgba(44,247,179,.13),transparent 26%),radial-gradient(circle at 8% 20%,rgba(255,255,255,.045),transparent 22%),linear-gradient(180deg,#010101 0,#050606 44%,#010101 100%)}
 .grain{opacity:.022}
@@ -179,7 +179,7 @@ body{background:radial-gradient(circle at 50% -10%,rgba(44,247,179,.13),transpar
 .caPill b{background:var(--acid);color:#030404}
 footer{background:#010101;border-top-color:rgba(223,231,228,.1)}
 
-/* Final Stock Drops polish pass */
+/* Final Stonk Drops polish pass */
 :root{--acid:#37f5ba;--accent:#8fffd9;--muted:#8d9a94;--line:rgba(231,238,235,.12)}
 body{background:
   radial-gradient(circle at 54% -12%,rgba(55,245,186,.16),transparent 30%),
@@ -235,7 +235,7 @@ main{color:#eef4f1}
 @media(max-width:1000px){.hero{grid-template-columns:1fr;gap:34px}.machine{min-height:430px}.proof{grid-template-columns:1fr 1fr}.proof div:last-child{grid-column:1/-1;border-top:1px solid var(--line)}}
 @media(max-width:700px){.nav{height:auto;padding-block:16px}.brandBanner{margin-inline:0;border-radius:0}.hero{padding-top:42px}.heroCopy h1{font-size:58px}.proof{grid-template-columns:1fr}.proof div{border-right:0;border-bottom:1px solid var(--line)}.proof div:last-child{border-bottom:0}.caseReel .caseCard{width:104px;height:120px}.caseLogo{--size:46px}.verifiedGrid a{grid-template-columns:28px 46px 1fr 18px}}
 
-/* Stock Drops routing board */
+/* Stonk Drops routing board */
 .dropDesk{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:10px;margin-top:42px;padding:0 0 18px}
 .deskCard{min-height:180px;border:1px solid var(--line);border-radius:22px;background:
   linear-gradient(rgba(255,255,255,.032) 1px,transparent 1px),
@@ -256,3 +256,47 @@ main{color:#eef4f1}
 .machine:hover,.deskCard:hover,.howGrid article:hover,.verifiedGrid a:hover{border-color:rgba(55,245,186,.42);box-shadow:0 30px 92px rgba(0,0,0,.38),0 0 34px rgba(55,245,186,.07)}
 @media(max-width:1100px){.dropDesk{grid-template-columns:1fr 1fr}.deskCard.wide{grid-column:1/-1}}
 @media(max-width:700px){.dropDesk{grid-template-columns:1fr;margin-top:30px}.deskCard,.deskCard.wide{min-height:150px;border-radius:18px}.deskCard h2{font-size:38px}.deskCard>b{font-size:46px}}
+
+/* Stonk Drops hero strength pass */
+:root{--hot:#ff4fd8;--gold:#ffc857;--blue:#4a7dff}
+body{background:
+  radial-gradient(circle at 80% 5%,rgba(255,79,216,.13),transparent 24%),
+  radial-gradient(circle at 50% -10%,rgba(55,245,186,.18),transparent 30%),
+  radial-gradient(circle at 12% 24%,rgba(74,125,255,.08),transparent 28%),
+  linear-gradient(180deg,#010202 0,#050706 46%,#010202 100%)}
+.brandImage span{font-size:22px}
+.brandImage span em{color:#f5fbf8}
+.brandImage span{color:var(--acid)}
+.hero{position:relative}
+.hero:before{content:"";position:absolute;z-index:-1;inset:18px -4% auto -4%;height:620px;background:
+  linear-gradient(120deg,rgba(55,245,186,.09),transparent 28%,rgba(255,79,216,.08) 64%,transparent),
+  radial-gradient(circle at 52% 42%,rgba(255,200,87,.09),transparent 22%);
+  border-radius:42px;filter:blur(.2px)}
+.eyebrow{color:#d7fff2;text-shadow:0 0 22px rgba(55,245,186,.18)}
+.eyebrow span{background:linear-gradient(135deg,var(--acid),var(--hot));box-shadow:0 0 16px rgba(55,245,186,.5)}
+.heroCopy h1{font-size:clamp(64px,8vw,118px);text-transform:uppercase;color:#f9fffc}
+.heroCopy h1 em{background:linear-gradient(90deg,var(--acid),#d9ff7a,var(--hot));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
+.heroCopy>p:first-of-type{font-size:clamp(18px,1.7vw,24px)!important;max-width:720px!important;color:#f2faf7!important}
+.heroSupport{max-width:740px;border-color:rgba(255,255,255,.18);background:linear-gradient(90deg,rgba(55,245,186,.12),rgba(255,79,216,.08));color:#dffef4!important}
+.heroDropGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:22px;max-width:720px}
+.heroDropGrid>span{min-width:0;display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(0,0,0,.1)),color-mix(in srgb,var(--stock) 18%,#050707);box-shadow:0 14px 30px rgba(0,0,0,.24)}
+.heroDropGrid b{font-size:12px;font-weight:950;letter-spacing:-.03em;color:#f8fffb}
+.heroDropLogo{--size:34px;border-radius:12px}
+.proof{border-color:rgba(255,255,255,.16);background:linear-gradient(90deg,rgba(55,245,186,.06),rgba(255,200,87,.045),rgba(255,79,216,.055))}
+.proof div b{color:#fff}
+.proof div:nth-child(3) b{color:var(--gold)}
+.caseMachine .window{background:
+  linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),
+  radial-gradient(circle at 34% 35%,rgba(255,79,216,.14),transparent 28%),
+  radial-gradient(circle at 62% 44%,rgba(55,245,186,.2),rgba(8,11,10,.93) 42%,#010202 74%);
+  background-size:48px 48px,48px 48px,auto,auto}
+.caseResult{border-color:rgba(255,200,87,.4)}
+.caseResult b{background:linear-gradient(90deg,var(--acid),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+.dropDesk{margin-top:54px}
+.deskCard:nth-child(2)>b{color:var(--acid)}
+.deskCard:nth-child(3)>b{color:var(--hot)}
+.deskCard:nth-child(4)>b{color:var(--gold)}
+.ticker b{color:var(--acid)}
+@media(max-width:900px){.heroDropGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.heroDropGrid{grid-template-columns:1fr 1fr}.heroDropGrid>span{padding:8px}.heroDropLogo{--size:30px}.heroCopy h1{font-size:52px}}
