@@ -16,6 +16,7 @@ const holderEpoch = await readFile(new URL("../app/api/admin/holder-epoch/route.
 const tick = await readFile(new URL("../app/api/admin/tick/route.ts", import.meta.url), "utf8");
 const protocolRoute = await readFile(new URL("../app/api/protocol/route.ts", import.meta.url), "utf8");
 const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
+const serverConfig = await readFile(new URL("../lib/server-config.ts", import.meta.url), "utf8");
 
 test("one shared 5-minute interval drives the product", () => {
   assert.match(protocol, /AIRDROP_INTERVAL_MINUTES = 5/);
@@ -55,12 +56,12 @@ test("automatic restocks preserve their funding source", () => {
   assert.doesNotMatch(page, /HOLDER AIRDROP TREASURY",snapshot\.holderAirdropTreasury/);
 });
 
-test("wallet supports Phantom, Backpack, trusted reconnect and disconnect", () => {
+test("wallet integration stays dormant while paid packs are not advertised", () => {
   assert.match(wallet, /phantom\?\.solana/);
   assert.match(wallet, /backpack\?\.solana/);
   assert.match(page, /onlyIfTrusted: true/);
   assert.match(page, /providerRef\.current\?\.disconnect/);
-  assert.match(page, />DISCONNECT</);
+  assert.doesNotMatch(page, /CONNECT WALLET|>DISCONNECT</);
 });
 
 test("holder inventory restocks privately in conservative $2 average batches", () => {
@@ -70,10 +71,20 @@ test("holder inventory restocks privately in conservative $2 average batches", (
   assert.match(airdropPolicy, /AIRDROP_TREASURY_SPEND_FRACTION = 0\.80/);
   assert.match(airdropPolicy, /return 2/);
   assert.match(schema, /airdrop_inventory_lots/);
-  assert.match(page, /GACHA PACKS COMING SOON/);
+  assert.doesNotMatch(page, /GACHA/i);
   assert.match(page, /TREASURY DROPS READY/);
   assert.match(page, /AVERAGE DROP VALUE/);
   assert.doesNotMatch(page, /NEXT DROP VALUE|\$2, \$5 or \$10/);
+});
+
+test("one operational wallet signs both inventory scopes", () => {
+  assert.match(envExample, /PROTOCOL_WALLET=/);
+  assert.match(envExample, /PROTOCOL_SIGNER_SECRET=/);
+  assert.doesNotMatch(envExample, /^MAIN_TREASURY_SIGNER_SECRET=/m);
+  assert.doesNotMatch(envExample, /^HOLDER_AIRDROP_SIGNER_SECRET=/m);
+  assert.match(serverConfig, /export function protocolWallet/);
+  assert.match(serverConfig, /export function protocolSigner/);
+  assert.match(serverConfig, /Protocol signer does not match PROTOCOL_WALLET/);
 });
 
 test("checkout reserves before charging and verifies both sides of exact USDC payment", () => {

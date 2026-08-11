@@ -1,7 +1,7 @@
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { json, optionsResponse } from "@/lib/cors";
-import { keypairEnv, PACK_PRICE_USDC_ATOMS, publicKeyEnv, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
+import { PACK_PRICE_USDC_ATOMS, protocolSigner, protocolWallet, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
 
 export const dynamic = "force-dynamic";
 export function OPTIONS(){ return optionsResponse(); }
@@ -11,7 +11,7 @@ export async function POST(request:Request){
   try{
     const {orderId,paymentSignature,wallet}=await request.json() as {orderId?:string;paymentSignature?:string;wallet?:string};
     if(!orderId||!paymentSignature||!wallet)return json({error:"Missing checkout proof"},400);
-    const buyer=new PublicKey(wallet); const treasury=publicKeyEnv("MAIN_TREASURY_WALLET");
+    const buyer=new PublicKey(wallet); const treasury=protocolWallet();
     const connection=new Connection(rpcUrl(),"confirmed");
     let paid=false;
     for(let attempt=0;attempt<8;attempt++){
@@ -31,8 +31,7 @@ export async function POST(request:Request){
     if(!claim.ok)return json({error:await claim.text()},409);
     const [lot]=await claim.json() as Array<{lot_id:string;symbol:string;mint:string;token_amount:string;decimals:number;token_program:string;usd_value:number}>;
     if(!lot)return json({error:"Payment verified; fulfillment queued"},202);
-    const signer=keypairEnv("MAIN_TREASURY_SIGNER_SECRET");
-    if(!signer.publicKey.equals(treasury))throw new Error("Main Treasury signer does not match its public key");
+    const signer=protocolSigner();
     const mint=new PublicKey(lot.mint); const tokenProgram=new PublicKey(lot.token_program); const from=getAssociatedTokenAddressSync(mint,treasury,false,tokenProgram); const to=getAssociatedTokenAddressSync(mint,buyer,false,tokenProgram);
     const payout=new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(treasury,to,buyer,mint,tokenProgram),createTransferCheckedInstruction(from,mint,to,treasury,BigInt(lot.token_amount),lot.decimals,[],tokenProgram));
     const fulfillmentSignature=await connection.sendTransaction(payout,[signer],{skipPreflight:false,maxRetries:3});

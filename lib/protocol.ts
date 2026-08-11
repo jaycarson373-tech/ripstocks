@@ -5,8 +5,9 @@ export const HOLDER_AIRDROP_FEE_BPS = 8_000 as const;
 export const PACK_EV_RESERVE_FEE_BPS = 2_000 as const;
 
 export const PROTOCOL_WALLET_ENV = {
-  mainTreasury: "MAIN_TREASURY_WALLET",
-  holderAirdrop: "HOLDER_AIRDROP_WALLET",
+  operational: "PROTOCOL_WALLET",
+  mainTreasury: "PROTOCOL_WALLET",
+  holderAirdrop: "PROTOCOL_WALLET",
 } as const;
 
 export type ProtocolSnapshot = {

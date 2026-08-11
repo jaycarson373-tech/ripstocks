@@ -4,14 +4,14 @@ import { authorized } from "@/lib/automation-auth";
 import { HOLDER_INVENTORY_LOTS, MAIN_INVENTORY_LOTS, parseTargets } from "@/lib/inventory-plan";
 import { swapExactInput } from "@/lib/jupiter";
 import { AIRDROP_INTERVAL_MS } from "@/lib/protocol";
-import { keypairEnv, publicKeyEnv, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
+import { protocolSigner, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config";
 
 export const dynamic="force-dynamic";
 const USDC_DECIMALS=6;
 
 async function jsonBody(response:Response){const text=await response.text();return text?JSON.parse(text):null}
 
-async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof keypairEnv>,mint:PublicKey){
+async function ensureTokenAccount(connection:Connection,payer:ReturnType<typeof protocolSigner>,mint:PublicKey){
   const account=getAssociatedTokenAddressSync(mint,payer.publicKey,false,TOKEN_2022_PROGRAM_ID);
   const transaction=new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(payer.publicKey,account,payer.publicKey,mint,TOKEN_2022_PROGRAM_ID));
   const signature=await connection.sendTransaction(transaction,[payer],{skipPreflight:false,maxRetries:3});
@@ -48,9 +48,7 @@ export async function POST(request:Request){
   try{
     const scope=new URL(request.url).searchParams.get("scope");
     if(scope!=="main"&&scope!=="holder")return Response.json({error:"scope must be main or holder"},{status:400});
-    const signer=keypairEnv(scope==="main"?"MAIN_TREASURY_SIGNER_SECRET":"HOLDER_AIRDROP_SIGNER_SECRET");
-    const configured=publicKeyEnv(scope==="main"?"MAIN_TREASURY_WALLET":"HOLDER_AIRDROP_WALLET");
-    if(!signer.publicKey.equals(configured))throw new Error(`${scope} signer does not match configured wallet`);
+    const signer=protocolSigner();
     const slot=Math.floor(Date.now()/AIRDROP_INTERVAL_MS);
     const runKey=`restock:${scope}:${slot}`;
     const lock=await supabase("automation_runs",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({run_key:runKey,kind:`${scope}_restock`,status:"running"})});
