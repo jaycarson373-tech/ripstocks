@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { authorized } from "@/lib/automation-auth";
@@ -8,6 +9,11 @@ import { protocolSigner, rpcUrl, supabase, USDC_MINT } from "@/lib/server-config
 export const dynamic="force-dynamic";
 const WRAPPED_SOL=new PublicKey("So11111111111111111111111111111111111111112");
 const LOADER_VERSION="ata-destination-v2";
+
+function deterministicTarget<T>(targets:T[],testId:string,index:number){
+  const digest=createHash("sha256").update(`${testId}:${index}`).digest();
+  return targets[digest.readUInt32BE(0)%targets.length];
+}
 
 function bootstrapBudgets(scope:"main"|"holder",requestedBudgets?:number[]){
   if(Array.isArray(requestedBudgets)&&requestedBudgets.length)return requestedBudgets;
@@ -81,17 +87,18 @@ export async function POST(request:Request){
     if(!Number.isFinite(usdPerSol)||usdPerSol<=0)throw new Error("Could not establish SOL/USD quote");
     if(solBalance-requiredSol<buffer)throw new Error(`Test would breach the ${buffer} SOL reserve`);
     const targets=parseTargets();
+    const purchases=budgets.map((usd,index)=>({usd,target:deterministicTarget(targets,testId,index)}));
     const table=scope==="main"?"inventory_lots":"airdrop_inventory_lots";
     const tableCheck=await supabase(`${table}?select=id&limit=1`);
     if(!tableCheck.ok)throw new Error(`Database inventory table is unavailable: ${await tableCheck.text()}`);
-    if(dryRun)return Response.json({ok:true,dryRun:true,scope,plannedPacks:budgets.length,totalUsd:budgetTotal,reserveProtected:true,loaderVersion:LOADER_VERSION});
+    if(dryRun)return Response.json({ok:true,dryRun:true,scope,plannedPacks:purchases.length,totalUsd:budgetTotal,reserveProtected:true,loaderVersion:LOADER_VERSION,purchases:purchases.map(({usd,target})=>({usd,symbol:target.symbol,mint:target.mint}))});
     const runKey=`test-load:${scope}:${testId}`;
     const lock=await supabase("automation_runs",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({run_key:runKey,kind:`${scope}_test_load`,status:"running"})});
     const locked=await lock.json() as Array<unknown>;
     if(!lock.ok||!locked.length)return Response.json({error:"This test load was already submitted"},{status:409});
     const results:Array<{usd:number;signature:string}>=[];
-    for(let index=0;index<budgets.length;index++){
-      const usd=budgets[index]; const target=targets[(Date.now()+index)%targets.length]; const mint=new PublicKey(target.mint);
+    for(const {usd,target} of purchases){
+      const mint=new PublicKey(target.mint);
       const destination=await ensureTokenAccount(connection,signer,mint);
       const before=await tokenBalance(connection,destination);
       const beforeAtoms=BigInt(before.value.amount||"0");
