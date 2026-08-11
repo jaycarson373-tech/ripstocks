@@ -348,3 +348,6 @@ main:after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;b
   .brandBanner.bottomBanner{margin-inline:0}
 }
 @media(max-width:390px){.brandImage span{font-size:16px}.brandImage>img{width:34px;height:34px}.headerCa{padding:8px}.xPill{padding:9px}}
+.nextDrop.isSelecting{animation:selectingPulse 1s ease-in-out infinite alternate}
+.nextDrop.isSelecting b,.nextDrop.isSelecting span{color:var(--acid)}
+@keyframes selectingPulse{from{filter:brightness(.82)}to{filter:brightness(1.25);text-shadow:0 0 20px rgba(32,235,176,.45)}}
