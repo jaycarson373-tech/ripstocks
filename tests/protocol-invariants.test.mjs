@@ -105,14 +105,14 @@ test("site publishes exactly ten verified inventory mints", () => {
   assert.match(verifiedXstocks,/XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1/);
 });
 
-test("draw live gate defaults off and removes pre-draw urgency", () => {
+test("draw live gate defaults off while the synchronized window remains visible", () => {
   assert.match(envExample, /DRAWS_LIVE=false/);
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_DRAWS_LIVE/);
   assert.match(protocolRoute, /process\.env\.DRAWS_LIVE/);
   assert.match(protocolRoute, /drawsLive\(\)/);
   assert.match(protocol, /drawsLive: false/);
-  assert.match(page, /DRAWS HAVE NOT STARTED/);
-  assert.match(page, /AWAITING FIRST DRAW/);
+  assert.doesNotMatch(page, /DRAWS HAVE NOT STARTED|AWAITING FIRST DRAW/);
+  assert.match(page, /NEXT 5M WINDOW/);
   assert.match(page, /NO DROPS YET/);
   assert.match(page, /OPEN DROP ROOM/);
   assert.match(page, /Draw inventory logs begin once the drop engine is activated/);
