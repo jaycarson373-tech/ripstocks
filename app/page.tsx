@@ -8,7 +8,8 @@ import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
 type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string;logoUrl?:string};
 type ChatMessage={id:string;created_at:string;wallet:string;message:string};
-const STOCKDROPS_MINT=(process.env.NEXT_PUBLIC_STOCKDROPS_MINT||"HpvGkBAuspEf5J7fDWkMuqX4yYi7PaQyQavScJcQpump").trim();
+const STOCKDROPS_MINT=(process.env.NEXT_PUBLIC_STOCKDROPS_MINT||"").trim();
+const DISPLAY_CA=STOCKDROPS_MINT||"HpvGkBAuspEf5J7fDWkMuqX4yYi7PaQyQavScJcQpump";
 const HAS_MINT=Boolean(STOCKDROPS_MINT);
 const X_URL=(process.env.NEXT_PUBLIC_X_URL||"").trim();
 const HAS_X=Boolean(X_URL);
@@ -95,9 +96,8 @@ export default function Home() {
   }
 
   async function copyCa() {
-    if (!HAS_MINT) return;
     try {
-      await navigator.clipboard.writeText(STOCKDROPS_MINT);
+      await navigator.clipboard.writeText(DISPLAY_CA);
       setCopiedCa(true);
       window.setTimeout(()=>setCopiedCa(false),1400);
     } catch {
@@ -145,7 +145,7 @@ export default function Home() {
         <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></a>
         <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Room</a><a href="#flywheel">Proof</a></div>
         <div className="navActions">
-          <button className={`caPill headerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()} aria-label={HAS_MINT?"Copy Stonk Drops contract address":"Stonk Drops contract address coming soon"}><span>CA</span>{HAS_MINT?STOCKDROPS_MINT:"SOON"}<b>{HAS_MINT?(copiedCa?"COPIED":"COPY"):"SOON"}</b></button>
+          <button className={`caPill headerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()} aria-label="Copy Stonk Drops contract address"><span>CA</span>{DISPLAY_CA}<b>{copiedCa?"COPIED":HAS_MINT?"COPY":"PENDING"}</b></button>
           {HAS_X?<a className="xPill" href={X_URL} target="_blank" rel="noreferrer">X</a>:<span className="xPill isSoon">X SOON</span>}
         </div>
       </nav>
@@ -249,7 +249,7 @@ export default function Home() {
 
       <div className="brandBanner bottomBanner wrap"><img src="/brand/stonkdrops-banner.jpg" alt="Stonk Drops — tokenized stock airdrops"/></div>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></div><button className={`caPill footerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()}><span>CA</span>{HAS_MINT?STOCKDROPS_MINT:"SOON"}<b>{HAS_MINT?(copiedCa?"COPIED":"COPY"):"SOON"}</b></button><div className="footerLinks">{HAS_X?<a href={X_URL} target="_blank" rel="noreferrer">X</a>:<span>X SOON</span>}{HAS_MINT&&<><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></>}</div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></div><button className={`caPill footerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()}><span>CA</span>{DISPLAY_CA}<b>{copiedCa?"COPIED":HAS_MINT?"COPY":"PENDING"}</b></button><div className="footerLinks">{HAS_X?<a href={X_URL} target="_blank" rel="noreferrer">X</a>:<span>X SOON</span>}{HAS_MINT&&<><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></>}</div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
