@@ -8,11 +8,12 @@ import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
 type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string;logoUrl?:string};
 type ChatMessage={id:string;created_at:string;wallet:string;message:string};
-const DEFAULT_STOCKDROPS_MINT="GUmtbfXHEKyB1SwpyevMHwXa9nx2LT9gKD1a738Vpump";
-const STOCKDROPS_MINT=(process.env.NEXT_PUBLIC_STOCKDROPS_MINT||DEFAULT_STOCKDROPS_MINT).trim();
-const X_URL=(process.env.NEXT_PUBLIC_X_URL||"https://x.com/StockDrops").trim();
-const JUPITER_BUY_URL=`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${STOCKDROPS_MINT}`;
-const DEXSCREENER_URL=`https://dexscreener.com/solana/${STOCKDROPS_MINT}`;
+const STOCKDROPS_MINT=(process.env.NEXT_PUBLIC_STOCKDROPS_MINT||"").trim();
+const HAS_MINT=Boolean(STOCKDROPS_MINT);
+const X_URL=(process.env.NEXT_PUBLIC_X_URL||"").trim();
+const HAS_X=Boolean(X_URL);
+const JUPITER_BUY_URL=HAS_MINT?`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${STOCKDROPS_MINT}`:"#";
+const DEXSCREENER_URL=HAS_MINT?`https://dexscreener.com/solana/${STOCKDROPS_MINT}`:"#";
 const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map(stock=>({ticker:stock.symbol,name:stock.name,color:stock.color,ink:stock.ink,logo:stock.logo,logoUrl:stock.logoUrl}));
 function stockVars(stock:StockDisplay){return {"--stock":stock.color,"--stockInk":stock.ink} as CSSProperties}
 function StockLogo({stock,className=""}:{stock:StockDisplay;className?:string}){return <span className={`stockLogo ${className}`} style={stockVars(stock)}>{stock.logoUrl&&<img src={stock.logoUrl} alt={`${stock.name} logo`} loading="lazy" onError={event=>{event.currentTarget.style.display="none"}}/>}<b>{stock.logo}</b></span>}
@@ -65,16 +66,19 @@ export default function Home() {
     };
   }, []);
   const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
+  const drawsLive=snapshot.drawsLive;
+  const drawStatus=drawsLive?countdown:"AWAITING FIRST DRAW";
   const inventoryReady=snapshot.packsRemaining>0;
   const stockStyle=(symbol:string)=>stocks.find(stock=>stock.ticker===symbol)??{ticker:symbol,name:symbol,color:"#a7ff16",ink:"#080808",logo:symbol.slice(0,1)};
   const short=(address:string)=>address?`${address.slice(0,4)}…${address.slice(-4)}`:"—";
   const approvedSymbols=new Set(stocks.map(stock=>stock.ticker));
   const stockProofs=snapshot.proofs.filter(proof=>approvedSymbols.has(proof.stock));
   const staleProofsHidden=snapshot.proofs.length!==stockProofs.length;
-  const latestDrop=stockProofs[0];
+  const visibleStockProofs=drawsLive?stockProofs:[];
+  const latestDrop=visibleStockProofs[0];
   const proofPackLabel=(value:number|string)=>`$${Number(value).toFixed(2)} STOCK DROP`;
-  const displayedDropCount=staleProofsHidden?stockProofs.length:Number(snapshot.totalHolderDrops);
-  const displayedValueAirdropped=staleProofsHidden?stockProofs.reduce((sum,proof)=>sum+Number(proof.value),0):Number(snapshot.totalValueAirdropped);
+  const displayedDropCount=drawsLive?(staleProofsHidden?stockProofs.length:Number(snapshot.totalHolderDrops)):0;
+  const displayedValueAirdropped=drawsLive?(staleProofsHidden?stockProofs.reduce((sum,proof)=>sum+Number(proof.value),0):Number(snapshot.totalValueAirdropped)):0;
   const displayedAverageDrop=displayedDropCount>0?displayedValueAirdropped/displayedDropCount:Number(snapshot.averageHolderDropValue);
 
   useEffect(()=>{const load=async()=>{try{const r=await fetch("/api/chat",{cache:"no-store"});const data=await r.json() as {messages?:ChatMessage[]};setChatMessages(data.messages||[])}catch{}};load();const timer=window.setInterval(load,5000);return()=>window.clearInterval(timer)},[]);
@@ -91,6 +95,7 @@ export default function Home() {
   }
 
   async function copyCa() {
+    if (!HAS_MINT) return;
     try {
       await navigator.clipboard.writeText(STOCKDROPS_MINT);
       setCopiedCa(true);
@@ -136,55 +141,58 @@ export default function Home() {
     <main>
       <div className="grain" />
       <nav className="nav wrap">
-        <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stockdrops-logo.png" alt=""/><span><em>stonk</em>drops</span></a>
-        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href={X_URL} target="_blank" rel="noreferrer">X</a></div>
-        <button className="caPill headerCa" type="button" onClick={()=>void copyCa()} aria-label="Copy Stonk Drops contract address"><span>CA</span>{STOCKDROPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button>
-        {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
+        <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></a>
+        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Room</a><a href="#flywheel">Proof</a></div>
+        <div className="navActions">
+          <button className={`caPill headerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()} aria-label={HAS_MINT?"Copy Stonk Drops contract address":"Stonk Drops contract address coming soon"}><span>CA</span>{HAS_MINT?STOCKDROPS_MINT:"SOON"}<b>{HAS_MINT?(copiedCa?"COPIED":"COPY"):"SOON"}</b></button>
+          <span className="soonPill">SOON</span>
+          {HAS_X?<a className="xPill" href={X_URL} target="_blank" rel="noreferrer">X</a>:<span className="xPill isSoon">X SOON</span>}
+        </div>
       </nav>
 
-      <div className="brandBanner wrap"><img src="/stockdrops-banner.svg" alt="Stonk Drops — tokenized stock airdrops"/></div>
+      {!drawsLive&&<div className="preDrawBanner wrap">DRAWS HAVE NOT STARTED — FEES ARE ACCUMULATING IN THE TREASURY. FIRST DRAW WILL BE ANNOUNCED.</div>}
       <section className="hero wrap" id="top">
         <div className="heroCopy">
-          <div className="eyebrow"><span /> STONK DROP FLYWHEEL LIVE ON SOLANA</div>
+          <div className="eyebrow"><span /> STONK DROP FLYWHEEL ON SOLANA</div>
           <h1>Hold DROPS.<br/><em>Get paid in stocks.</em></h1>
-          <p>Every {AIRDROP_INTERVAL_MINUTES} minutes, Stonk Drops turns creator fees into a random xStock airdrop for one weighted holder.</p>
-          <p className="heroSupport">Hold DROPS, earn tickets, watch the flywheel buy stocks, drop them to holders, and build the jackpot.</p>
+          <p>{drawsLive?`Every ${AIRDROP_INTERVAL_MINUTES} minutes, Stonk Drops turns creator fees into a random xStock airdrop for one weighted holder.`:`When draws start, Stonk Drops will turn accumulated creator fees into random xStock airdrops for weighted holders.`}</p>
+          <p className="heroSupport">{drawsLive?"Hold DROPS, earn tickets, watch the flywheel buy stocks, drop them to holders, and build the jackpot.":"Hold DROPS, earn tickets, and watch the treasury accumulate before the first announced draw."}</p>
           <div className="heroDropGrid" aria-label="All 10 Stonk Drops in rotation">
             {stocks.map(stock=><span key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock} className="heroDropLogo"/><b>{stock.ticker}</b></span>)}
           </div>
-          <div className="heroActions"><a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a><button className="textBtn" onClick={() => setSpectating(true)}>OPEN LIVE ROOM <span>●</span></button></div>
-          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS / TICKET</span></div><div className="nextDrop"><b>{countdown}</b><span>NEXT DRAW</span></div><div><b>20%</b><span>JACKPOT FUND</span></div></div>
+          <div className="heroActions">{HAS_MINT?<a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a>:<span className="primary disabledCta">CONTRACT SOON</span>}<button className="textBtn" onClick={() => setSpectating(true)}>{drawsLive?"OPEN LIVE ROOM":"OPEN DROP ROOM"} <span>●</span></button></div>
+          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS / TICKET</span></div><div className="nextDrop"><b>{drawStatus}</b><span>{drawsLive?"NEXT DRAW":"DRAW STATUS"}</span></div><div><b>20%</b><span>JACKPOT FUND</span></div></div>
         </div>
         <div className="machine caseMachine" aria-label="Animated Stonk Drops selection machine">
-          <div className="machineTop"><span>STONK DROP PICKER</span><i>LIVE</i></div>
+          <div className="machineTop"><span>STONK DROP PICKER</span>{drawsLive&&<i>LIVE</i>}</div>
           <div className="window">
             <div className="glow" />
             <div className="casePointer" />
             <div className="caseReel">{[...stocks,...stocks].map((stock,index)=><span className="caseCard" key={`${stock.ticker}-${index}`} style={stockVars(stock)}><StockLogo stock={stock} className="caseLogo"/><b>{stock.ticker}</b><small>${[1,2,3,5,8,10,12,15,20,25,30][index%11]}</small></span>)}</div>
-            <div className="caseResult"><small>LATEST DROP</small><b>{latestDrop?.stock || "DROPS"}</b><em>{latestDrop?`$${Number(latestDrop.value).toFixed(2)}`:"ARMED"}</em></div>
+            <div className="caseResult"><small>{drawsLive?"LATEST DROP":"NO DROPS YET"}</small><b>{drawsLive?(latestDrop?.stock || "DROPS"):"DROPS"}</b><em>{drawsLive?(latestDrop?`$${Number(latestDrop.value).toFixed(2)}`:"ARMED"):"ARMING TREASURY"}</em></div>
           </div>
           <div className="belt">{[1,2,3,4,5,6].map(n=><span key={n} />)}</div>
           <div className="machineBase"><span>80% STOCK BUY</span><b>→</b><span>20% JACKPOT</span></div>
         </div>
       </section>
 
-      <div className="ticker"><div>{stockProofs.length?[...stockProofs,...stockProofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><StockLogo stock={s} className="tickerLogo"/><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><StockLogo stock={s} className="tickerLogo"/><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
+      <div className="ticker"><div>{visibleStockProofs.length?[...visibleStockProofs,...visibleStockProofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><StockLogo stock={s} className="tickerLogo"/><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><StockLogo stock={s} className="tickerLogo"/><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
 
-      <section className="dropDesk wrap" aria-label="Stonk Drops live routing board">
+      <section className="dropDesk wrap" aria-label={drawsLive?"Stonk Drops live routing board":"Stonk Drops routing preview"}>
         <div className="deskCard wide">
-          <span className="kicker">LIVE ROUTING</span>
+          <span className="kicker">{drawsLive?"LIVE ROUTING":"ROUTING PREVIEW"}</span>
           <h2>The flywheel buys stocks for holders.</h2>
-          <p>80% of fees buy random xStocks for 5-minute holder drops. 20% stacks the jackpot, so volume keeps feeding the next rewards.</p>
+          <p>{drawsLive?"80% of fees buy random xStocks for 5-minute holder drops. 20% stacks the jackpot, so volume keeps feeding the next rewards.":"Once the drop engine is activated, 80% of fees will buy random xStocks for holder drops. 20% will stack the jackpot reserve."}</p>
         </div>
         <div className="deskCard"><b>80%</b><span>Stock-drop fund</span><p>Used to buy the next random xStock for holder airdrops.</p></div>
         <div className="deskCard"><b>20%</b><span>Jackpot fund</span><p>Accumulates separately as the reserve grows.</p></div>
-        <div className="deskCard"><b>5m</b><span>Live draw loop</span><p>Every epoch can restock inventory, snapshot holders, and publish proof.</p></div>
+        <div className="deskCard"><b>5m</b><span>{drawsLive?"Live draw loop":"Draw loop"}</span><p>{drawsLive?"Every epoch can restock inventory, snapshot holders, and publish proof.":"Once active, each epoch can restock inventory, snapshot holders, and publish proof."}</p></div>
       </section>
 
-      <section className="topLiveChat wrap" aria-label="Live spectator chat">
-        <div className="chatHead"><b>LIVE CHAT</b><span>{chatMessages.length||"0"} MSGS</span></div>
+      <section className="topLiveChat wrap" aria-label={drawsLive?"Live spectator chat":"Spectator chat"}>
+        <div className="chatHead"><b>{drawsLive?"LIVE CHAT":"CHAT"}</b><span>{chatMessages.length||"0"} MSGS</span></div>
         <div className="chatStream">{chatMessages.length?chatMessages.map(message=><div key={message.id}><span>{short(message.wallet)}</span><p>{message.message}</p></div>):<div><span>SYSTEM</span><p>Chat opens with the first draw.</p></div>}</div>
-        <div className="chatComposer"><input value={chatInput} onChange={event=>setChatInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void sendChat()}} placeholder={wallet?"Say something live…":"Connect wallet or chat as spectator"} maxLength={180}/><button type="button" onClick={()=>void sendChat()}>SEND</button></div>
+        <div className="chatComposer"><input value={chatInput} onChange={event=>setChatInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void sendChat()}} placeholder="Chat as spectator" maxLength={180}/><button type="button" onClick={()=>void sendChat()}>SEND</button></div>
       </section>
 
       <section className="winUniverse wrap" aria-label="Approved xStocks in Stonk Drops">
@@ -196,15 +204,15 @@ export default function Home() {
         <div className="howIntro">
           <span className="kicker">HOW IT WORKS</span>
           <h2 id="how-title">Hold DROPS.<br/>Get stock drops.</h2>
-          <p>Stonk Drops collects fees, buys live xStocks, snapshots holders, selects one wallet, and publishes proof after each confirmed airdrop.</p>
+          <p>{drawsLive?"Stonk Drops collects fees, buys live xStocks, snapshots holders, selects one wallet, and publishes proof after each confirmed airdrop.":"Stonk Drops will use accumulated fees to buy xStocks, snapshot holders, select one wallet, and publish proof after each confirmed airdrop."}</p>
         </div>
         <div className="howGrid">
           {[
             ["01","HOLD DROPS",`${HOLDER_TICKET_TOKENS.toLocaleString()} DROPS equals one weighted ticket for the next draw.`],
             ["02","FEES ROUTE 80/20","80% buys stock drops. 20% builds the jackpot reserve."],
-            ["03","15-MINUTE PICKER","Each epoch buys or selects a random approved xStock for the next draw."],
-            ["04","ONE LUCKY HOLDER","The live picker resolves to one weighted holder. Jackpot clears on roughly 1 in 20 draws."],
-            ["05","AIRDROP + PROOF","The stock drop is sent to the winner and the transaction proof appears on the site."]
+            ["03","DROP PICKER","Each epoch will buy or select a random approved xStock for the next draw."],
+            ["04","ONE LUCKY HOLDER","The picker resolves to one weighted holder once draws are active."],
+            ["05","AIRDROP + PROOF",drawsLive?"The stock drop is sent to the winner and the transaction proof appears on the site.":"Once active, the stock drop will be sent to the winner and the transaction proof will appear on the site."]
           ].map(step=><article key={step[0]}><b>{step[0]}</b><span>{step[1]}</span><p>{step[2]}</p></article>)}
         </div>
       </section>
@@ -220,37 +228,38 @@ export default function Home() {
           ["VALUE AIRDROPPED",displayedValueAirdropped,true],
         ].map(([label,value,currency])=><div key={String(label)}><span>{label}</span><b>{currency?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b></div>)}</div>
         <div className="inventoryLog" aria-label="Inventory purchase log">
-          {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Waiting for the next wallet purchase</b><i>+0</i><em>LIVE</em></div>}
+          {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Draw inventory logs begin once the drop engine is activated</b><i>+0</i><em>{drawsLive?"LIVE":"PENDING"}</em></div>}
         </div>
-        <div className="sectionHead"><div><span className="kicker">LIVE HOLDER DROP</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. The jackpot fund is tracked separately as the reserve grows.</p></div>
+        <div className="sectionHead"><div><span className="kicker">{drawsLive?"LIVE HOLDER DROP":"HOLDER DROP PREVIEW"}</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>{drawsLive?"Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. The jackpot fund is tracked separately as the reserve grows.":"Once draws start, accumulated fees will stock the treasury with xStock drops from $1 to $30. The draw will pick one weighted holder, run the selector, send the winning stock drop, and post proof."}</p></div>
         <div className="gachaTeaser" aria-label="Gacha packs coming soon">
-          <div className="teaserPack"><img src="/brand/stockdrops-logo.png" alt=""/><span>SOON</span></div>
+          <div className="teaserPack"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span>SOON</span></div>
           <div>
             <span className="kicker">GACHA PACKS COMING SOON</span>
-            <h3>Holder drops are live first.</h3>
-            <p>The live product is the Stonk Drop Picker: treasury-funded xStocks, weighted holder draws, jackpot routing, and public proof every 5 minutes.</p>
+            <h3>Holder drops launch first.</h3>
+            <p>The Stonk Drop Picker will run treasury-funded xStocks, weighted holder draws, jackpot routing, and public proof every 5 minutes once activated.</p>
           </div>
           <b>COMING SOON</b>
         </div>
         <div className="ripBar drawBar">
-          <div><span>NEXT STOCK DROP</span><b>{countdown}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} DROPS = 1 TICKET</b></div><a href="#live">WATCH LIVE ROOM <span>→</span></a>
+          <div><span>{drawsLive?"NEXT STOCK DROP":"STOCK DROP STATUS"}</span><b>{drawStatus}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} DROPS = 1 TICKET</b></div><a href="#live">WATCH ROOM <span>→</span></a>
         </div>
-        {walletError && <div className="walletNotice" role="alert">{walletError}</div>}
       </section>
 
       <section className="live" id="live"><div className="wrap">
-        <div className="liveHead"><div><span className="liveDot"/> LIVE DROP ROOM</div><p>Everyone can watch the draw, proof, and chat.</p><button onClick={()=>setSpectating(!spectating)}>{spectating?"WATCHING LIVE":"SPECTATE"} ◉</button></div>
+        <div className="liveHead"><div><span className="liveDot"/> {drawsLive?"LIVE DROP ROOM":"DROP ROOM"}</div><p>{drawsLive?"Everyone can watch the draw, proof, and chat.":"The room will show draws, proofs, and chat once the drop engine is activated."}</p><button onClick={()=>setSpectating(!spectating)}>{spectating?(drawsLive?"WATCHING LIVE":"WATCHING"):"SPECTATE"} ◉</button></div>
         <div className="liveRoom">
-          <div className="table"><div className="tr labels"><span>WINNER</span><span>DROP</span><span>STOCK</span><span>VALUE</span><span>PROOF</span></div>{stockProofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{proofPackLabel(rip.value)}</span><span><b className="stockBadge" style={stockVars(style)}><StockLogo stock={style} className="badgeLogo"/>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{stockProofs.length===0&&<div className="emptyProof">Waiting for the first confirmed holder stock drop.</div>}</div>
+          <div className="table"><div className="tr labels"><span>WINNER</span><span>DROP</span><span>STOCK</span><span>VALUE</span><span>PROOF</span></div>{visibleStockProofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{proofPackLabel(rip.value)}</span><span><b className="stockBadge" style={stockVars(style)}><StockLogo stock={style} className="badgeLogo"/>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{visibleStockProofs.length===0&&<div className="emptyProof">Draw proofs begin once the drop engine is activated.</div>}</div>
         </div>
       </div></section>
 
-      <section className="fly wrap" id="flywheel"><span className="kicker">PROOF ENGINE</span><h2>Fair seed.<br/><em>On-chain receipt.</em></h2><div className="protocolSteps">{[["01","HOLDER SNAPSHOT",`${HOLDER_TICKET_TOKENS.toLocaleString()} DROPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","80/20 ROUTING","80% of creator fees funds stock drops. 20% accrues to the jackpot reserve."],["03","PUBLIC SEED","Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,"One weighted holder is selected and Stonk Drops resolves to one funded xStock drop."],["05","PUBLISHED PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
-      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STONK DROPS PROOFS</div><b>NEXT DROP {countdown}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>DROP</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{stockProofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{proofPackLabel(a.value)}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{stockProofs.length===0&&<div className="emptyProof">No Stonk Drops holder drops published yet.</div>}</div></div><p className="disclaimer">Stonk Drops draws are statistical holder rewards funded by treasury inventory. 250k DROPS equals one ticket. 80% of creator fees funds stock drops and 20% accrues to the jackpot reserve. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
+      <section className="fly wrap" id="flywheel"><span className="kicker">PROOF ENGINE</span><h2>Fair seed.<br/><em>On-chain receipt.</em></h2><div className="protocolSteps">{[["01","HOLDER SNAPSHOT",`${HOLDER_TICKET_TOKENS.toLocaleString()} DROPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","80/20 ROUTING","80% of creator fees funds stock drops. 20% accrues to the jackpot reserve."],["03","PUBLIC SEED",drawsLive?"Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash.":"When active, each draw will combine the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,drawsLive?"One weighted holder is selected and Stonk Drops resolves to one funded xStock drop.":"One weighted holder will be selected and Stonk Drops will resolve to one funded xStock drop once activated."],["05","PUBLISHED PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
+      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STONK DROPS PROOFS</div><b>{drawsLive?`NEXT DROP ${countdown}`:"AWAITING FIRST DRAW"}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>DROP</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{visibleStockProofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{proofPackLabel(a.value)}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{visibleStockProofs.length===0&&<div className="emptyProof">Proof rows begin once the drop engine is activated.</div>}</div></div><p className="disclaimer">{drawsLive?"Stonk Drops draws are statistical holder rewards funded by treasury inventory.":"When active, Stonk Drops draws will be statistical holder rewards funded by treasury inventory."} 250k DROPS equals one ticket. 80% of creator fees funds stock drops and 20% accrues to the jackpot reserve. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
 
-      <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN DROP?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded for airdrops.</h2></div><p>Stonk Drops inventory is restricted to this approved Solana xStock universe. Every draw resolves to one treasury-funded stock drop.</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
+      <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN DROP?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded for airdrops.</h2></div><p>{drawsLive?"Stonk Drops inventory is restricted to this approved Solana xStock universe. Every draw resolves to one treasury-funded stock drop.":"Stonk Drops inventory will be restricted to this approved Solana xStock universe once draws are activated."}</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stockdrops-logo.png" alt=""/><span><em>stonk</em>drops</span></div><button className="caPill footerCa" type="button" onClick={()=>void copyCa()}><span>CA</span>{STOCKDROPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button><div className="footerLinks"><a href={X_URL} target="_blank" rel="noreferrer">X</a><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <div className="brandBanner bottomBanner wrap"><img src="/brand/stonkdrops-banner.jpg" alt="Stonk Drops — tokenized stock airdrops"/></div>
+
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></div><button className={`caPill footerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()}><span>CA</span>{HAS_MINT?STOCKDROPS_MINT:"SOON"}<b>{HAS_MINT?(copiedCa?"COPIED":"COPY"):"SOON"}</b></button><div className="footerLinks">{HAS_X?<a href={X_URL} target="_blank" rel="noreferrer">X</a>:<span>X SOON</span>}{HAS_MINT&&<><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></>}</div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>

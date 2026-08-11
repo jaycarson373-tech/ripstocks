@@ -10,6 +10,7 @@ export const PROTOCOL_WALLET_ENV = {
 } as const;
 
 export type ProtocolSnapshot = {
+  drawsLive: boolean;
   serverNow: string;
   epochEndsAt: string;
   packInventoryValue: number;
@@ -39,7 +40,7 @@ export function calculatePackEv(remainingStockInventory: number, packsRemaining:
 }
 
 export const emptySnapshot = (): ProtocolSnapshot => ({
-  serverNow: new Date().toISOString(), epochEndsAt: synchronizedEpochEndsAt().toISOString(),
+  drawsLive: false, serverNow: new Date().toISOString(), epochEndsAt: synchronizedEpochEndsAt().toISOString(),
   packInventoryValue: 0, remainingStockInventory: 0, packsRemaining: 0,
   totalPacksOpened: 0, inventoryPurchases: 0, inventoryAssets: 0,
   holderAirdropTreasury: 0, holderPacksAvailable: 0, averageHolderDropValue: 0, packEvReserve: 0, currentPackEv: 0,
