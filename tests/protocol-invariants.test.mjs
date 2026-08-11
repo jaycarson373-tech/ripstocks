@@ -13,6 +13,7 @@ const airdropPolicy = await readFile(new URL("../lib/airdrop-policy.ts", import.
 const inventoryPlan = await readFile(new URL("../lib/inventory-plan.ts", import.meta.url), "utf8");
 const restock = await readFile(new URL("../app/api/admin/restock/route.ts", import.meta.url), "utf8");
 const holderEpoch = await readFile(new URL("../app/api/admin/holder-epoch/route.ts", import.meta.url), "utf8");
+const testLoad = await readFile(new URL("../app/api/admin/test-load/route.ts", import.meta.url), "utf8");
 const tick = await readFile(new URL("../app/api/admin/tick/route.ts", import.meta.url), "utf8");
 const protocolRoute = await readFile(new URL("../app/api/protocol/route.ts", import.meta.url), "utf8");
 const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
@@ -104,14 +105,14 @@ test("site publishes exactly ten verified inventory mints", () => {
   assert.match(verifiedXstocks,/XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1/);
 });
 
-test("draw live gate defaults off and removes pre-draw urgency", () => {
+test("draw live gate defaults off while the synchronized window remains visible", () => {
   assert.match(envExample, /DRAWS_LIVE=false/);
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_DRAWS_LIVE/);
   assert.match(protocolRoute, /process\.env\.DRAWS_LIVE/);
   assert.match(protocolRoute, /drawsLive\(\)/);
   assert.match(protocol, /drawsLive: false/);
-  assert.match(page, /DRAWS HAVE NOT STARTED/);
-  assert.match(page, /AWAITING FIRST DRAW/);
+  assert.doesNotMatch(page, /DRAWS HAVE NOT STARTED|AWAITING FIRST DRAW/);
+  assert.match(page, /NEXT 5M WINDOW/);
   assert.match(page, /NO DROPS YET/);
   assert.match(page, /OPEN DROP ROOM/);
   assert.match(page, /Draw inventory logs begin once the drop engine is activated/);
@@ -128,6 +129,13 @@ test("practice loader preserves gas and exact inventory averages", () => {
   assert.equal(main.reduce((a,b)=>a+b,0)/main.length,2);
   assert.equal(holder.reduce((a,b)=>a+b,0),10);
   assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,2);
+});
+
+test("practice loader previews the same deterministic xStocks it executes", () => {
+  assert.match(testLoad,/createHash\("sha256"\)/);
+  assert.match(testLoad,/deterministicTarget\(targets,testId,index\)/);
+  assert.match(testLoad,/purchases:purchases\.map/);
+  assert.doesNotMatch(testLoad,/targets\[\(Date\.now\(\)\+index\)%targets\.length\]/);
 });
 
 test("protected automation restocks on the shared 5-minute clock and records confirmed output",()=>{
