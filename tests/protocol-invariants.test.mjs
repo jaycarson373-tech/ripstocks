@@ -151,6 +151,8 @@ test("protected automation restocks on the shared 5-minute clock and records con
 
 test("holder epochs snapshot owners, reserve inventory, transfer, and publish proof",()=>{
   assert.match(holderEpoch,/HOLDER_TOKEN_MINT/);
+  assert.match(holderEpoch,/Holder drops are disabled/);
+  assert.match(holderEpoch,/!body\.dryRun&&!drawsLive/);
   assert.match(holderEpoch,/getTokenAccounts/);
   assert.match(holderEpoch,/reserveAvailableLotForEpoch/);
   assert.match(holderEpoch,/complete_airdrop_epoch/);
