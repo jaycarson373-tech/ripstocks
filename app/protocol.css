@@ -258,6 +258,42 @@ main{color:#eef4f1}
 @media(max-width:1100px){.dropDesk{grid-template-columns:1fr 1fr}.deskCard.wide{grid-column:1/-1}}
 @media(max-width:700px){.dropDesk{grid-template-columns:1fr;margin-top:30px}.deskCard,.deskCard.wide{min-height:150px;border-radius:18px}.deskCard h2{font-size:38px}.deskCard>b{font-size:46px}}
 
+/* Launch art skin */
+:root{--acid:#20ebb0;--accent:#7fffe0;--sky:#78e9ff;--cloud:#effffc}
+body{background:
+  radial-gradient(circle at 50% 2%,rgba(32,235,176,.20),transparent 24%),
+  radial-gradient(circle at 8% 12%,rgba(120,233,255,.12),transparent 26%),
+  radial-gradient(circle at 92% 18%,rgba(239,255,252,.10),transparent 24%),
+  linear-gradient(180deg,#020706 0,#061412 42%,#020706 100%)}
+.nav{border-color:rgba(214,255,246,.16);background:rgba(2,7,6,.76)}
+.navActions{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+.soonPill,.xPill{border:1px solid rgba(214,255,246,.18);background:rgba(255,255,255,.045);color:#eafff8;border-radius:999px;padding:12px 15px;text-decoration:none;font:900 10px var(--font-geist-sans),Arial,sans-serif;letter-spacing:.08em;white-space:nowrap}
+.soonPill{color:var(--acid);background:rgba(32,235,176,.075);border-color:rgba(32,235,176,.28)}
+.xPill:hover{border-color:rgba(32,235,176,.48);color:var(--acid)}
+.xPill.isSoon{color:#8aa39b}
+.caPill.isSoon{cursor:default;color:#b7cbc4}
+.disabledCta{cursor:default;opacity:.82}
+.brandImage>img{object-fit:cover;border-radius:16px;border-color:rgba(214,255,246,.28);box-shadow:0 0 34px rgba(32,235,176,.13)}
+.brandBanner.bottomBanner{margin-top:80px;margin-bottom:0;border-radius:28px;border-color:rgba(214,255,246,.18);background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:0 34px 110px rgba(0,0,0,.54),0 0 70px rgba(32,235,176,.11);overflow:hidden}
+.brandBanner.bottomBanner img{width:100%;display:block;filter:saturate(1.06) contrast(1.02)}
+.hero{padding-top:72px;position:relative}
+.hero:before{content:"";position:absolute;left:50%;top:120px;width:min(760px,86vw);height:260px;transform:translateX(-50%);background:radial-gradient(ellipse at center,rgba(32,235,176,.14),transparent 68%);pointer-events:none;z-index:-1}
+.heroCopy h1 em{color:#effffc;text-shadow:0 0 30px rgba(32,235,176,.10)}
+.heroSupport{border-color:rgba(32,235,176,.26);background:rgba(32,235,176,.07);color:#a9ffe7!important}
+.machine,.deskCard,.topLiveChat,.howIntro,.howGrid article,.liveStats,.inventoryLog a,.inventoryLog div,.dropProof,.verifiedGrid,.winLogoGrid div{border-color:rgba(214,255,246,.14);background:linear-gradient(180deg,rgba(7,18,16,.97),rgba(2,7,6,.985));box-shadow:0 28px 88px rgba(0,0,0,.38),0 0 40px rgba(32,235,176,.045)}
+.caseMachine .window{background:
+  linear-gradient(rgba(239,255,252,.035) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(239,255,252,.035) 1px,transparent 1px),
+  radial-gradient(circle at 50% 42%,rgba(32,235,176,.18),rgba(8,20,18,.94) 46%,#010403 78%);
+  background-size:46px 46px,46px 46px,auto}
+.ticker{border-color:rgba(214,255,246,.14);background:linear-gradient(90deg,#020706,#09211c,#020706)}
+.preDrawBanner{border-color:rgba(32,235,176,.38);background:rgba(32,235,176,.09);color:#dffdf6}
+footer{background:linear-gradient(180deg,#020706,#010303);border-top-color:rgba(214,255,246,.14)}
+.footerLinks span{color:#7d958e;font:900 10px var(--font-geist-sans),Arial,sans-serif;letter-spacing:.08em}
+@media(max-width:1160px){.headerCa{display:inline-flex}}
+@media(max-width:900px){.nav{gap:14px;flex-wrap:wrap}.navlinks{order:3;width:100%;justify-content:center}.navActions{margin-left:auto}.brandBanner.bottomBanner{width:100%;border-radius:0;margin-top:54px}}
+@media(max-width:560px){.navActions{width:100%;display:grid;grid-template-columns:1fr auto auto}.soonPill,.xPill{padding:11px 12px}.headerCa{width:auto;max-width:none}.brandImage>img{width:42px;height:42px}.brandBanner.bottomBanner{margin-inline:0}}
+
 /* Stonk Drops hero strength pass */
 :root{--hot:#ff4fd8;--gold:#ffc857;--blue:#4a7dff}
 body{background:

@@ -8,11 +8,12 @@ import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
 
 type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string;logoUrl?:string};
 type ChatMessage={id:string;created_at:string;wallet:string;message:string};
-const DEFAULT_STOCKDROPS_MINT="GUmtbfXHEKyB1SwpyevMHwXa9nx2LT9gKD1a738Vpump";
-const STOCKDROPS_MINT=(process.env.NEXT_PUBLIC_STOCKDROPS_MINT||DEFAULT_STOCKDROPS_MINT).trim();
-const X_URL=(process.env.NEXT_PUBLIC_X_URL||"https://x.com/StockDrops").trim();
-const JUPITER_BUY_URL=`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${STOCKDROPS_MINT}`;
-const DEXSCREENER_URL=`https://dexscreener.com/solana/${STOCKDROPS_MINT}`;
+const STOCKDROPS_MINT=(process.env.NEXT_PUBLIC_STOCKDROPS_MINT||"").trim();
+const HAS_MINT=Boolean(STOCKDROPS_MINT);
+const X_URL=(process.env.NEXT_PUBLIC_X_URL||"").trim();
+const HAS_X=Boolean(X_URL);
+const JUPITER_BUY_URL=HAS_MINT?`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${STOCKDROPS_MINT}`:"#";
+const DEXSCREENER_URL=HAS_MINT?`https://dexscreener.com/solana/${STOCKDROPS_MINT}`:"#";
 const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map(stock=>({ticker:stock.symbol,name:stock.name,color:stock.color,ink:stock.ink,logo:stock.logo,logoUrl:stock.logoUrl}));
 function stockVars(stock:StockDisplay){return {"--stock":stock.color,"--stockInk":stock.ink} as CSSProperties}
 function StockLogo({stock,className=""}:{stock:StockDisplay;className?:string}){return <span className={`stockLogo ${className}`} style={stockVars(stock)}>{stock.logoUrl&&<img src={stock.logoUrl} alt={`${stock.name} logo`} loading="lazy" onError={event=>{event.currentTarget.style.display="none"}}/>}<b>{stock.logo}</b></span>}
@@ -94,6 +95,7 @@ export default function Home() {
   }
 
   async function copyCa() {
+    if (!HAS_MINT) return;
     try {
       await navigator.clipboard.writeText(STOCKDROPS_MINT);
       setCopiedCa(true);
@@ -139,14 +141,16 @@ export default function Home() {
     <main>
       <div className="grain" />
       <nav className="nav wrap">
-        <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stockdrops-logo.png" alt=""/><span><em>stonk</em>drops</span></a>
-        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Live room</a><a href="#flywheel">Proof</a><a href={X_URL} target="_blank" rel="noreferrer">X</a></div>
-        <button className="caPill headerCa" type="button" onClick={()=>void copyCa()} aria-label="Copy Stonk Drops contract address"><span>CA</span>{STOCKDROPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button>
-        {wallet ? <div className="walletGroup"><button className="wallet walletAddress" type="button" aria-label={`Connected wallet ${wallet}`}>{wallet.slice(0,4)}…{wallet.slice(-4)}</button><button className="disconnectWallet" type="button" onClick={disconnect}>DISCONNECT</button></div> : <button className="wallet" onClick={connect} disabled={connecting}>{connecting ? "CONNECTING…" : "CONNECT WALLET"}<span>↗</span></button>}
+        <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></a>
+        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Room</a><a href="#flywheel">Proof</a></div>
+        <div className="navActions">
+          <button className={`caPill headerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()} aria-label={HAS_MINT?"Copy Stonk Drops contract address":"Stonk Drops contract address coming soon"}><span>CA</span>{HAS_MINT?STOCKDROPS_MINT:"SOON"}<b>{HAS_MINT?(copiedCa?"COPIED":"COPY"):"SOON"}</b></button>
+          <span className="soonPill">SOON</span>
+          {HAS_X?<a className="xPill" href={X_URL} target="_blank" rel="noreferrer">X</a>:<span className="xPill isSoon">X SOON</span>}
+        </div>
       </nav>
 
       {!drawsLive&&<div className="preDrawBanner wrap">DRAWS HAVE NOT STARTED — FEES ARE ACCUMULATING IN THE TREASURY. FIRST DRAW WILL BE ANNOUNCED.</div>}
-      <div className="brandBanner wrap"><img src="/stockdrops-banner.svg" alt="Stonk Drops — tokenized stock airdrops"/></div>
       <section className="hero wrap" id="top">
         <div className="heroCopy">
           <div className="eyebrow"><span /> STONK DROP FLYWHEEL ON SOLANA</div>
@@ -156,7 +160,7 @@ export default function Home() {
           <div className="heroDropGrid" aria-label="All 10 Stonk Drops in rotation">
             {stocks.map(stock=><span key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock} className="heroDropLogo"/><b>{stock.ticker}</b></span>)}
           </div>
-          <div className="heroActions"><a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a><button className="textBtn" onClick={() => setSpectating(true)}>{drawsLive?"OPEN LIVE ROOM":"OPEN DROP ROOM"} <span>●</span></button></div>
+          <div className="heroActions">{HAS_MINT?<a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a>:<span className="primary disabledCta">CONTRACT SOON</span>}<button className="textBtn" onClick={() => setSpectating(true)}>{drawsLive?"OPEN LIVE ROOM":"OPEN DROP ROOM"} <span>●</span></button></div>
           <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS / TICKET</span></div><div className="nextDrop"><b>{drawStatus}</b><span>{drawsLive?"NEXT DRAW":"DRAW STATUS"}</span></div><div><b>20%</b><span>JACKPOT FUND</span></div></div>
         </div>
         <div className="machine caseMachine" aria-label="Animated Stonk Drops selection machine">
@@ -165,7 +169,7 @@ export default function Home() {
             <div className="glow" />
             <div className="casePointer" />
             <div className="caseReel">{[...stocks,...stocks].map((stock,index)=><span className="caseCard" key={`${stock.ticker}-${index}`} style={stockVars(stock)}><StockLogo stock={stock} className="caseLogo"/><b>{stock.ticker}</b><small>${[1,2,3,5,8,10,12,15,20,25,30][index%11]}</small></span>)}</div>
-            <div className="caseResult"><small>{drawsLive?"LATEST DROP":"NO DROPS YET"}</small><b>{drawsLive?(latestDrop?.stock || "DROPS"):"DROPS"}</b><em>{drawsLive?(latestDrop?`$${Number(latestDrop.value).toFixed(2)}`:"ARMED"):"AWAITING ENGINE"}</em></div>
+            <div className="caseResult"><small>{drawsLive?"LATEST DROP":"NO DROPS YET"}</small><b>{drawsLive?(latestDrop?.stock || "DROPS"):"DROPS"}</b><em>{drawsLive?(latestDrop?`$${Number(latestDrop.value).toFixed(2)}`:"ARMED"):"ARMING TREASURY"}</em></div>
           </div>
           <div className="belt">{[1,2,3,4,5,6].map(n=><span key={n} />)}</div>
           <div className="machineBase"><span>80% STOCK BUY</span><b>→</b><span>20% JACKPOT</span></div>
@@ -188,7 +192,7 @@ export default function Home() {
       <section className="topLiveChat wrap" aria-label={drawsLive?"Live spectator chat":"Spectator chat"}>
         <div className="chatHead"><b>{drawsLive?"LIVE CHAT":"CHAT"}</b><span>{chatMessages.length||"0"} MSGS</span></div>
         <div className="chatStream">{chatMessages.length?chatMessages.map(message=><div key={message.id}><span>{short(message.wallet)}</span><p>{message.message}</p></div>):<div><span>SYSTEM</span><p>Chat opens with the first draw.</p></div>}</div>
-        <div className="chatComposer"><input value={chatInput} onChange={event=>setChatInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void sendChat()}} placeholder={wallet?"Say something live…":"Connect wallet or chat as spectator"} maxLength={180}/><button type="button" onClick={()=>void sendChat()}>SEND</button></div>
+        <div className="chatComposer"><input value={chatInput} onChange={event=>setChatInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void sendChat()}} placeholder="Chat as spectator" maxLength={180}/><button type="button" onClick={()=>void sendChat()}>SEND</button></div>
       </section>
 
       <section className="winUniverse wrap" aria-label="Approved xStocks in Stonk Drops">
@@ -228,7 +232,7 @@ export default function Home() {
         </div>
         <div className="sectionHead"><div><span className="kicker">{drawsLive?"LIVE HOLDER DROP":"HOLDER DROP PREVIEW"}</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>{drawsLive?"Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. The jackpot fund is tracked separately as the reserve grows.":"Once draws start, accumulated fees will stock the treasury with xStock drops from $1 to $30. The draw will pick one weighted holder, run the selector, send the winning stock drop, and post proof."}</p></div>
         <div className="gachaTeaser" aria-label="Gacha packs coming soon">
-          <div className="teaserPack"><img src="/brand/stockdrops-logo.png" alt=""/><span>SOON</span></div>
+          <div className="teaserPack"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span>SOON</span></div>
           <div>
             <span className="kicker">GACHA PACKS COMING SOON</span>
             <h3>Holder drops launch first.</h3>
@@ -239,7 +243,6 @@ export default function Home() {
         <div className="ripBar drawBar">
           <div><span>{drawsLive?"NEXT STOCK DROP":"STOCK DROP STATUS"}</span><b>{drawStatus}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} DROPS = 1 TICKET</b></div><a href="#live">WATCH ROOM <span>→</span></a>
         </div>
-        {walletError && <div className="walletNotice" role="alert">{walletError}</div>}
       </section>
 
       <section className="live" id="live"><div className="wrap">
@@ -254,7 +257,9 @@ export default function Home() {
 
       <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN DROP?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded for airdrops.</h2></div><p>{drawsLive?"Stonk Drops inventory is restricted to this approved Solana xStock universe. Every draw resolves to one treasury-funded stock drop.":"Stonk Drops inventory will be restricted to this approved Solana xStock universe once draws are activated."}</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
 
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stockdrops-logo.png" alt=""/><span><em>stonk</em>drops</span></div><button className="caPill footerCa" type="button" onClick={()=>void copyCa()}><span>CA</span>{STOCKDROPS_MINT}<b>{copiedCa?"COPIED":"COPY"}</b></button><div className="footerLinks"><a href={X_URL} target="_blank" rel="noreferrer">X</a><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></div><span>BUILT ON SOLANA ◈</span></div></footer>
+      <div className="brandBanner bottomBanner wrap"><img src="/brand/stonkdrops-banner.jpg" alt="Stonk Drops — tokenized stock airdrops"/></div>
+
+      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></div><button className={`caPill footerCa ${HAS_MINT?"":"isSoon"}`} type="button" onClick={()=>void copyCa()}><span>CA</span>{HAS_MINT?STOCKDROPS_MINT:"SOON"}<b>{HAS_MINT?(copiedCa?"COPIED":"COPY"):"SOON"}</b></button><div className="footerLinks">{HAS_X?<a href={X_URL} target="_blank" rel="noreferrer">X</a>:<span>X SOON</span>}{HAS_MINT&&<><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></>}</div><span>BUILT ON SOLANA ◈</span></div></footer>
 
       {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
         <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>

@@ -63,10 +63,10 @@ test("wallet supports Phantom, Backpack, trusted reconnect and disconnect", () =
   assert.match(page, />DISCONNECT</);
 });
 
-test("holder inventory restocks privately in $2-$5 batches", () => {
+test("holder inventory restocks privately in conservative $2 average batches", () => {
   assert.match(airdropPolicy, /AIRDROP_BATCH_TARGET = 15/);
-  assert.match(airdropPolicy, /lastHolderFeeClaim >= 20/);
-  assert.match(airdropPolicy, /return 5/);
+  assert.match(airdropPolicy, /lastHolderFeeClaim >= 50/);
+  assert.match(airdropPolicy, /return 3/);
   assert.match(airdropPolicy, /AIRDROP_TREASURY_SPEND_FRACTION = 0\.80/);
   assert.match(airdropPolicy, /return 2/);
   assert.match(schema, /airdrop_inventory_lots/);
@@ -109,13 +109,14 @@ test("draw live gate defaults off and removes pre-draw urgency", () => {
 
 test("practice loader preserves gas and exact inventory averages", () => {
   assert.match(inventoryPlan,/SOL_GAS_BUFFER = 0\.111/);
-  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[1,2,3,5,8,10,12,15,20,25,30\]/);
-  assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[1,2,3,4,5\]/);
-  const main=[1,2,3,5,8,10,12,15,20,25,30];
-  const holder=[1,2,3,4,5];
-  assert.equal(main.reduce((a,b)=>a+b,0),131);
-  assert.equal(holder.reduce((a,b)=>a+b,0),15);
-  assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,3);
+  assert.match(inventoryPlan,/MAIN_INVENTORY_LOTS = \[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,30\]/);
+  assert.match(inventoryPlan,/HOLDER_INVENTORY_LOTS = \[1,2,2,2,3\]/);
+  const main=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,30];
+  const holder=[1,2,2,2,3];
+  assert.equal(main.reduce((a,b)=>a+b,0),60);
+  assert.equal(main.reduce((a,b)=>a+b,0)/main.length,2);
+  assert.equal(holder.reduce((a,b)=>a+b,0),10);
+  assert.equal(holder.reduce((a,b)=>a+b,0)/holder.length,2);
 });
 
 test("protected automation restocks on the shared 5-minute clock and records confirmed output",()=>{
