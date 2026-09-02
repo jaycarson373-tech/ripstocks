@@ -6,17 +6,19 @@ import {
   http,
   parseAbi,
   parseAbiItem,
+  zeroAddress,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   CANONICAL_SPY,
   PONS_V2_FACTORY,
-  PONS_V2_FEE_ESCROW,
+  PONS_V2_FEE_LOCKER,
   addressEnv,
   applyTransfers,
   basisPoints,
   deriveSeed,
   deterministicStockOrder,
+  discoverContractStartBlock,
   epochKey,
   parseMode,
   positiveInteger,
@@ -36,13 +38,12 @@ const robinhood = defineChain({
 });
 
 const factoryAbi = parseAbi([
-  "function getLaunchedToken(address token) view returns ((address token,address curve,address deployer,address creatorFeeRecipient,address pairToken,uint256 graduationThreshold,uint24 poolFee,int24 tickSpacing,uint16 creatorTaxBps,bool buybackEnabled,uint8 phase,uint256 sweptQuote,uint256 sweptTokens,uint256 sweptAt,bool exists))",
+  "function getLaunchedToken(address token) view returns ((address token,address deployer,address pairedToken,address positionManager,uint256 positionId,uint256 dexId,uint256 launchConfigId,uint256 restrictionsEndBlock,uint256 supply,bool isToken0,uint24 poolFee,bool exists,uint256 initialBuyAmount))",
 ]);
-const escrowAbi = parseAbi([
-  "function balanceOfToken(address recipient,address token) view returns (uint256)",
-  "function claimToken(address token) returns (uint256 amount)",
+const feeLockerAbi = parseAbi([
+  "function collectFees(address token) returns (uint256 amount0,uint256 amount1)",
+  "function feeRedirects(address token) view returns (address)",
 ]);
-const curveAbi = parseAbi(["function sweepFees(uint256 minBuybackTokensOut)"]);
 const erc20Abi = parseAbi([
   "function decimals() view returns (uint8)",
   "function balanceOf(address account) view returns (uint256)",
@@ -88,10 +89,10 @@ function readConfig() {
     rpcUrl: required("ROBINHOOD_RPC_URL", process.env.ROBINHOOD_RPC_URL),
     signerKey: privateKey(process.env.AUTOMATION_PRIVATE_KEY),
     ponsToken: addressEnv("PONS_TOKEN_ADDRESS", process.env.PONS_TOKEN_ADDRESS),
-    ponsTokenStartBlock: BigInt(required("PONS_TOKEN_START_BLOCK", process.env.PONS_TOKEN_START_BLOCK)),
+    ponsTokenStartBlock: process.env.PONS_TOKEN_START_BLOCK?.trim() ? BigInt(process.env.PONS_TOKEN_START_BLOCK) : null,
     packContract: addressEnv("STOCKRIPS_PACK_CONTRACT", process.env.STOCKRIPS_PACK_CONTRACT),
     ponsFactory: addressEnv("PONS_V2_FACTORY", process.env.PONS_V2_FACTORY || PONS_V2_FACTORY),
-    feeEscrow: addressEnv("PONS_FEE_ESCROW", process.env.PONS_FEE_ESCROW || PONS_V2_FEE_ESCROW),
+    feeLocker: addressEnv("PONS_FEE_LOCKER", process.env.PONS_FEE_LOCKER || PONS_V2_FEE_LOCKER),
     quoteToken: addressEnv("PONS_QUOTE_TOKEN", process.env.PONS_QUOTE_TOKEN || CANONICAL_SPY),
     zeroXKey: required("ZEROX_API_KEY", process.env.ZEROX_API_KEY),
     slippageBps: basisPoints("ZEROX_SLIPPAGE_BPS", process.env.ZEROX_SLIPPAGE_BPS, 100),
@@ -175,8 +176,10 @@ function clients(cfg) {
 async function validateOnchain(cfg, publicClient, account) {
   const launch = await publicClient.readContract({ address: cfg.ponsFactory, abi: factoryAbi, functionName: "getLaunchedToken", args: [cfg.ponsToken] });
   if (!launch.exists || getAddress(launch.token) !== cfg.ponsToken) throw new Error("PONS_TOKEN_ADDRESS is not a Pons v2 launch from the configured factory");
-  if (getAddress(launch.pairToken) !== cfg.quoteToken) throw new Error("The Pons launch is not paired to canonical SPY");
-  if (getAddress(launch.creatorFeeRecipient) !== account.address) throw new Error("The automation signer is not the Pons creator-fee recipient");
+  if (getAddress(launch.pairedToken) !== cfg.quoteToken) throw new Error("The Pons launch is not paired to canonical SPY");
+  const redirect = await publicClient.readContract({ address: cfg.feeLocker, abi: feeLockerAbi, functionName: "feeRedirects", args: [cfg.ponsToken] });
+  const recipient = getAddress(redirect) === zeroAddress ? getAddress(launch.deployer) : getAddress(redirect);
+  if (recipient !== account.address) throw new Error("The automation signer is not the current Pons creator-fee recipient");
   const [owner, treasury] = await Promise.all([
     publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "owner" }),
     publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "treasury" }),
@@ -184,13 +187,6 @@ async function validateOnchain(cfg, publicClient, account) {
   if (getAddress(owner) !== account.address) throw new Error("The automation signer is not the RipStonks pack-contract owner");
   if (getAddress(treasury) !== account.address) throw new Error("The pack treasury must be the same automation wallet for this configuration");
   return launch;
-}
-
-async function maybeSweepCurve(cfg, launch, publicClient, walletClient, account) {
-  if (Number(launch.phase) !== 0 || launch.buybackEnabled || getAddress(launch.deployer) !== account.address) return null;
-  const hash = await walletClient.writeContract({ account, address: getAddress(launch.curve), abi: curveAbi, functionName: "sweepFees", args: [0n] });
-  await publicClient.waitForTransactionReceipt({ hash, confirmations: 2, timeout: 120_000 });
-  return hash;
 }
 
 async function settleReadyPack(cfg, publicClient, walletClient, account) {
@@ -215,15 +211,24 @@ async function tokenBalance(publicClient, token, account) {
   return publicClient.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [account] });
 }
 
-async function approveIfNeeded(publicClient, walletClient, account, token, spender, amount) {
+async function waitForSuccess(publicClient, hash, timeout = 120_000) {
+  const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 2, timeout });
+  if (receipt.status !== "success") throw new Error(`Transaction reverted: ${hash}`);
+  return receipt;
+}
+
+async function approveIfNeeded(publicClient, walletClient, account, token, spender, amount, onBroadcast) {
+  // A previously broadcast approval is part of the durable epoch state; finish
+  // confirming it before deciding whether another approval is necessary.
   const allowance = await publicClient.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [account.address, spender] });
   if (allowance >= amount) return null;
   const hash = await walletClient.writeContract({ account, address: token, abi: erc20Abi, functionName: "approve", args: [spender, amount] });
-  await publicClient.waitForTransactionReceipt({ hash, confirmations: 2, timeout: 120_000 });
+  if (onBroadcast) await onBroadcast(hash);
+  await waitForSuccess(publicClient, hash);
   return hash;
 }
 
-async function zeroXQuote(cfg, account, sellToken, buyToken, sellAmount) {
+async function zeroXRequest(cfg, account, endpoint, sellToken, buyToken, sellAmount) {
   const query = new URLSearchParams({
     chainId: "4663",
     sellToken,
@@ -232,27 +237,52 @@ async function zeroXQuote(cfg, account, sellToken, buyToken, sellAmount) {
     taker: account.address,
     slippageBps: String(cfg.slippageBps),
   });
-  const response = await fetch(`https://api.0x.org/swap/allowance-holder/quote?${query}`, {
+  const response = await fetch(`https://api.0x.org/swap/allowance-holder/${endpoint}?${query}`, {
     headers: { "0x-api-key": cfg.zeroXKey, "0x-version": "v2" },
   });
-  if (!response.ok) throw new Error(`0x quote ${response.status}: ${await response.text()}`);
-  const quote = await response.json();
+  if (!response.ok) throw new Error(`0x ${endpoint} ${response.status}: ${await response.text()}`);
+  return response.json();
+}
+
+async function zeroXPrice(cfg, account, sellToken, buyToken, sellAmount) {
+  const price = await zeroXRequest(cfg, account, "price", sellToken, buyToken, sellAmount);
+  if (price.liquidityAvailable === false || !price.buyAmount) throw new Error("0x returned no Stock Token price route");
+  return BigInt(price.buyAmount);
+}
+
+async function zeroXQuote(cfg, account, sellToken, buyToken, sellAmount) {
+  const quote = await zeroXRequest(cfg, account, "quote", sellToken, buyToken, sellAmount);
   if (quote.liquidityAvailable === false || !quote.transaction?.to || !quote.transaction?.data || !quote.buyAmount) throw new Error("0x returned no executable Stock Token liquidity");
   const spender = quote.issues?.allowance?.spender || quote.allowanceTarget;
   if (!spender) throw new Error("0x quote omitted its allowance spender");
   return { ...quote, spender: getAddress(spender), transaction: { ...quote.transaction, to: getAddress(quote.transaction.to) } };
 }
 
-async function swapIntoFirstLiquidStock(cfg, publicClient, walletClient, account, sellToken, sellAmount, order) {
+async function swapIntoFirstLiquidStock(cfg, publicClient, walletClient, account, sellToken, sellAmount, order, hooks = {}) {
   const available = await tokenBalance(publicClient, sellToken, account.address);
   if (available < sellAmount) throw new Error("Automation wallet does not hold the recorded fee budget");
   let lastError;
   for (const stock of order) {
+    let routeLocked = false;
     try {
-      if (stock.address === sellToken) return { stock, amount: sellAmount, swapTx: null, approvalTx: null };
+      if (stock.address === sellToken) {
+        if (hooks.onRoute) await hooks.onRoute(stock, 0n);
+        return { stock, amount: sellAmount, swapTx: null, approvalTx: null };
+      }
+      const before = hooks.beforeBalance == null
+        ? await tokenBalance(publicClient, stock.address, account.address)
+        : BigInt(hooks.beforeBalance);
+      if (hooks.existingSwapTx) {
+        await waitForSuccess(publicClient, hooks.existingSwapTx, 180_000);
+        const after = await tokenBalance(publicClient, stock.address, account.address);
+        const amount = after - before;
+        if (amount <= 0n) throw new Error("Recorded swap produced no recoverable Stock Token output");
+        return { stock, amount, swapTx: hooks.existingSwapTx, approvalTx: hooks.existingApprovalTx || null };
+      }
       const quote = await zeroXQuote(cfg, account, sellToken, stock.address, sellAmount);
-      const approvalTx = await approveIfNeeded(publicClient, walletClient, account, sellToken, quote.spender, sellAmount);
-      const before = await tokenBalance(publicClient, stock.address, account.address);
+      if (hooks.onRoute) await hooks.onRoute(stock, before);
+      routeLocked = true;
+      const approvalTx = await approveIfNeeded(publicClient, walletClient, account, sellToken, quote.spender, sellAmount, hooks.onApproval);
       const swapTx = await walletClient.sendTransaction({
         account,
         to: quote.transaction.to,
@@ -260,12 +290,14 @@ async function swapIntoFirstLiquidStock(cfg, publicClient, walletClient, account
         value: BigInt(quote.transaction.value || "0"),
         gas: quote.transaction.gas ? BigInt(quote.transaction.gas) : undefined,
       });
-      await publicClient.waitForTransactionReceipt({ hash: swapTx, confirmations: 2, timeout: 180_000 });
+      if (hooks.onSwap) await hooks.onSwap(swapTx);
+      await waitForSuccess(publicClient, swapTx, 180_000);
       const after = await tokenBalance(publicClient, stock.address, account.address);
       const amount = after - before;
       if (amount <= 0n || amount < BigInt(quote.minBuyAmount || 0)) throw new Error("Stock Token output was below the quoted minimum");
       return { stock, amount, swapTx, approvalTx };
     } catch (error) {
+      if (routeLocked || hooks.existingSwapTx) throw error;
       lastError = error;
       log("stock_route_unavailable", { symbol: stock.symbol, reason: String(error instanceof Error ? error.message : error).slice(0, 220) });
     }
@@ -297,9 +329,9 @@ async function holderSnapshot(cfg, publicClient, snapshotBlock, launch, account)
     "0x0000000000000000000000000000000000000000",
     "0x000000000000000000000000000000000000dEaD",
     cfg.ponsFactory,
-    cfg.feeEscrow,
+    cfg.feeLocker,
     cfg.packContract,
-    getAddress(launch.curve),
+    getAddress(launch.positionManager),
     account.address,
     ...cfg.excluded,
   ].map((value) => value.toLowerCase()));
@@ -313,18 +345,46 @@ async function holderSnapshot(cfg, publicClient, snapshotBlock, launch, account)
   return eligible;
 }
 
+async function resolveTokenStartBlock(cfg, publicClient) {
+  if (cfg.ponsTokenStartBlock != null) return cfg.ponsTokenStartBlock;
+  const latest = await publicClient.getBlockNumber();
+  cfg.ponsTokenStartBlock = await discoverContractStartBlock(
+    latest,
+    (blockNumber) => publicClient.getBytecode({ address: cfg.ponsToken, blockNumber }),
+  );
+  log("pons_token_start_block_discovered", { blockNumber: cfg.ponsTokenStartBlock.toString() });
+  return cfg.ponsTokenStartBlock;
+}
+
+async function previewCollectableFees(cfg, launch, publicClient, account) {
+  const { result } = await publicClient.simulateContract({
+    account,
+    address: cfg.feeLocker,
+    abi: feeLockerAbi,
+    functionName: "collectFees",
+    args: [cfg.ponsToken],
+  });
+  const amount0 = BigInt(result[0]);
+  const amount1 = BigInt(result[1]);
+  return launch.isToken0
+    ? { ponsAmount: amount0, quoteAmount: amount1 }
+    : { ponsAmount: amount1, quoteAmount: amount0 };
+}
+
 async function processEpoch(cfg, store, epoch, launch, publicClient, walletClient, account) {
   const key = epoch.epoch_key;
   if (TERMINAL.has(epoch.status)) return epoch;
 
   if (epoch.status === "created") {
-    let sweepTx = null;
-    if (cfg.mode === "live") sweepTx = await maybeSweepCurve(cfg, launch, publicClient, walletClient, account);
-    const owed = await publicClient.readContract({ address: cfg.feeEscrow, abi: escrowAbi, functionName: "balanceOfToken", args: [account.address, cfg.quoteToken] });
-    if (owed === 0n) return store.updateEpoch(key, { status: "no_fees", sweep_tx: sweepTx, fee_amount_atoms: "0", completed_at: new Date().toISOString() });
+    const preview = await previewCollectableFees(cfg, launch, publicClient, account);
+    const convertedPreview = preview.ponsAmount > 0n
+      ? await zeroXPrice(cfg, account, cfg.ponsToken, cfg.quoteToken, preview.ponsAmount)
+      : 0n;
+    const owed = preview.quoteAmount + convertedPreview;
+    if (owed === 0n) return store.updateEpoch(key, { status: "no_fees", fee_amount_atoms: "0", completed_at: new Date().toISOString() });
     const [dropBudget, treasuryBudget] = splitAmount(owed, cfg.feeSplitBps);
     if (dropBudget === 0n || treasuryBudget === 0n) {
-      return store.updateEpoch(key, { status: "no_fees", sweep_tx: sweepTx, fee_amount_atoms: owed.toString(), completed_at: new Date().toISOString() });
+      return store.updateEpoch(key, { status: "no_fees", fee_amount_atoms: owed.toString(), completed_at: new Date().toISOString() });
     }
     if (cfg.mode === "dry-run") {
       return store.updateEpoch(key, {
@@ -335,28 +395,62 @@ async function processEpoch(cfg, store, epoch, launch, publicClient, walletClien
         completed_at: new Date().toISOString(),
       });
     }
-    const preclaim = await tokenBalance(publicClient, cfg.quoteToken, account.address);
-    epoch = await store.updateEpoch(key, { status: "claiming", sweep_tx: sweepTx, fee_amount_atoms: owed.toString(), preclaim_balance_atoms: preclaim.toString() });
+    const [prePonsBalance, preQuoteBalance] = await Promise.all([
+      tokenBalance(publicClient, cfg.ponsToken, account.address),
+      tokenBalance(publicClient, cfg.quoteToken, account.address),
+    ]);
+    // The two budget fields temporarily hold the pre-claim balances while this
+    // stage is pending. They are replaced with the actual 50/50 budgets below.
+    epoch = await store.updateEpoch(key, {
+      status: "claiming",
+      fee_amount_atoms: owed.toString(),
+      preclaim_balance_atoms: preQuoteBalance.toString(),
+      holder_drop_budget_atoms: prePonsBalance.toString(),
+      inventory_budget_atoms: preQuoteBalance.toString(),
+    });
   }
 
   if (epoch.status === "claiming") {
-    const preclaim = BigInt(epoch.preclaim_balance_atoms);
+    const prePonsBalance = BigInt(epoch.holder_drop_budget_atoms);
+    const preQuoteBalance = BigInt(epoch.preclaim_balance_atoms);
     let claimTx = epoch.claim_tx;
     if (!claimTx) {
-      const stillOwed = await publicClient.readContract({ address: cfg.feeEscrow, abi: escrowAbi, functionName: "balanceOfToken", args: [account.address, cfg.quoteToken] });
-      const currentBalance = await tokenBalance(publicClient, cfg.quoteToken, account.address);
-      if (stillOwed === 0n && currentBalance > preclaim) {
-        claimTx = "recovered-from-balance-delta";
-      } else {
-        claimTx = await walletClient.writeContract({ account, address: cfg.feeEscrow, abi: escrowAbi, functionName: "claimToken", args: [cfg.quoteToken] });
-        epoch = await store.updateEpoch(key, { claim_tx: claimTx });
-        await publicClient.waitForTransactionReceipt({ hash: claimTx, confirmations: 2, timeout: 120_000 });
-      }
+      claimTx = await walletClient.writeContract({
+        account,
+        address: cfg.feeLocker,
+        abi: feeLockerAbi,
+        functionName: "collectFees",
+        args: [cfg.ponsToken],
+      });
+      epoch = await store.updateEpoch(key, { claim_tx: claimTx });
+      await waitForSuccess(publicClient, claimTx);
     } else if (claimTx.startsWith("0x")) {
-      await publicClient.waitForTransactionReceipt({ hash: claimTx, confirmations: 2, timeout: 120_000 });
+      await waitForSuccess(publicClient, claimTx);
     }
-    const claimed = (await tokenBalance(publicClient, cfg.quoteToken, account.address)) - preclaim;
-    if (claimed <= 0n) throw new Error("Pons fee claim produced no SPY balance increase");
+
+    const currentPonsBalance = await tokenBalance(publicClient, cfg.ponsToken, account.address);
+    const ponsFees = currentPonsBalance > prePonsBalance ? currentPonsBalance - prePonsBalance : 0n;
+    if (ponsFees > 0n && !epoch.sweep_tx) {
+      await swapIntoFirstLiquidStock(
+        cfg,
+        publicClient,
+        walletClient,
+        account,
+        cfg.ponsToken,
+        ponsFees,
+        [{ symbol: "SPY", address: cfg.quoteToken }],
+        {
+          beforeBalance: preQuoteBalance,
+          onSwap: async (hash) => { epoch = await store.updateEpoch(key, { sweep_tx: hash }); },
+        },
+      );
+    } else if (epoch.sweep_tx?.startsWith("0x")) {
+      await waitForSuccess(publicClient, epoch.sweep_tx, 180_000);
+    }
+
+    const currentQuoteBalance = await tokenBalance(publicClient, cfg.quoteToken, account.address);
+    const claimed = currentQuoteBalance > preQuoteBalance ? currentQuoteBalance - preQuoteBalance : 0n;
+    if (claimed <= 0n) throw new Error("Pons fee collection produced no canonical SPY balance increase");
     const [dropBudget, treasuryBudget] = splitAmount(claimed, cfg.feeSplitBps);
     const snapshotBlock = await publicClient.getBlockNumber();
     epoch = await store.updateEpoch(key, {
@@ -393,33 +487,83 @@ async function processEpoch(cfg, store, epoch, launch, publicClient, walletClien
   }
 
   if (epoch.status === "holder_drop_swap") {
-    const order = deterministicStockOrder(epoch.seed_hash, key, "holder-drop");
-    const drop = await swapIntoFirstLiquidStock(cfg, publicClient, walletClient, account, cfg.quoteToken, BigInt(epoch.holder_drop_budget_atoms), order);
+    let order = deterministicStockOrder(epoch.seed_hash, key, "holder-drop");
+    if (epoch.drop_stock_address) order = order.filter((stock) => stock.address === getAddress(epoch.drop_stock_address));
+    const drop = await swapIntoFirstLiquidStock(
+      cfg,
+      publicClient,
+      walletClient,
+      account,
+      cfg.quoteToken,
+      BigInt(epoch.holder_drop_budget_atoms),
+      order,
+      {
+        beforeBalance: epoch.drop_stock_address ? epoch.drop_stock_amount_atoms : undefined,
+        existingSwapTx: epoch.drop_swap_tx,
+        existingApprovalTx: epoch.drop_approval_tx,
+        onRoute: async (stock, before) => {
+          epoch = await store.updateEpoch(key, {
+            drop_stock_symbol: stock.symbol,
+            drop_stock_address: stock.address,
+            drop_stock_amount_atoms: before.toString(),
+          });
+        },
+        onApproval: async (hash) => { epoch = await store.updateEpoch(key, { drop_approval_tx: hash }); },
+        onSwap: async (hash) => { epoch = await store.updateEpoch(key, { drop_swap_tx: hash }); },
+      },
+    );
     epoch = await store.updateEpoch(key, {
       status: "holder_drop_send",
       drop_stock_symbol: drop.stock.symbol,
       drop_stock_address: drop.stock.address,
       drop_stock_amount_atoms: drop.amount.toString(),
       drop_swap_tx: drop.swapTx,
-      drop_approval_tx: drop.approvalTx,
+      drop_approval_tx: drop.approvalTx || epoch.drop_approval_tx,
     });
   }
 
   if (epoch.status === "holder_drop_send") {
-    const hash = await walletClient.writeContract({
-      account,
-      address: getAddress(epoch.drop_stock_address),
-      abi: erc20Abi,
-      functionName: "transfer",
-      args: [getAddress(epoch.winner_address), BigInt(epoch.drop_stock_amount_atoms)],
-    });
-    await publicClient.waitForTransactionReceipt({ hash, confirmations: 2, timeout: 120_000 });
+    let hash = epoch.holder_drop_tx;
+    if (!hash) {
+      hash = await walletClient.writeContract({
+        account,
+        address: getAddress(epoch.drop_stock_address),
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [getAddress(epoch.winner_address), BigInt(epoch.drop_stock_amount_atoms)],
+      });
+      epoch = await store.updateEpoch(key, { holder_drop_tx: hash });
+    }
+    await waitForSuccess(publicClient, hash);
     epoch = await store.updateEpoch(key, { status: "inventory_swap", holder_drop_tx: hash });
   }
 
   if (epoch.status === "inventory_swap") {
-    const order = deterministicStockOrder(epoch.seed_hash, key, "inventory");
-    const inventory = await swapIntoFirstLiquidStock(cfg, publicClient, walletClient, account, cfg.quoteToken, BigInt(epoch.inventory_budget_atoms), order);
+    let order = deterministicStockOrder(epoch.seed_hash, key, "inventory");
+    if (epoch.inventory_stock_address) order = order.filter((stock) => stock.address === getAddress(epoch.inventory_stock_address));
+    const inventory = await swapIntoFirstLiquidStock(
+      cfg,
+      publicClient,
+      walletClient,
+      account,
+      cfg.quoteToken,
+      BigInt(epoch.inventory_budget_atoms),
+      order,
+      {
+        beforeBalance: epoch.inventory_stock_address ? epoch.inventory_stock_amount_atoms : undefined,
+        existingSwapTx: epoch.inventory_swap_tx,
+        existingApprovalTx: epoch.inventory_approval_tx,
+        onRoute: async (stock, before) => {
+          epoch = await store.updateEpoch(key, {
+            inventory_stock_symbol: stock.symbol,
+            inventory_stock_address: stock.address,
+            inventory_stock_amount_atoms: before.toString(),
+          });
+        },
+        onApproval: async (hash) => { epoch = await store.updateEpoch(key, { inventory_approval_tx: hash }); },
+        onSwap: async (hash) => { epoch = await store.updateEpoch(key, { inventory_swap_tx: hash }); },
+      },
+    );
     const usdMicros = await stockUsdMicros(inventory.stock, inventory.amount);
     if (usdMicros <= 0n) throw new Error("Inventory valuation was zero");
     epoch = await store.updateEpoch(key, {
@@ -429,7 +573,7 @@ async function processEpoch(cfg, store, epoch, launch, publicClient, walletClien
       inventory_stock_amount_atoms: inventory.amount.toString(),
       inventory_value_usd_micros: usdMicros.toString(),
       inventory_swap_tx: inventory.swapTx,
-      inventory_approval_tx: inventory.approvalTx,
+      inventory_approval_tx: inventory.approvalTx || epoch.inventory_approval_tx,
     });
   }
 
@@ -438,21 +582,34 @@ async function processEpoch(cfg, store, epoch, launch, publicClient, walletClien
     const amount = BigInt(epoch.inventory_stock_amount_atoms);
     const approved = await publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "approvedStock", args: [token] });
     if (!approved) throw new Error(`${epoch.inventory_stock_symbol} is not approved by the pack contract`);
-    const approvalTx = await approveIfNeeded(publicClient, walletClient, account, token, cfg.packContract, amount);
-    const beforeCount = await publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "inventoryCount" });
-    const inventoryTx = await walletClient.writeContract({
+    const approvalTx = await approveIfNeeded(
+      publicClient,
+      walletClient,
       account,
-      address: cfg.packContract,
-      abi: packAbi,
-      functionName: "loadPrize",
-      args: [token, amount, BigInt(epoch.inventory_value_usd_micros)],
-    });
-    await publicClient.waitForTransactionReceipt({ hash: inventoryTx, confirmations: 2, timeout: 120_000 });
+      token,
+      cfg.packContract,
+      amount,
+      async (hash) => { epoch = await store.updateEpoch(key, { pack_approval_tx: hash }); },
+    );
+    const beforeCount = await publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "inventoryCount" });
+    const resumingInventoryLoad = Boolean(epoch.inventory_load_tx);
+    let inventoryTx = epoch.inventory_load_tx;
+    if (!inventoryTx) {
+      inventoryTx = await walletClient.writeContract({
+        account,
+        address: cfg.packContract,
+        abi: packAbi,
+        functionName: "loadPrize",
+        args: [token, amount, BigInt(epoch.inventory_value_usd_micros)],
+      });
+      epoch = await store.updateEpoch(key, { inventory_load_tx: inventoryTx });
+    }
+    await waitForSuccess(publicClient, inventoryTx);
     const afterCount = await publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "inventoryCount" });
-    if (afterCount !== beforeCount + 1n) throw new Error("Pack inventory count did not increase after loadPrize");
+    if (resumingInventoryLoad ? afterCount < beforeCount : afterCount !== beforeCount + 1n) throw new Error("Pack inventory count did not increase after loadPrize");
     epoch = await store.updateEpoch(key, {
       status: "complete",
-      pack_approval_tx: approvalTx,
+      pack_approval_tx: approvalTx || epoch.pack_approval_tx,
       inventory_load_tx: inventoryTx,
       completed_at: new Date().toISOString(),
     });
@@ -471,6 +628,7 @@ async function tick(cfg) {
   let epoch;
   try {
     const launch = await validateOnchain(cfg, publicClient, account);
+    await resolveTokenStartBlock(cfg, publicClient);
     if (cfg.mode === "live") await settleReadyPack(cfg, publicClient, walletClient, account);
     epoch = await store.getPendingEpoch();
     if (!epoch) {

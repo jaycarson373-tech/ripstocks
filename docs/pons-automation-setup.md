@@ -3,14 +3,14 @@
 The Railway worker follows one fixed rule per UTC hour:
 
 1. Verify the configured token is a Pons v2 launch paired with canonical SPY.
-2. Claim SPY creator fees credited to the official Pons v2 fee escrow.
+2. Collect both sides of the creator fees from the official Pons v2 fee locker and convert the project-token side to canonical SPY through 0x.
 3. Commit a holder snapshot block and a future seed block to Supabase.
 4. Allocate exactly 50% of the claimed SPY to a direct holder Stock Token drop.
 5. Allocate the remaining 50% to one funded RipStonks pack-contract inventory lot.
 6. Settle any ready pack request so an abandoned browser cannot hold the single-request queue open.
 7. Record every state transition and transaction hash before the epoch is complete.
 
-Pons fees must first be swept from the curve or graduated pool into the fee escrow. Before graduation, the worker can sweep only when the automation wallet is the deployer and the launch has no internal buyback. After graduation, Pons' trusted sweep operator handles conversions; this worker claims only balances already credited to the official escrow.
+The worker calls the current Pons v2 fee locker's `collectFees(token)` entry point. It verifies that the configured signer is the launch deployer or current fee redirect, and it never uses the retired curve/escrow interface.
 
 ## 1. Supabase
 
@@ -30,9 +30,9 @@ AUTOMATION_PRIVATE_KEY=CHANGE_ME
 ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 
 PONS_TOKEN_ADDRESS=CHANGE_ME
-PONS_TOKEN_START_BLOCK=CHANGE_ME
-PONS_V2_FACTORY=0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e
-PONS_FEE_ESCROW=0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e
+PONS_TOKEN_START_BLOCK=
+PONS_V2_FACTORY=0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB
+PONS_FEE_LOCKER=0x736D76699C26D0d966744cAe304C000d471f7F35
 PONS_QUOTE_TOKEN=0x117cc2133c37B721F49dE2A7a74833232B3B4C0C
 
 STOCKRIPS_PACK_CONTRACT=CHANGE_ME
@@ -59,11 +59,15 @@ The same wallet must currently be all four of these:
 
 It needs enough ETH for claims, approvals, swaps, transfers, and inventory loads. `HOLDER_EXCLUDE_ADDRESSES` is a comma-separated list for known pools, lockers, team allocations, and other addresses that must not participate.
 
+`PONS_TOKEN_START_BLOCK` is optional. When it is empty, the worker discovers the token's deployment block using historical chain state. `STOCKRIPS_PACK_CONTRACT` can initially be empty: after the private key and Pons token CA are stored in Railway, run `npm run launch:bootstrap` to verify the launch and deploy a disabled, empty pack contract owned by the same wallet. The command prints public addresses only and never prints the private key.
+
+For the initial funded prize pool, fund that wallet with canonical SPY plus ETH gas, then run `SEED_INVENTORY_CONFIRM=I_UNDERSTAND npm run inventory:seed`. The default schedule loads one real funded lot for each supported Stock Token, targeting `$5,$10,$15,$20,$20,$25,$30,$35,$40,$50` (a $250 total target). Override the ten values with `INITIAL_PRIZE_USD_VALUES` only before the first run. The loader checks all ten 0x routes before broadcasting, records every public transaction in its output, and leaves packs disabled. It refuses to reseed a non-empty contract unless `ALLOW_NONEMPTY_SEED=true` is explicitly supplied.
+
 ## 4. Safe activation
 
 1. Keep `AUTOMATION_MODE=off` while values are entered.
 2. Set `AUTOMATION_MODE=dry-run` and redeploy Railway.
-3. Confirm the worker reports `dry_run`, the Pons launch resolves, its pair is SPY, the signer owns the pack contract, and an epoch appears in Supabase without any transaction hashes.
+3. Confirm the worker reports `dry_run`, the Pons launch resolves, its pair is SPY, the signer owns the pack contract, and an epoch appears in Supabase without any transaction hashes. Dry-run simulates fee collection and 0x routing but does not broadcast.
 4. Test the complete cycle on a fork or test deployment.
 5. Fund the signer with ETH and confirm the 0x key has Robinhood RWA access.
 6. Set `AUTOMATION_MODE=live` only after review.

@@ -3,8 +3,8 @@ import { getAddress, isAddress, keccak256, stringToHex } from "viem";
 export const ROBINHOOD_CHAIN_ID = 4663;
 export const CANONICAL_SPY = "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C";
 export const CANONICAL_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
-export const PONS_V2_FACTORY = "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e";
-export const PONS_V2_FEE_ESCROW = "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e";
+export const PONS_V2_FACTORY = "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB";
+export const PONS_V2_FEE_LOCKER = "0x736D76699C26D0d966744cAe304C000d471f7F35";
 
 export const STOCK_TOKENS = [
   ["SPY", "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"],
@@ -95,6 +95,18 @@ export function deterministicStockOrder(blockHash, epoch, label) {
     .map((stock) => ({ stock, rank: deriveSeed(blockHash, epoch, `${label}:${stock.symbol}`) }))
     .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
     .map(({ stock }) => stock);
+}
+
+export async function discoverContractStartBlock(latestBlock, bytecodeAt) {
+  let low = 0n;
+  let high = BigInt(latestBlock);
+  if (!await bytecodeAt(high)) throw new Error("Token contract has no bytecode at the latest block");
+  while (low < high) {
+    const middle = (low + high) / 2n;
+    if (await bytecodeAt(middle)) high = middle;
+    else low = middle + 1n;
+  }
+  return low;
 }
 
 export function applyTransfers(logs) {
