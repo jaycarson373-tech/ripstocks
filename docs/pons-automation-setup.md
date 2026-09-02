@@ -6,7 +6,7 @@ The Railway worker follows one fixed rule per UTC hour:
 2. Claim SPY creator fees credited to the official Pons v2 fee escrow.
 3. Commit a holder snapshot block and a future seed block to Supabase.
 4. Allocate exactly 50% of the claimed SPY to a direct holder Stock Token drop.
-5. Allocate the remaining 50% to one funded StonkRips pack-contract inventory lot.
+5. Allocate the remaining 50% to one funded RipStonks pack-contract inventory lot.
 6. Settle any ready pack request so an abandoned browser cannot hold the single-request queue open.
 7. Record every state transition and transaction hash before the epoch is complete.
 
@@ -54,8 +54,8 @@ The same wallet must currently be all four of these:
 
 - Pons token deployer
 - Pons creator-fee recipient
-- StonkRips pack-contract owner
-- StonkRips pack treasury
+- RipStonks pack-contract owner
+- RipStonks pack treasury
 
 It needs enough ETH for claims, approvals, swaps, transfers, and inventory loads. `HOLDER_EXCLUDE_ADDRESSES` is a comma-separated list for known pools, lockers, team allocations, and other addresses that must not participate.
 

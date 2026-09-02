@@ -13,21 +13,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://stonkrips.fun"),
-  title: "StonkRips — $20 Stock Token packs on Robinhood Chain",
-  description: "Rip a $20 USDG Stock Token pack. Hourly Pons creator fees split between weighted holder drops and funded pack inventory.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.stonkdrops.fun"),
+  title: "RipStonks — The Stock Pack Arcade on Robinhood Chain",
+  description: "Rip one $20 USDG inventory-backed pack and receive a Stock Token directly to your wallet. Powered by a Pons v2 hourly fee flywheel.",
   openGraph: {
-    title: "StonkRips — rip a pack, pull a Stock Token",
-    description: "$20 USDG packs with an hourly 50/50 Pons fee flywheel on Robinhood Chain.",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "StonkRips on Robinhood Chain" }],
+    title: "RipStonks — Rip packs. Pull stocks.",
+    description: "$20 USDG funded Stock Token packs with an hourly Pons v2 fee flywheel on Robinhood Chain.",
+    images: [{ url: "/ripstonks-arcade.jpg", width: 1280, height: 426, alt: "RipStonks arcade with Stock Token claw machines" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "StonkRips — rip a pack, pull a Stock Token",
-    description: "$20 USDG packs with an hourly 50/50 Pons fee flywheel on Robinhood Chain.",
-    images: ["/og.png"],
+    title: "RipStonks — Rip packs. Pull stocks.",
+    description: "$20 USDG funded Stock Token packs with an hourly Pons v2 fee flywheel on Robinhood Chain.",
+    images: ["/ripstonks-arcade.jpg"],
   },
-  icons: { icon: "/favicon.svg" },
+  icons: { icon: "/favicon.svg", apple: "/ripstonks-pack.jpg" },
 };
 
 export default function RootLayout({

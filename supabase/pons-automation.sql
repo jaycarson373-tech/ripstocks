@@ -1,4 +1,4 @@
--- StonkRips / Pons v2 hourly automation ledger.
+-- RipStonks / Pons v2 hourly automation ledger.
 -- Paste this entire file into a NEW Supabase project's SQL editor and run once.
 
 create extension if not exists pgcrypto;
@@ -187,6 +187,6 @@ grant execute on function public.acquire_automation_lock(text, integer) to servi
 grant execute on function public.release_automation_lock(text) to service_role;
 
 comment on table public.pons_epochs is
-  'One idempotent UTC epoch per StonkRips hourly Pons fee cycle.';
+  'One idempotent UTC epoch per RipStonks hourly Pons fee cycle.';
 comment on table public.pons_audit_events is
   'Append-only status transition evidence for each automation epoch.';

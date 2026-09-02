@@ -1,12 +1,12 @@
-# StonkRips
+# RipStonks
 
-StonkRips is an inventory-backed $20 USDG Stock Token pack interface for Robinhood Chain.
+RipStonks is an inventory-backed $20 USDG Stock Token pack interface for Robinhood Chain.
 
 It also includes a launch-gated Railway worker for Pons v2 creator fees. Once reviewed and enabled, each hourly cycle directs 50% of claimed SPY fees to one weighted holder Stock Token drop and 50% to a new funded pack inventory lot.
 
 ## Product flow
 
-1. The operator deploys `contracts/StonkRips.sol` with the official Robinhood Chain Stock Token allowlist.
+1. The operator deploys the existing `contracts/StonkRips.sol` artifact with the official Robinhood Chain Stock Token allowlist. The Solidity name is retained for deployment compatibility; the product brand is RipStonks.
 2. The operator approves and loads discrete Stock Token prize lots into the contract.
 3. A user approves exactly 20 USDG and opens a pack.
 4. A future Robinhood Chain blockhash selects one of the funded lots.

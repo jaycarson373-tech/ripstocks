@@ -181,7 +181,7 @@ async function validateOnchain(cfg, publicClient, account) {
     publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "owner" }),
     publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "treasury" }),
   ]);
-  if (getAddress(owner) !== account.address) throw new Error("The automation signer is not the StonkRips pack-contract owner");
+  if (getAddress(owner) !== account.address) throw new Error("The automation signer is not the RipStonks pack-contract owner");
   if (getAddress(treasury) !== account.address) throw new Error("The pack treasury must be the same automation wallet for this configuration");
   return launch;
 }
