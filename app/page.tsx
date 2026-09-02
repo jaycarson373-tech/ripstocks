@@ -392,7 +392,7 @@ export default function Home() {
       <div className="ambient" aria-hidden="true" />
       <nav className="nav shell" aria-label="Primary navigation">
         <a href="#top" className="brand" aria-label="RipStonks home">
-          <Image className="brand-logo" src="/ripstonks-pack.jpg" alt="RipStonks RS stock pack" width={48} height={48} priority />
+          <Image className="brand-logo" src="/ripstonks-pack.jpg" alt="RipStonks RS stock pack" width={48} height={48} priority unoptimized />
           <b>RIP <span>STONKS</span></b>
         </a>
         <div className="nav-links">
@@ -408,7 +408,7 @@ export default function Home() {
       </nav>
 
       <section className="hero" id="arcade">
-        <Image className="hero-arcade-art" src="/ripstonks-arcade.jpg" alt="" fill priority sizes="100vw" />
+        <Image className="hero-arcade-art" src="/ripstonks-arcade.jpg" alt="" fill priority sizes="100vw" unoptimized />
         <div className="hero-overlay" aria-hidden="true" />
         <div className="hero-inner shell">
           <div className="hero-copy">
@@ -447,7 +447,7 @@ export default function Home() {
                 ))}
               </div>
               <div className="rs-pack">
-                <Image src="/ripstonks-pack.jpg" alt="Black RipStonks RS pack" width={260} height={260} />
+                <Image src="/ripstonks-pack.jpg" alt="Black RipStonks RS pack" width={260} height={260} unoptimized />
               </div>
               <div className="glass-glare" aria-hidden="true" />
             </div>
@@ -565,7 +565,7 @@ export default function Home() {
       </section>
 
       <footer className="shell">
-        <a href="#top" className="brand" aria-label="RipStonks home"><Image className="brand-logo" src="/ripstonks-pack.jpg" alt="RipStonks RS stock pack" width={48} height={48} /><b>RIP <span>STONKS</span></b></a>
+        <a href="#top" className="brand" aria-label="RipStonks home"><Image className="brand-logo" src="/ripstonks-pack.jpg" alt="RipStonks RS stock pack" width={48} height={48} unoptimized /><b>RIP <span>STONKS</span></b></a>
         <div><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}<a href="https://docs.robinhood.com/chain/" target="_blank" rel="noreferrer">CHAIN DOCS</a></div>
         <span>ROBINHOOD CHAIN · 4663</span>
       </footer>
@@ -590,7 +590,7 @@ export default function Home() {
           <div className="reveal-machine">
             {revealStage !== "reveal" && <button className="skip-reveal" type="button" onClick={() => setRevealStage("reveal")}>SKIP ANIMATION</button>}
             <div className="result-claw" aria-hidden="true"><i /><b /><em /></div>
-            <div className="result-pack"><Image src="/ripstonks-pack.jpg" alt="RipStonks pack opening" width={220} height={220} /></div>
+            <div className="result-pack"><Image src="/ripstonks-pack.jpg" alt="RipStonks pack opening" width={220} height={220} unoptimized /></div>
             <div className="confirmed-prize">
               <button type="button" onClick={() => setPackResult(null)} aria-label="Close result">×</button>
               <span>CONFIRMED ON-CHAIN</span>
