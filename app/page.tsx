@@ -14,6 +14,9 @@ type PackStatus = {
   inventoryCount: number;
   maxPrizeUsd: number | null;
   packPriceUsd: number;
+  automationLive: boolean;
+  completedEpochs: number | null;
+  lastEpochStatus: string | null;
 };
 
 type StockToken = {
@@ -38,7 +41,7 @@ const CANONICAL_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const PACK_REQUESTED_TOPIC = "0x72ce6acbcd0dcdfc48c244249d669a4a6cfd9f429795cdcc5c430ad27273f383";
 const PRIZE_DELIVERED_TOPIC = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
 const PACK_CONTRACT = (process.env.NEXT_PUBLIC_STONKRIPS_CONTRACT || "").trim();
-const LONG_TOKEN_URL = (process.env.NEXT_PUBLIC_LONG_TOKEN_URL || "").trim();
+const PONS_TOKEN_URL = (process.env.NEXT_PUBLIC_PONS_TOKEN_URL || "").trim();
 const X_URL = (process.env.NEXT_PUBLIC_X_URL || "").trim();
 
 const STOCK_TOKENS: StockToken[] = [
@@ -60,6 +63,23 @@ const EMPTY_STATUS: PackStatus = {
   inventoryCount: 0,
   maxPrizeUsd: null,
   packPriceUsd: 20,
+  automationLive: false,
+  completedEpochs: null,
+  lastEpochStatus: null,
+};
+
+const AUTOMATION_LABELS: Record<string, string> = {
+  complete: "LAST CYCLE COMPLETE",
+  no_fees: "NO FEES TO ROUTE",
+  dry_run: "DRY RUN VERIFIED",
+  created: "CYCLE CREATED",
+  claiming: "CLAIMING FEES",
+  awaiting_seed: "AWAITING FAIR SEED",
+  holder_drop_swap: "BUYING HOLDER DROP",
+  holder_drop_send: "SENDING HOLDER DROP",
+  inventory_swap: "BUYING PACK INVENTORY",
+  inventory_load: "LOADING PACK INVENTORY",
+  error: "OPERATOR REVIEW REQUIRED",
 };
 
 function getProvider() {
@@ -267,14 +287,17 @@ export default function Home() {
     }
   }
 
-  const buttonLabel = busy ? "CONNECTING…" : !account ? "CONNECT WALLET" : !networkReady ? "SWITCH TO ROBINHOOD CHAIN" : !status.configured ? "CONTRACT DEPLOYING" : !status.packsLive ? "PACKS NOT LIVE" : status.inventoryCount < 1 ? "RESTOCKING" : "RIP FOR $20 USDG";
+  const buttonLabel = busy ? "PROCESSING…" : !account ? "CONNECT WALLET" : !networkReady ? "SWITCH TO ROBINHOOD CHAIN" : !status.configured ? "CONTRACT DEPLOYING" : !status.packsLive ? "PACKS NOT LIVE" : status.inventoryCount < 1 ? "RESTOCKING" : "RIP FOR $20 USDG";
+  const automationLabel = status.automationLive
+    ? AUTOMATION_LABELS[status.lastEpochStatus || ""] || "HOURLY WORKER ONLINE"
+    : "AUTOMATION SAFE MODE";
 
   return (
     <main id="top">
       <div className="ambient" aria-hidden="true" />
       <nav className="nav shell">
         <a href="#top" className="brand" aria-label="StonkRips home"><span className="brand-mark"><i>SR</i></span><b>STONK<span>RIPS</span></b></a>
-        <div className="nav-links"><a href="#packs">The pack</a><a href="#stocks">Stock Tokens</a><a href="#how">How it works</a></div>
+        <div className="nav-links"><a href="#packs">The pack</a><a href="#flywheel">Fee flywheel</a><a href="#stocks">Stock Tokens</a><a href="#roadmap">Roadmap</a></div>
         <button className="wallet-button" type="button" onClick={() => void connectWallet()} disabled={busy}>{account ? shortAddress(account) : "CONNECT WALLET"}</button>
       </nav>
 
@@ -282,10 +305,10 @@ export default function Home() {
         <div className="hero-copy">
           <div className="network-label"><span /> BUILT FOR ROBINHOOD CHAIN</div>
           <h1>RIP A PACK.<br/><em>PULL A STOCK TOKEN.</em></h1>
-          <p className="lead">Pay <strong>$20 USDG</strong>. Reveal one inventory-backed Robinhood Chain Stock Token. Most pulls are smaller; rare funded tiers can exceed <strong>$100</strong> once loaded.</p>
+          <p className="lead">Pay <strong>$20 USDG</strong> to reveal one inventory-backed Stock Token. The hourly Pons fee engine routes half to a weighted holder drop and half to new pack inventory when automation is live.</p>
           <div className="hero-actions">
             <button className="rip-button" type="button" onClick={() => void openPack()} disabled={busy || Boolean(account && networkReady && !canRip)}>{buttonLabel}<span>↗</span></button>
-            <a className="secondary-button" href={LONG_TOKEN_URL || "https://app.long.xyz/launch"} target="_blank" rel="noreferrer">{LONG_TOKEN_URL ? "TRADE STONKRIPS / SPY" : "VIEW LONG.XYZ"}</a>
+            <a className="secondary-button" href={PONS_TOKEN_URL || "https://robinhood.ponslaunchpad.com/"} target="_blank" rel="noreferrer">{PONS_TOKEN_URL ? "TRADE STONKRIPS / SPY" : "VIEW PONS V2"}</a>
           </div>
           <label className="eligibility"><input type="checkbox" checked={termsAccepted} disabled={regionAllowed === false} onChange={(event) => setTermsAccepted(event.target.checked)} /><span>{regionAllowed === false ? `This interface is unavailable in detected region ${country || "restricted"}.` : "I am 18+ and legally eligible to use Robinhood Chain Stock Tokens in my jurisdiction."}</span></label>
           {notice && <p className="notice" role="status">{notice}</p>}
@@ -326,15 +349,30 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="pairing shell">
-        <div><span>LONG.XYZ MARKET</span><h2>Paired with<br/><em>SPY.</em></h2></div>
-        <p>{LONG_TOKEN_URL ? "The official StonkRips market is configured against SPY on Long.xyz." : "The StonkRips / SPY Long.xyz market link will appear here once its official URL is configured."}</p>
-        <a href={LONG_TOKEN_URL || "https://app.long.xyz/launch"} target="_blank" rel="noreferrer">OPEN LONG.XYZ ↗</a>
+      <section className="fee-engine shell" id="flywheel">
+        <div className="fee-engine-heading"><span>PONS V2 CREATOR FEES</span><h2>One fee stream.<br/><em>Two funded paths.</em></h2><i className={status.automationLive ? "is-live" : ""}>{automationLabel}</i></div>
+        <div className="fee-split">
+          <article><b>50%</b><span>HOLDER DROP</span><p>Once per completed hourly cycle, half of claimed SPY creator fees buys one randomly routed Stock Token for one deterministically selected weighted holder.</p></article>
+          <article><b>50%</b><span>PACK TREASURY</span><p>The other half buys one Stock Token lot and loads it into the on-chain pack inventory. It deepens the funded prize pool without promising a return.</p></article>
+        </div>
+        <div className="engine-stats"><span><b>{status.completedEpochs ?? "—"}</b><small>COMPLETED FEE CYCLES</small></span><span><b>{status.inventoryCount || "—"}</b><small>FUNDED PACK LOTS</small></span><span><b>1 HR</b><small>FEE CYCLE</small></span></div>
+        <p className="engine-note">The worker remains transaction-disabled unless Railway reports live mode. Empty fee epochs do not fabricate drops, and every completed cycle is written to the audit ledger.</p>
+        <a href={PONS_TOKEN_URL || "https://robinhood.ponslaunchpad.com/"} target="_blank" rel="noreferrer">{PONS_TOKEN_URL ? "OPEN STONKRIPS ON PONS ↗" : "OPEN PONS V2 ↗"}</a>
+      </section>
+
+      <section className="roadmap shell" id="roadmap">
+        <div className="section-heading"><span>ROADMAP · NOT LIVE YET</span><h2>More ways<br/>to rip.</h2><p>Future releases stay separate from the funded launch mechanics until each feature is built, tested, and announced.</p></div>
+        <div className="roadmap-grid">
+          <article><em>01</em><h3>Curated pack series</h3><p>Distinct, fully funded pack pools organized around indexes, technology, and community-selected Stock Token rotations.</p></article>
+          <article><em>02</em><h3>Public treasury desk</h3><p>A receipt-first dashboard for fee claims, Stock Token purchases, inventory loads, holder drops, and realized pack history.</p></article>
+          <article><em>03</em><h3>Partner drops</h3><p>Clearly disclosed sponsored drops and launch collaborations that add prizes without drawing from existing inventory.</p></article>
+          <article><em>04</em><h3>Community rotation votes</h3><p>Holder input on future eligible stock rotations while winner selection and funded inventory remain independently auditable.</p></article>
+        </div>
       </section>
 
       <section className="legal shell">
         <b>IMPORTANT</b>
-        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. This interface blocks detected access from the United States, Canada, the United Kingdom, and Switzerland. A $100+ pull is possible only when a funded tier of that value is actually loaded; it is never a guaranteed return. StonkRips is independent and is not endorsed by Robinhood or Long.xyz.</p>
+        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. This interface blocks detected access from the United States, Canada, the United Kingdom, and Switzerland. A $100+ pull is possible only when a funded tier of that value is actually loaded; it is never a guaranteed return. Hourly drops occur only when the status above reports automation live and claimable fees exist. StonkRips is independent and is not endorsed by Robinhood, Pons, or 0x.</p>
       </section>
 
       <footer className="shell"><a href="#top" className="brand"><span className="brand-mark"><i>SR</i></span><b>STONK<span>RIPS</span></b></a><div><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}<a href="https://docs.robinhood.com/chain/" target="_blank" rel="noreferrer">CHAIN DOCS</a></div><span>ROBINHOOD CHAIN · 4663</span></footer>

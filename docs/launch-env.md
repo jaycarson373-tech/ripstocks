@@ -7,15 +7,16 @@ StonkRips is Robinhood Chain-only.
 ```bash
 NEXT_PUBLIC_SITE_URL=https://YOUR-DOMAIN
 NEXT_PUBLIC_STONKRIPS_CONTRACT=0xYOUR_DEPLOYED_PACK_CONTRACT
-NEXT_PUBLIC_LONG_TOKEN_URL=https://app.long.xyz/tokens/0xYOUR_STONKRIPS_TOKEN
+NEXT_PUBLIC_PONS_TOKEN_URL=https://YOUR_OFFICIAL_PONS_TOKEN_PAGE
 NEXT_PUBLIC_X_URL=https://x.com/YOUR_HANDLE
 PACKS_LIVE=false
+AUTOMATION_PUBLIC_LIVE=false
 ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 ```
 
 ## Railway
 
-The app does not require Railway for purchase settlement because the wallet talks directly to the pack contract. If Railway remains the chosen web host, use the same six values above. Do not add a private key to Vercel, Sites, or the web service.
+The browser talks directly to the pack contract. Railway runs the separate Pons fee worker described in `docs/pons-automation-setup.md`. Do not add the automation private key to Vercel, Sites, or a public web service.
 
 ## Safe activation order
 
@@ -28,6 +29,7 @@ The app does not require Railway for purchase settlement because the wallet talk
 7. Set `PACKS_LIVE=true` last.
 
 `PACKS_LIVE` is deliberately server-side. The status endpoint also verifies the on-chain inventory count before enabling checkout.
+`AUTOMATION_PUBLIC_LIVE` controls only the public status label; set it to `true` only after Railway is live and a complete audited epoch exists.
 
 ## Canonical chain values
 

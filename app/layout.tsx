@@ -15,16 +15,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://stonkrips.fun"),
   title: "StonkRips — $20 Stock Token packs on Robinhood Chain",
-  description: "Rip a $20 USDG pack for a chance to receive an inventory-backed Robinhood Chain Stock Token.",
+  description: "Rip a $20 USDG Stock Token pack. Hourly Pons creator fees split between weighted holder drops and funded pack inventory.",
   openGraph: {
     title: "StonkRips — rip a pack, pull a Stock Token",
-    description: "$20 USDG packs. Inventory-backed Stock Token drops on Robinhood Chain.",
+    description: "$20 USDG packs with an hourly 50/50 Pons fee flywheel on Robinhood Chain.",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "StonkRips on Robinhood Chain" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "StonkRips — rip a pack, pull a Stock Token",
-    description: "$20 USDG packs. Inventory-backed Stock Token drops on Robinhood Chain.",
+    description: "$20 USDG packs with an hourly 50/50 Pons fee flywheel on Robinhood Chain.",
     images: ["/og.png"],
   },
   icons: { icon: "/favicon.svg" },
