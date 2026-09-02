@@ -1,248 +1,351 @@
 "use client";
 
-import { type CSSProperties, useEffect, useRef, useState } from "react";
-import { AIRDROP_INTERVAL_MINUTES, HOLDER_TICKET_TOKENS, emptySnapshot, type ProtocolSnapshot } from "@/lib/protocol";
-import { detectSolanaProvider, type SolanaProvider, type SolanaPublicKey } from "@/lib/solana-wallet";
-import { Transaction } from "@solana/web3.js";
-import { VERIFIED_XSTOCKS } from "@/lib/xstocks";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
-type StockDisplay={ticker:string;name:string;color:string;ink:string;logo:string;logoUrl?:string};
-type ChatMessage={id:string;created_at:string;wallet:string;message:string};
-const STOCKDROPS_MINT=(process.env.NEXT_PUBLIC_STOCKDROPS_MINT||"").trim();
-const HAS_MINT=Boolean(STOCKDROPS_MINT);
-const X_URL=(process.env.NEXT_PUBLIC_X_URL||"").trim();
-const HAS_X=Boolean(X_URL);
-const JUPITER_BUY_URL=HAS_MINT?`https://jup.ag/?sell=So11111111111111111111111111111111111111112&buy=${STOCKDROPS_MINT}`:"#";
-const DEXSCREENER_URL=HAS_MINT?`https://dexscreener.com/solana/${STOCKDROPS_MINT}`:"#";
-const stocks:StockDisplay[] = VERIFIED_XSTOCKS.map(stock=>({ticker:stock.symbol,name:stock.name,color:stock.color,ink:stock.ink,logo:stock.logo,logoUrl:stock.logoUrl}));
-function stockVars(stock:StockDisplay){return {"--stock":stock.color,"--stockInk":stock.ink} as CSSProperties}
-function StockLogo({stock,className=""}:{stock:StockDisplay;className?:string}){return <span className={`stockLogo ${className}`} style={stockVars(stock)}>{stock.logoUrl&&<img src={stock.logoUrl} alt={`${stock.name} logo`} loading="lazy" onError={event=>{event.currentTarget.style.display="none"}}/>}<b>{stock.logo}</b></span>}
-function apiBase(){
-  const raw=(process.env.NEXT_PUBLIC_RAILWAY_API_URL||"").trim().replace(/^["']|["']$/g,"").replace(/\/$/,"");
-  if(!raw)return "";
-  return /^https?:\/\//i.test(raw)?raw:`https://${raw}`;
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
+  on?: (event: string, listener: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
+};
+
+type PackStatus = {
+  configured: boolean;
+  packsLive: boolean;
+  inventoryCount: number;
+  maxPrizeUsd: number | null;
+  packPriceUsd: number;
+};
+
+type StockToken = {
+  symbol: string;
+  name: string;
+  address: `0x${string}`;
+  logoUrl: string;
+  color: string;
+};
+
+type RpcReceipt = {
+  blockNumber: string;
+  status: string;
+  logs: Array<{ address: string; topics: string[]; data: string }>;
+};
+
+type PackResult = { stock: StockToken; valueUsd: number; transactionHash: string };
+
+const ROBINHOOD_CHAIN_ID = 4663;
+const ROBINHOOD_CHAIN_HEX = "0x1237";
+const CANONICAL_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
+const PACK_REQUESTED_TOPIC = "0x72ce6acbcd0dcdfc48c244249d669a4a6cfd9f429795cdcc5c430ad27273f383";
+const PRIZE_DELIVERED_TOPIC = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
+const PACK_CONTRACT = (process.env.NEXT_PUBLIC_STONKRIPS_CONTRACT || "").trim();
+const LONG_TOKEN_URL = (process.env.NEXT_PUBLIC_LONG_TOKEN_URL || "").trim();
+const X_URL = (process.env.NEXT_PUBLIC_X_URL || "").trim();
+
+const STOCK_TOKENS: StockToken[] = [
+  { symbol: "SPY", name: "SPDR S&P 500 ETF", address: "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x117cc2133c37b721f49de2a7a74833232b3b4c0c.png", color: "#ff725e" },
+  { symbol: "AAPL", name: "Apple", address: "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0xaf3d76f1834a1d425780943c99ea8a608f8a93f9.png", color: "#f4f4f1" },
+  { symbol: "NVDA", name: "NVIDIA", address: "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec.png", color: "#76b900" },
+  { symbol: "TSLA", name: "Tesla", address: "0x322F0929c4625eD5bAd873c95208D54E1c003b2d", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x322f0929c4625ed5bad873c95208d54e1c003b2d.png", color: "#e82127" },
+  { symbol: "MSFT", name: "Microsoft", address: "0xe93237C50D904957Cf27E7B1133b510C669c2e74", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0xe93237c50d904957cf27e7b1133b510c669c2e74.png", color: "#00a4ef" },
+  { symbol: "GOOGL", name: "Alphabet", address: "0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3.png", color: "#4285f4" },
+  { symbol: "AMZN", name: "Amazon", address: "0x12f190a9F9d7D37a250758b26824B97CE941bF54", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x12f190a9f9d7d37a250758b26824b97ce941bf54.png", color: "#ff9900" },
+  { symbol: "META", name: "Meta Platforms", address: "0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0xc0d6457c16cc70d6790dd43521c899c87ce02f35.png", color: "#168aff" },
+  { symbol: "QQQ", name: "Invesco QQQ", address: "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0xd5f3879160bc7c32ebb4dc785f8a4f505888de68.png", color: "#805ad5" },
+  { symbol: "COIN", name: "Coinbase", address: "0x6330D8C3178a418788dF01a47479c0ce7CCF450b", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x6330d8c3178a418788df01a47479c0ce7ccf450b.png", color: "#1652f0" },
+];
+
+const EMPTY_STATUS: PackStatus = {
+  configured: Boolean(PACK_CONTRACT),
+  packsLive: false,
+  inventoryCount: 0,
+  maxPrizeUsd: null,
+  packPriceUsd: 20,
+};
+
+function getProvider() {
+  if (typeof window === "undefined") return null;
+  return (window as Window & { ethereum?: EthereumProvider }).ethereum ?? null;
 }
+
+function shortAddress(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function hexWord(value: string | bigint) {
+  const raw = typeof value === "bigint" ? value.toString(16) : value.toLowerCase().replace(/^0x/, "");
+  return raw.padStart(64, "0");
+}
+
+function randomCommitment() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function waitForReceipt(provider: EthereumProvider, transactionHash: string) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const receipt = await provider.request({ method: "eth_getTransactionReceipt", params: [transactionHash] }) as RpcReceipt | null;
+    if (receipt) {
+      if (receipt.status === "0x0") throw new Error("TRANSACTION_REVERTED");
+      return receipt;
+    }
+    await delay(1_500);
+  }
+  throw new Error("RECEIPT_TIMEOUT");
+}
+
+function StockLogo({ stock }: { stock: StockToken }) {
+  return <span className="stock-token-logo" style={{ "--stock-color": stock.color } as CSSProperties}><img src={stock.logoUrl} alt="" /><i>{stock.symbol.slice(0, 1)}</i></span>;
+}
+
 export default function Home() {
-  const [tier, setTier] = useState(10);
-  const [wallet, setWallet] = useState("");
-  const [spectating, setSpectating] = useState(false);
-  const [opening, setOpening] = useState(false);
-  const [result, setResult] = useState<StockDisplay | null>(null);
-  const [pulledValue, setPulledValue] = useState(0);
-  const [walletError, setWalletError] = useState("");
-  const [connecting, setConnecting] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const providerRef = useRef<SolanaProvider | null>(null);
-  const [snapshot, setSnapshot] = useState<ProtocolSnapshot>(emptySnapshot());
-  const [seconds, setSeconds] = useState(AIRDROP_INTERVAL_MINUTES*60);
-  useEffect(() => { let offset=0; let end=Date.parse(snapshot.epochEndsAt); const load=async()=>{try{const r=await fetch("/api/protocol",{cache:"no-store"});const data=await r.json() as ProtocolSnapshot;offset=Date.parse(data.serverNow)-Date.now();end=Date.parse(data.epochEndsAt);setSnapshot(data)}catch{}}; load(); const refresh=window.setInterval(load,15000); const tick=window.setInterval(()=>setSeconds(Math.max(0,Math.ceil((end-(Date.now()+offset))/1000))),250); return()=>{window.clearInterval(tick);window.clearInterval(refresh)}; }, []);
+  const [account, setAccount] = useState("");
+  const [chainId, setChainId] = useState<number | null>(null);
+  const [status, setStatus] = useState<PackStatus>(EMPTY_STATUS);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [packResult, setPackResult] = useState<PackResult | null>(null);
+  const [regionAllowed, setRegionAllowed] = useState<boolean | null>(null);
+  const [country, setCountry] = useState<string | null>(null);
+
+  const networkReady = chainId === ROBINHOOD_CHAIN_ID;
+  const canRip = Boolean(account && networkReady && status.configured && status.packsLive && status.inventoryCount > 0 && termsAccepted && regionAllowed !== false && !busy);
+  const reel = useMemo(() => [...STOCK_TOKENS, ...STOCK_TOKENS], []);
+
   useEffect(() => {
-    let provider: SolanaProvider | null = null;
-    let attached = false;
-    const setAccount = (key?: SolanaPublicKey | null) => { setWallet(key?.toString() ?? ""); setWalletError(""); };
-    const clearAccount = () => { setWallet(""); setConnecting(false); };
-    const attach = async () => {
-      provider = detectSolanaProvider();
-      if (!provider) return;
-      if (attached) return;
-      attached = true;
-      providerRef.current = provider;
-      provider.on?.("connect", setAccount);
-      provider.on?.("accountChanged", setAccount);
-      provider.on?.("disconnect", clearAccount);
-      try { setAccount((await provider.connect({ onlyIfTrusted: true })).publicKey); } catch { /* No trusted session yet. */ }
-    };
-    void attach();
-    const retry = window.setTimeout(attach, 800);
-    window.addEventListener("solana#initialized", attach);
+    const provider = getProvider();
+    if (!provider) return;
+    const syncAccounts = (accounts: unknown) => setAccount(Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "");
+    const syncChain = (value: unknown) => setChainId(typeof value === "string" ? Number.parseInt(value, 16) : null);
+    void provider.request({ method: "eth_accounts" }).then(syncAccounts).catch(() => undefined);
+    void provider.request({ method: "eth_chainId" }).then(syncChain).catch(() => undefined);
+    provider.on?.("accountsChanged", syncAccounts);
+    provider.on?.("chainChanged", syncChain);
     return () => {
-      window.clearTimeout(retry);
-      window.removeEventListener("solana#initialized", attach);
-      provider?.off?.("connect", setAccount);
-      provider?.off?.("accountChanged", setAccount);
-      provider?.off?.("disconnect", clearAccount);
+      provider.removeListener?.("accountsChanged", syncAccounts);
+      provider.removeListener?.("chainChanged", syncChain);
     };
   }, []);
-  const countdown=`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
-  const drawsLive=snapshot.drawsLive;
-  const selectingWinner=drawsLive&&seconds<=15;
-  const drawStatus=selectingWinner?"SPINNING…":countdown;
-  const drawLabel=selectingWinner?"SELECTING WINNER":drawsLive?"NEXT DRAW":"NEXT 5M WINDOW";
-  const inventoryReady=snapshot.packsRemaining>0;
-  const stockStyle=(symbol:string)=>stocks.find(stock=>stock.ticker===symbol)??{ticker:symbol,name:symbol,color:"#a7ff16",ink:"#080808",logo:symbol.slice(0,1)};
-  const short=(address:string)=>address?`${address.slice(0,4)}…${address.slice(-4)}`:"—";
-  const approvedSymbols=new Set(stocks.map(stock=>stock.ticker));
-  const stockProofs=snapshot.proofs.filter(proof=>approvedSymbols.has(proof.stock));
-  const staleProofsHidden=snapshot.proofs.length!==stockProofs.length;
-  const visibleStockProofs=drawsLive?stockProofs:[];
-  const latestDrop=visibleStockProofs[0];
-  const proofPackLabel=(value:number|string)=>`$${Number(value).toFixed(2)} STOCK DROP`;
-  const displayedDropCount=drawsLive?(staleProofsHidden?stockProofs.length:Number(snapshot.totalHolderDrops)):0;
-  const displayedValueAirdropped=drawsLive?(staleProofsHidden?stockProofs.reduce((sum,proof)=>sum+Number(proof.value),0):Number(snapshot.totalValueAirdropped)):0;
-  const displayedAverageDrop=displayedDropCount>0?displayedValueAirdropped/displayedDropCount:Number(snapshot.averageHolderDropValue);
 
-  useEffect(()=>{const load=async()=>{try{const r=await fetch("/api/chat",{cache:"no-store"});const data=await r.json() as {messages?:ChatMessage[]};setChatMessages(data.messages||[])}catch{}};load();const timer=window.setInterval(load,5000);return()=>window.clearInterval(timer)},[]);
+  useEffect(() => {
+    void fetch("/api/robinhood/eligibility", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data: { allowed: boolean | null; country: string | null }) => { setRegionAllowed(data.allowed); setCountry(data.country); })
+      .catch(() => undefined);
+  }, []);
 
-  async function sendChat(){
-    const message=chatInput.trim();
-    if(!message)return;
-    setChatInput("");
-    try{
-      const response=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet:wallet||"spectator",message})});
-      const data=await response.json() as {message?:ChatMessage};
-      if(data.message)setChatMessages(messages=>[...messages.slice(-39),data.message as ChatMessage]);
-    }catch{}
-  }
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await fetch("/api/robinhood/status", { cache: "no-store" });
+        if (!response.ok) return;
+        const next = await response.json() as PackStatus;
+        if (active) setStatus(next);
+      } catch { /* Keep the safe launch-gated fallback visible. */ }
+    };
+    void load();
+    const timer = window.setInterval(load, 15_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
 
-  async function connect() {
-    const provider = providerRef.current ?? detectSolanaProvider();
-    if (provider) {
-      providerRef.current = provider;
-      setConnecting(true);
-      try { setWallet((await provider.connect()).publicKey.toString()); setWalletError(""); return; } catch { setWalletError("Wallet connection was cancelled or blocked. Unlock Phantom or Backpack and try again."); return; } finally { setConnecting(false); }
+  async function switchNetwork(provider: EthereumProvider) {
+    try {
+      await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ROBINHOOD_CHAIN_HEX }] });
+    } catch (error) {
+      const code = (error as { code?: number })?.code;
+      if (code !== 4902) throw error;
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: ROBINHOOD_CHAIN_HEX,
+          chainName: "Robinhood Chain",
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: ["https://rpc.mainnet.chain.robinhood.com"],
+          blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
+        }],
+      });
     }
-    setWalletError("No Solana wallet detected. Install Phantom or Backpack, then reload.");
+    setChainId(ROBINHOOD_CHAIN_ID);
   }
 
-  async function disconnect() {
-    try { await providerRef.current?.disconnect(); } finally { setWallet(""); setWalletError(""); setConnecting(false); }
+  async function connectWallet() {
+    const provider = getProvider();
+    if (!provider) {
+      setNotice("Install an EVM wallet such as Robinhood Wallet, MetaMask, or Rabby to continue.");
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    try {
+      const accounts = await provider.request({ method: "eth_requestAccounts" }) as string[];
+      setAccount(accounts[0] || "");
+      await switchNetwork(provider);
+    } catch {
+      setNotice("Wallet connection was cancelled. No transaction was sent.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openPack() {
-    const provider=providerRef.current; if(!provider||!wallet)return connect();
-    if(!inventoryReady){setWalletError("Inventory is restocking. No payment was requested.");return}
-    const base=apiBase();
-    setWalletError(""); setOpening(true); setResult(null);
-    try{
-      const created=await fetch(`${base}/api/checkout/create`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet})});
-      const checkout=await created.json() as {orderId?:string;transaction?:string;error?:string};
-      if(!created.ok||!checkout.orderId||!checkout.transaction)throw new Error(created.status===409?"Inventory is restocking. Try again in a moment.":"Pack checkout is warming up. Try again in a moment.");
-      const bytes=Uint8Array.from(atob(checkout.transaction),c=>c.charCodeAt(0));
-      const {signature}=await provider.signAndSendTransaction(Transaction.from(bytes));
-      const confirmed=await fetch(`${base}/api/checkout/confirm`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:checkout.orderId,paymentSignature:signature,wallet})});
-      const pull=await confirmed.json() as {symbol?:string;value?:number;error?:string};
-      if(!confirmed.ok||!pull.symbol)throw new Error("Payment received. Delivery is retrying.");
-      setPulledValue(Number(pull.value)||0); setOpening(false); setResult(stocks.find(stock=>stock.ticker===pull.symbol)??{ticker:pull.symbol,name:pull.symbol,color:"#a7ff16",ink:"#080808",logo:pull.symbol.slice(0,1)});
-    }catch(error){setOpening(false);setWalletError(error instanceof Error&&error.message.includes("User rejected")?"Transaction cancelled. No payment was taken.":"Pack checkout did not start. Refresh and try again.")}
+    if (!account) return connectWallet();
+    if (!networkReady) {
+      const provider = getProvider();
+      if (provider) await switchNetwork(provider);
+      return;
+    }
+    if (!status.configured || !status.packsLive) {
+      setNotice("Pack contract is not live yet. No payment was requested.");
+      return;
+    }
+    if (status.inventoryCount < 1) {
+      setNotice("Inventory is empty. No payment was requested.");
+      return;
+    }
+    const provider = getProvider();
+    if (!provider) return;
+    setBusy(true);
+    setNotice("Checking your 20 USDG allowance…");
+    try {
+      const priceAtoms = BigInt(Math.round(status.packPriceUsd * 1_000_000));
+      const allowanceData = `0xdd62ed3e${hexWord(account)}${hexWord(PACK_CONTRACT)}`;
+      const allowanceHex = await provider.request({ method: "eth_call", params: [{ from: account, to: CANONICAL_USDG, data: allowanceData }, "latest"] }) as string;
+      if (BigInt(allowanceHex) < priceAtoms) {
+        setNotice("Approve exactly 20 USDG in your wallet.");
+        const approvalHash = await provider.request({
+          method: "eth_sendTransaction",
+          params: [{ from: account, to: CANONICAL_USDG, data: `0x095ea7b3${hexWord(PACK_CONTRACT)}${hexWord(priceAtoms)}`, value: "0x0" }],
+        }) as string;
+        await waitForReceipt(provider, approvalHash);
+      }
+
+      setNotice("Confirm the $20 pack rip in your wallet.");
+      const commitment = randomCommitment();
+      const openHash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: account, to: PACK_CONTRACT, data: `0x15437c79${hexWord(commitment)}`, value: "0x0" }],
+      }) as string;
+      const openReceipt = await waitForReceipt(provider, openHash);
+      const requestLog = openReceipt.logs.find((log) => log.address.toLowerCase() === PACK_CONTRACT.toLowerCase() && log.topics[0]?.toLowerCase() === PACK_REQUESTED_TOPIC);
+      if (!requestLog?.topics[1]) throw new Error("REQUEST_EVENT_MISSING");
+      const requestId = BigInt(requestLog.topics[1]);
+      const entropyBlock = BigInt(requestLog.data);
+      setNotice("Pack locked. Waiting for Robinhood Chain entropy…");
+
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        const blockHex = await provider.request({ method: "eth_blockNumber" }) as string;
+        if (BigInt(blockHex) > entropyBlock) break;
+        await delay(1_500);
+        if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
+      }
+
+      setNotice("Reveal ready. Confirm the final on-chain reveal.");
+      const settleHash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: account, to: PACK_CONTRACT, data: `0x8533498d${hexWord(requestId)}`, value: "0x0" }],
+      }) as string;
+      const settleReceipt = await waitForReceipt(provider, settleHash);
+      const prizeLog = settleReceipt.logs.find((log) => log.address.toLowerCase() === PACK_CONTRACT.toLowerCase() && log.topics[0]?.toLowerCase() === PRIZE_DELIVERED_TOPIC);
+      if (!prizeLog?.topics[3]) throw new Error("PRIZE_EVENT_MISSING");
+      const tokenAddress = `0x${prizeLog.topics[3].slice(-40)}`.toLowerCase();
+      const valueUsd = Number(BigInt(`0x${prizeLog.data.slice(66, 130)}`)) / 1_000_000;
+      const stock = STOCK_TOKENS.find((candidate) => candidate.address.toLowerCase() === tokenAddress);
+      if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
+      setPackResult({ stock, valueUsd, transactionHash: settleHash });
+      setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
+      setNotice("");
+    } catch (error) {
+      const code = (error as { code?: number })?.code;
+      setNotice(code === 4001 ? "Transaction cancelled. No new transaction was sent." : "The pack could not complete. Check the wallet activity before retrying.");
+    } finally {
+      setBusy(false);
+    }
   }
 
+  const buttonLabel = busy ? "CONNECTING…" : !account ? "CONNECT WALLET" : !networkReady ? "SWITCH TO ROBINHOOD CHAIN" : !status.configured ? "CONTRACT DEPLOYING" : !status.packsLive ? "PACKS NOT LIVE" : status.inventoryCount < 1 ? "RESTOCKING" : "RIP FOR $20 USDG";
+
   return (
-    <main>
-      <div className="pageBackdrop" aria-hidden="true" />
-      <div className="grain" />
-      <nav className="nav wrap">
-        <a className="brand brandImage" href="#top" aria-label="Stonk Drops home"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></a>
-        <div className="navlinks"><a href="#how">How it works</a><a href="#draw">Draw</a><a href="#live">Room</a><a href="#flywheel">Proof</a></div>
-        <div className="navActions">
-          {HAS_X?<a className="xPill" href={X_URL} target="_blank" rel="noreferrer">X</a>:<span className="xPill isSoon">X SOON</span>}
-        </div>
+    <main id="top">
+      <div className="ambient" aria-hidden="true" />
+      <nav className="nav shell">
+        <a href="#top" className="brand" aria-label="StonkRips home"><span className="brand-mark"><i>SR</i></span><b>STONK<span>RIPS</span></b></a>
+        <div className="nav-links"><a href="#packs">The pack</a><a href="#stocks">Stock Tokens</a><a href="#how">How it works</a></div>
+        <button className="wallet-button" type="button" onClick={() => void connectWallet()} disabled={busy}>{account ? shortAddress(account) : "CONNECT WALLET"}</button>
       </nav>
 
-      <section className="hero wrap" id="top">
-        <div className="heroCopy">
-          <div className="eyebrow"><span /> STONK DROP FLYWHEEL ON SOLANA</div>
-          <h1>Hold DROPS.<br/><em>Get paid in stocks.</em></h1>
-          <p>{drawsLive?`Every ${AIRDROP_INTERVAL_MINUTES} minutes, Stonk Drops turns creator fees into a random xStock airdrop for one weighted holder.`:`When draws start, Stonk Drops will turn accumulated creator fees into random xStock airdrops for weighted holders.`}</p>
-          <p className="heroSupport">{drawsLive?"Hold DROPS, earn tickets, watch the flywheel buy stocks, drop them to holders, and build the jackpot.":"Hold DROPS, earn tickets, and watch the treasury accumulate before the first announced draw."}</p>
-          <div className="heroDropGrid" aria-label="All 10 Stonk Drops in rotation">
-            {stocks.map(stock=><span key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock} className="heroDropLogo"/><b>{stock.ticker}</b></span>)}
+      <section className="hero shell">
+        <div className="hero-copy">
+          <div className="network-label"><span /> BUILT FOR ROBINHOOD CHAIN</div>
+          <h1>RIP A PACK.<br/><em>PULL A STOCK TOKEN.</em></h1>
+          <p className="lead">Pay <strong>$20 USDG</strong>. Reveal one inventory-backed Robinhood Chain Stock Token. Most pulls are smaller; rare funded tiers can exceed <strong>$100</strong> once loaded.</p>
+          <div className="hero-actions">
+            <button className="rip-button" type="button" onClick={() => void openPack()} disabled={busy || Boolean(account && networkReady && !canRip)}>{buttonLabel}<span>↗</span></button>
+            <a className="secondary-button" href={LONG_TOKEN_URL || "https://app.long.xyz/launch"} target="_blank" rel="noreferrer">{LONG_TOKEN_URL ? "TRADE STONKRIPS / SPY" : "VIEW LONG.XYZ"}</a>
           </div>
-          <div className="heroActions">{HAS_MINT?<a className="primary" href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY ON JUPITER <b>↗</b></a>:<span className="primary disabledCta">CONTRACT SOON</span>}<button className="textBtn" onClick={() => setSpectating(true)}>{drawsLive?"OPEN LIVE ROOM":"OPEN DROP ROOM"} <span>●</span></button></div>
-          <div className="proof"><div><b>{HOLDER_TICKET_TOKENS/1000}K</b><span>DROPS / TICKET</span></div><div className={`nextDrop ${selectingWinner?"isSelecting":""}`}><b>{drawStatus}</b><span>{drawLabel}</span></div><div><b>20%</b><span>JACKPOT FUND</span></div></div>
+          <label className="eligibility"><input type="checkbox" checked={termsAccepted} disabled={regionAllowed === false} onChange={(event) => setTermsAccepted(event.target.checked)} /><span>{regionAllowed === false ? `This interface is unavailable in detected region ${country || "restricted"}.` : "I am 18+ and legally eligible to use Robinhood Chain Stock Tokens in my jurisdiction."}</span></label>
+          {notice && <p className="notice" role="status">{notice}</p>}
+          <div className="hero-facts"><span><b>$20</b><small>FIXED PACK PRICE</small></span><span><b>{status.inventoryCount || "—"}</b><small>FUNDED PACKS</small></span><span><b>{status.maxPrizeUsd ? `$${status.maxPrizeUsd}` : "—"}</b><small>CURRENT TOP TIER</small></span></div>
         </div>
-        <div className="machine caseMachine" aria-label="Animated Stonk Drops selection machine">
-          <div className="machineTop"><span>STONK DROP PICKER</span>{drawsLive&&<i>LIVE</i>}</div>
-          <div className="window">
-            <div className="glow" />
-            <div className="casePointer" />
-            <div className="caseReel">{[...stocks,...stocks].map((stock,index)=><span className="caseCard" key={`${stock.ticker}-${index}`} style={stockVars(stock)}><StockLogo stock={stock} className="caseLogo"/><b>{stock.ticker}</b><small>${[1,2,3,5,8,10,12,15,20,25,30][index%11]}</small></span>)}</div>
-            <div className="caseResult"><small>{drawsLive?"LATEST DROP":"NO DROPS YET"}</small><b>{drawsLive?(latestDrop?.stock || "DROPS"):"DROPS"}</b><em>{drawsLive?(latestDrop?`$${Number(latestDrop.value).toFixed(2)}`:"ARMED"):"ARMING TREASURY"}</em></div>
+
+        <div className="pack-terminal" id="packs">
+          <div className="terminal-head"><span>STONKRIPS // PACK_01</span><i>{status.packsLive ? "LIVE" : "PRELAUNCH"}</i></div>
+          <div className="reel-window">
+            <div className="reel-line" />
+            <div className="reel-track">{reel.map((stock, index) => <div className="reel-stock" key={`${stock.symbol}-${index}`}><StockLogo stock={stock}/><b>{stock.symbol}</b><small>STOCK TOKEN</small></div>)}</div>
+            <div className="mystery-pack"><span>ROBINHOOD CHAIN</span><b>STONK<br/>RIPS</b><small>$20 USDG · 1 RANDOM DROP</small></div>
           </div>
-          <div className="belt">{[1,2,3,4,5,6].map(n=><span key={n} />)}</div>
-          <div className="machineBase"><span>80% STOCK BUY</span><b>→</b><span>20% JACKPOT</span></div>
+          <div className="terminal-foot"><span>SETTLEMENT <b>USDG</b></span><span>GAS <b>ETH</b></span><span>PAIR <b>SPY</b></span></div>
         </div>
       </section>
 
-      <div className="ticker"><div>{visibleStockProofs.length?[...visibleStockProofs,...visibleStockProofs].map((rip,i)=>{const s=stockStyle(rip.stock);return <span key={`${rip.signature}-${i}`}><StockLogo stock={s} className="tickerLogo"/><b style={{color:s.color}}>{rip.stock}</b> ${Number(rip.value).toFixed(2)} · {short(rip.winner)} <i>◆</i></span>}):[...stocks,...stocks].map((s,i)=><span key={i}><StockLogo stock={s} className="tickerLogo"/><b>{s.ticker}</b> {s.name} <i>◆</i></span>)}</div></div>
+      <div className="market-tape"><div>{[...STOCK_TOKENS, ...STOCK_TOKENS].map((stock, index) => <span key={`${stock.symbol}-tape-${index}`}><StockLogo stock={stock}/><b>{stock.symbol}</b><i>◆</i></span>)}</div></div>
 
-      <section className="dropDesk wrap" aria-label={drawsLive?"Stonk Drops live routing board":"Stonk Drops routing preview"}>
-        <div className="deskCard wide">
-          <span className="kicker">{drawsLive?"LIVE ROUTING":"ROUTING PREVIEW"}</span>
-          <h2>The flywheel buys stocks for holders.</h2>
-          <p>{drawsLive?"80% of fees buy random xStocks for 5-minute holder drops. 20% stacks the jackpot, so volume keeps feeding the next rewards.":"Once the drop engine is activated, 80% of fees will buy random xStocks for holder drops. 20% will stack the jackpot reserve."}</p>
-        </div>
-        <div className="deskCard"><b>80%</b><span>Stock-drop fund</span><p>Used to buy the next random xStock for holder airdrops.</p></div>
-        <div className="deskCard"><b>20%</b><span>Jackpot fund</span><p>Accumulates separately as the reserve grows.</p></div>
-        <div className="deskCard"><b>5m</b><span>{drawsLive?"Live draw loop":"Draw loop"}</span><p>{drawsLive?"Every epoch can restock inventory, snapshot holders, and publish proof.":"Once active, each epoch can restock inventory, snapshot holders, and publish proof."}</p></div>
+      <section className="value-grid shell" aria-label="StonkRips highlights">
+        <article><span>01</span><h2>One clean price.</h2><p>Every pack costs exactly $20 in canonical USDG. ETH is used only for Robinhood Chain gas.</p></article>
+        <article><span>02</span><h2>Funded inventory.</h2><p>The button only activates when the deployed contract reports at least one Stock Token lot ready to deliver.</p></article>
+        <article><span>03</span><h2>On-chain receipt.</h2><p>Payment, selection request, and Stock Token transfer are independently visible on Robinhood Chain.</p></article>
       </section>
 
-      <section className="topLiveChat wrap" aria-label={drawsLive?"Live spectator chat":"Spectator chat"}>
-        <div className="chatHead"><b>{drawsLive?"LIVE CHAT":"CHAT"}</b><span>{chatMessages.length||"0"} MSGS</span></div>
-        <div className="chatStream">{chatMessages.length?chatMessages.map(message=><div key={message.id}><span>{short(message.wallet)}</span><p>{message.message}</p></div>):<div><span>SYSTEM</span><p>Chat opens with the first draw.</p></div>}</div>
-        <div className="chatComposer"><input value={chatInput} onChange={event=>setChatInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void sendChat()}} placeholder="Chat as spectator" maxLength={180}/><button type="button" onClick={()=>void sendChat()}>SEND</button></div>
+      <section className="stock-section shell" id="stocks">
+        <div className="section-heading"><span>OFFICIAL ROBINHOOD CHAIN ASSETS</span><h2>Ten ways<br/>to rip.</h2><p>The launch rotation uses standard 18-decimal ERC-20 Stock Tokens discovered through Robinhood&apos;s asset registry.</p></div>
+        <div className="stock-grid">{STOCK_TOKENS.map((stock, index) => <a key={stock.symbol} href={`https://robinhoodchain.blockscout.com/token/${stock.address}`} target="_blank" rel="noreferrer"><em>{String(index + 1).padStart(2, "0")}</em><StockLogo stock={stock}/><span><b>{stock.symbol}</b><small>{stock.name}</small></span><i>↗</i></a>)}</div>
       </section>
 
-      <section className="winUniverse wrap" aria-label="Approved xStocks in Stonk Drops">
-        <div><span className="kicker">10 STOCKS IN ROTATION</span><p>Each holder draw spins through the approved xStock universe before a funded stock drop is airdropped.</p></div>
-        <div className="winLogoGrid">{stocks.map(stock=><div key={stock.ticker} style={stockVars(stock)}><StockLogo stock={stock}/><b>{stock.ticker}</b><span>{stock.name}</span></div>)}</div>
-      </section>
-
-      <section className="howWorks wrap" id="how" aria-labelledby="how-title">
-        <div className="howIntro">
-          <span className="kicker">HOW IT WORKS</span>
-          <h2 id="how-title">Hold DROPS.<br/>Get stock drops.</h2>
-          <p>{drawsLive?"Stonk Drops collects fees, buys live xStocks, snapshots holders, selects one wallet, and publishes proof after each confirmed airdrop.":"Stonk Drops will use accumulated fees to buy xStocks, snapshot holders, select one wallet, and publish proof after each confirmed airdrop."}</p>
-        </div>
-        <div className="howGrid">
-          {[
-            ["01","HOLD DROPS",`${HOLDER_TICKET_TOKENS.toLocaleString()} DROPS equals one weighted ticket for the next draw.`],
-            ["02","FEES ROUTE 80/20","80% buys stock drops. 20% builds the jackpot reserve."],
-            ["03","DROP PICKER","Each epoch will buy or select a random approved xStock for the next draw."],
-            ["04","ONE LUCKY HOLDER","The picker resolves to one weighted holder once draws are active."],
-            ["05","AIRDROP + PROOF",drawsLive?"The stock drop is sent to the winner and the transaction proof appears on the site.":"Once active, the stock drop will be sent to the winner and the transaction proof will appear on the site."]
-          ].map(step=><article key={step[0]}><b>{step[0]}</b><span>{step[1]}</span><p>{step[2]}</p></article>)}
+      <section className="how shell" id="how">
+        <div className="section-heading"><span>PACK FLOW</span><h2>Four moves.<br/>One reveal.</h2></div>
+        <div className="steps">
+          <article><b>1</b><h3>Connect</h3><p>Use an EVM wallet and switch to Robinhood Chain, network 4663.</p></article>
+          <article><b>2</b><h3>Approve</h3><p>Approve exactly 20 USDG for the StonkRips pack contract.</p></article>
+          <article><b>3</b><h3>Rip</h3><p>A future Robinhood Chain blockhash selects one funded inventory lot on-chain.</p></article>
+          <article><b>4</b><h3>Receive</h3><p>The selected Stock Token transfers directly to the connected wallet.</p></article>
         </div>
       </section>
 
-      <section className="packs wrap" id="draw">
-        <div className="liveStats">{[
-          ["TREASURY DROPS READY",snapshot.holderPacksAvailable,false],
-          ["CURRENT DRAW EV",snapshot.averageHolderDropValue,true],
-          ["TREASURY BALANCE",snapshot.holderAirdropTreasury,true],
-          ["JACKPOT FUND",snapshot.packEvReserve,true],
-          ["DRAWS COMPLETED",displayedDropCount,false],
-          ["AVERAGE DROP VALUE",displayedAverageDrop,true],
-          ["VALUE AIRDROPPED",displayedValueAirdropped,true],
-        ].map(([label,value,currency])=><div key={String(label)}><span>{label}</span><b>{currency?`$${Number(value).toFixed(2)}`:Number(value).toLocaleString()}</b></div>)}</div>
-        <div className="inventoryLog" aria-label="Inventory purchase log">
-          {snapshot.inventoryLogs.length?snapshot.inventoryLogs.slice(0,4).map(log=><a key={`${log.source}-${log.signature}`} href={`https://solscan.io/tx/${log.signature}`} target="_blank" rel="noreferrer"><span>{log.source}</span><b>{log.message}</b><i>+{log.count}</i><em>{new Date(log.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</em></a>):<div><span>Inventory Log</span><b>Draw inventory logs begin once the drop engine is activated</b><i>+0</i><em>{drawsLive?"LIVE":"PENDING"}</em></div>}
-        </div>
-        <div className="sectionHead"><div><span className="kicker">{drawsLive?"LIVE HOLDER DROP":"HOLDER DROP PREVIEW"}</span><h2>One stock.<br/>Every 5 minutes.</h2></div><p>{drawsLive?"Fees stock the treasury with xStock drops from $1 to $30. The draw picks one weighted holder, runs the selector, sends the winning stock drop, and posts proof. The jackpot fund is tracked separately as the reserve grows.":"Once draws start, accumulated fees will stock the treasury with xStock drops from $1 to $30. The draw will pick one weighted holder, run the selector, send the winning stock drop, and post proof."}</p></div>
-        <div className="ripBar drawBar">
-          <div><span>{drawLabel}</span><b>{drawStatus}</b></div><div><span>ENTRY</span><b>{HOLDER_TICKET_TOKENS.toLocaleString()} DROPS = 1 TICKET</b></div><a href="#live">WATCH ROOM <span>→</span></a>
-        </div>
+      <section className="pairing shell">
+        <div><span>LONG.XYZ MARKET</span><h2>Paired with<br/><em>SPY.</em></h2></div>
+        <p>{LONG_TOKEN_URL ? "The official StonkRips market is configured against SPY on Long.xyz." : "The StonkRips / SPY Long.xyz market link will appear here once its official URL is configured."}</p>
+        <a href={LONG_TOKEN_URL || "https://app.long.xyz/launch"} target="_blank" rel="noreferrer">OPEN LONG.XYZ ↗</a>
       </section>
 
-      <section className="live" id="live"><div className="wrap">
-        <div className="liveHead"><div><span className="liveDot"/> {drawsLive?"LIVE DROP ROOM":"DROP ROOM"}</div><p>{drawsLive?"Everyone can watch the draw, proof, and chat.":"The room will show draws, proofs, and chat once the drop engine is activated."}</p><button onClick={()=>setSpectating(!spectating)}>{spectating?(drawsLive?"WATCHING LIVE":"WATCHING"):"SPECTATE"} ◉</button></div>
-        <div className="liveRoom">
-          <div className="table"><div className="tr labels"><span>WINNER</span><span>DROP</span><span>STOCK</span><span>VALUE</span><span>PROOF</span></div>{visibleStockProofs.map((rip,i)=>{const style=stockStyle(rip.stock);return <div className="tr" key={rip.signature||i}><span><i className={`avatar a${i%4}`}/>{short(rip.winner)}</span><span>{proofPackLabel(rip.value)}</span><span><b className="stockBadge" style={stockVars(style)}><StockLogo stock={style} className="badgeLogo"/>{rip.stock}</b></span><span>${Number(rip.value).toFixed(2)}</span><span><a href={`https://solscan.io/tx/${rip.signature}`} target="_blank" rel="noreferrer">TX ↗</a></span></div>})}{visibleStockProofs.length===0&&<div className="emptyProof">Draw proofs begin once the drop engine is activated.</div>}</div>
-        </div>
-      </div></section>
+      <section className="legal shell">
+        <b>IMPORTANT</b>
+        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. This interface blocks detected access from the United States, Canada, the United Kingdom, and Switzerland. A $100+ pull is possible only when a funded tier of that value is actually loaded; it is never a guaranteed return. StonkRips is independent and is not endorsed by Robinhood or Long.xyz.</p>
+      </section>
 
-      <section className="fly wrap" id="flywheel"><span className="kicker">PROOF ENGINE</span><h2>Fair seed.<br/><em>On-chain receipt.</em></h2><div className="protocolSteps">{[["01","HOLDER SNAPSHOT",`${HOLDER_TICKET_TOKENS.toLocaleString()} DROPS equals one draw ticket. More tickets means more weight, not a guaranteed win.`],["02","80/20 ROUTING","80% of creator fees funds stock drops. 20% accrues to the jackpot reserve."],["03","PUBLIC SEED",drawsLive?"Each draw combines the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash.":"When active, each draw will combine the 5-minute epoch, a public Solana blockhash, and the holder snapshot hash."],["04",`EVERY ${AIRDROP_INTERVAL_MINUTES} MINUTES`,drawsLive?"One weighted holder is selected and Stonk Drops resolves to one funded xStock drop.":"One weighted holder will be selected and Stonk Drops will resolve to one funded xStock drop once activated."],["05","PUBLISHED PROOF","The winner, stock, amount, transaction, and fairness seed are published after payout."]].map(s=><div className="hourStep" key={s[0]}><b>{s[0]}</b><span>{s[1]}</span><p>{s[2]}</p></div>)}</div>
-      <div className="dropProof"><div className="proofTitle"><div><span className="liveDot"/> STONK DROPS PROOFS</div><b>{selectingWinner?"SELECTING WINNER · SPINNING…":`${drawLabel} ${countdown}`}</b></div><div className="proofRows"><div className="proofRow proofLabels"><span>WINNER</span><span>DROP</span><span>STOCK</span><span>VALUE</span><span>SEED</span><span>TX PROOF</span></div>{visibleStockProofs.map((a,i)=><div className="proofRow" key={a.signature||i}><span>{short(a.winner)}</span><span>{proofPackLabel(a.value)}</span><span><b>{a.stock}</b></span><span>${Number(a.value).toFixed(2)}</span><span>{a.randomSeed?short(a.randomSeed):new Date(a.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span><span><a href={`https://solscan.io/tx/${a.signature}`} target="_blank" rel="noreferrer">{short(a.signature)} ↗</a></span></div>)}{visibleStockProofs.length===0&&<div className="emptyProof">Proof rows begin once the drop engine is activated.</div>}</div></div><p className="disclaimer">{drawsLive?"Stonk Drops draws are statistical holder rewards funded by treasury inventory.":"When active, Stonk Drops draws will be statistical holder rewards funded by treasury inventory."} 250k DROPS equals one ticket. 80% of creator fees funds stock drops and 20% accrues to the jackpot reserve. EV is a statistical expected value calculated from available inventory; it is not a promise of profit.</p></section>
+      <footer className="shell"><a href="#top" className="brand"><span className="brand-mark"><i>SR</i></span><b>STONK<span>RIPS</span></b></a><div><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}<a href="https://docs.robinhood.com/chain/" target="_blank" rel="noreferrer">CHAIN DOCS</a></div><span>ROBINHOOD CHAIN · 4663</span></footer>
 
-      <section className="verifiedUniverse wrap" aria-labelledby="verified-title"><div className="verifiedHead"><div><span className="kicker">WHICH STOCKS CAN DROP?</span><h2 id="verified-title">10 verified xStocks.<br/>Loaded for airdrops.</h2></div><p>{drawsLive?"Stonk Drops inventory is restricted to this approved Solana xStock universe. Every draw resolves to one treasury-funded stock drop.":"Stonk Drops inventory will be restricted to this approved Solana xStock universe once draws are activated."}</p></div><div className="verifiedGrid">{stocks.map((stock,index)=><a key={stock.ticker} href={`https://solscan.io/token/${VERIFIED_XSTOCKS[index].mint}`} target="_blank" rel="noreferrer"><span>{String(index+1).padStart(2,"0")}</span><StockLogo stock={stock} className="verifiedLogo"/><div><b>{stock.ticker}</b><small>{stock.name}</small></div><code>{VERIFIED_XSTOCKS[index].mint.slice(0,8)}…{VERIFIED_XSTOCKS[index].mint.slice(-6)}</code><i>↗</i></a>)}</div></section>
-
-      <div className="brandBanner bottomBanner wrap"><img src="/brand/stonkdrops-banner.jpg" alt="Stonk Drops — tokenized stock airdrops"/></div>
-
-      <footer><div className="wrap"><div className="brand brandImage"><img src="/brand/stonkdrops-logo.jpg" alt=""/><span><em>stonk</em>drops</span></div><div className="footerLinks">{HAS_X?<a href={X_URL} target="_blank" rel="noreferrer">X</a>:<span>X SOON</span>}{HAS_MINT&&<><a href={DEXSCREENER_URL} target="_blank" rel="noreferrer">DEXSCREENER</a><a href={JUPITER_BUY_URL} target="_blank" rel="noreferrer">BUY $DROPS</a></>}</div><span>BUILT ON SOLANA ◈</span></div></footer>
-
-      {(opening||result) && <div className="modal" role="dialog" aria-modal="true"><div className={`reveal ${opening?"opening":""}`}>
-        <button className="close" onClick={()=>{setOpening(false);setResult(null)}}>×</button>
-        {opening ? <><span className="kicker">DROPPING ONCHAIN</span><div className="ripAnim"><div className="pack"><strong>STOCK<br/>DROP</strong></div></div><p>VERIFYING DROP…</p></> : result && <><span className="kicker">YOU RECEIVED</span><div className="stockResult" style={{background:result.color,color:result.ink}}><small>xSTOCK</small><b>{result.ticker}</b><span>{result.name}</span></div><h3>${pulledValue.toFixed(2)} OF {result.name.toUpperCase()}</h3><p>Delivered to {wallet.slice(0,4)}…{wallet.slice(-4)}</p><div className="instantProof"><span>PROOF</span><b>Posts instantly after mainnet confirmation ↗</b></div><button className="primary" onClick={()=>setResult(null)}>CLOSE →</button></>}
+      {packResult && <div className="result-modal" role="dialog" aria-modal="true" aria-label="Pack result"><div className="result-card">
+        <button type="button" onClick={() => setPackResult(null)} aria-label="Close result">×</button>
+        <span>PACK REVEALED</span>
+        <StockLogo stock={packResult.stock}/>
+        <h2>{packResult.stock.symbol}</h2>
+        <p>${packResult.valueUsd.toFixed(2)} OF {packResult.stock.name.toUpperCase()}</p>
+        <a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW ON-CHAIN RECEIPT ↗</a>
       </div></div>}
     </main>
   );
