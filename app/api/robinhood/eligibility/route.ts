@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-const RESTRICTED_COUNTRIES = new Set(["US", "CA", "GB", "CH"]);
+const RESTRICTED_COUNTRIES = new Set(["US", "GB", "CH"]);
 
 export async function GET() {
   const requestHeaders = await headers();

@@ -561,7 +561,7 @@ export default function Home() {
 
       <section className="legal shell">
         <b>IMPORTANT</b>
-        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. This interface blocks detected access from the United States, Canada, the United Kingdom, and Switzerland. Prize values and probabilities appear only when funded inventory can be read from the configured contract. Holder drops occur only when automation reports live and claimable fees exist. RipStonks is independent and is not endorsed by Robinhood, Pons, or 0x.</p>
+        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. This interface blocks detected access from the United States, the United Kingdom, and Switzerland. Prize values and probabilities appear only when funded inventory can be read from the configured contract. Holder drops occur only when automation reports live and claimable fees exist. RipStonks is independent and is not endorsed by Robinhood, Pons, or 0x.</p>
       </section>
 
       <footer className="shell">
