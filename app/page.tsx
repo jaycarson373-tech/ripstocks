@@ -303,6 +303,23 @@ export default function Home() {
     }
   }
 
+  async function disconnectWallet() {
+    const provider = getProvider();
+    setBusy(true);
+    try {
+      await provider?.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
+    } catch {
+      // Not every injected wallet implements EIP-2255. Clearing the local
+      // session still disconnects this page without sending a transaction.
+    } finally {
+      setAccount("");
+      setTermsAccepted(false);
+      setPackModalOpen(false);
+      setNotice("Wallet disconnected from StonkRips. No transaction was sent.");
+      setBusy(false);
+    }
+  }
+
   async function openPack() {
     if (!account) return connectWallet();
     const provider = getProvider();
@@ -423,8 +440,14 @@ export default function Home() {
           <a href="#proof">Proof</a>
           <a href="#docs">Docs</a>
         </div>
-        <button className="wallet-button" type="button" onClick={() => void connectWallet()} disabled={busy}>
-          {account ? shortAddress(account) : "CONNECT WALLET"}
+        <button
+          className={`wallet-button${account ? " is-connected" : ""}`}
+          type="button"
+          onClick={() => void (account ? disconnectWallet() : connectWallet())}
+          disabled={busy}
+          aria-label={account ? `Disconnect wallet ${account}` : "Connect wallet"}
+        >
+          {account ? <><span>{shortAddress(account)}</span><small>DISCONNECT</small></> : "CONNECT WALLET"}
         </button>
       </nav>
 
@@ -615,9 +638,9 @@ export default function Home() {
       <section className="docs-section shell" id="docs">
         <div className="section-heading compact"><span>THE OPERATOR MANUAL</span><h2>DOCS.</h2></div>
         <div className="docs-grid">
-          <article><b>01</b><h3>PACKS</h3><p>Each rip costs exactly 20 canonical USDG. ETH pays Robinhood Chain gas. A purchase cannot begin unless the contract reports at least one funded Stock Token slot.</p></article>
+          <article><b>01</b><h3>PACK PAYMENT</h3><p>Connect an EVM wallet and approve exactly 20 canonical USDG. A successful open moves that USDG into the pack contract; settlement forwards it to the treasury and delivers one funded Stock Token. ETH is used only for Robinhood Chain gas.</p></article>
           <article><b>02</b><h3>HOLDER WEIGHT</h3><p>Eligible externally owned wallets receive one whole ticket per 250,000 launch tokens at the committed snapshot block. Configured exclusions and contracts do not participate.</p></article>
-          <article><b>03</b><h3>CREATOR FEES</h3><p>The hourly worker claims the configured Pons v2 creator-fee stream, normalizes it into SPY, and records the epoch before buying or sending Stock Tokens.</p></article>
+          <article><b>03</b><h3>HOURLY RESTOCK</h3><p>Once per UTC hour, the Railway worker claims the configured Pons v2 creator-fee stream and normalizes it into SPY. Half buys and loads one real funded pack lot; half buys the Stock Token sent in the holder drop. If no fees are available, nothing is invented or loaded.</p></article>
           <article><b>04</b><h3>SUSTAINABILITY</h3><p>Inventory value, current pack EV, funded pulls, and completed holder drops are measured from real sources. Parameters are reviewed manually and any change should be disclosed before activation.</p></article>
         </div>
       </section>
@@ -650,10 +673,14 @@ export default function Home() {
             <h2 id="pack-modal-title">READY TO RIP?</h2>
             <Image className="modal-pack" src="/stonkrips-pack.png" alt="Sealed StonkRips pack" width={256} height={384} />
             <div className="purchase-summary"><b>$20 USDG</b><small>ONE FUNDED STOCK TOKEN · ETH GAS REQUIRED</small></div>
+            <div className="payment-rails" aria-label="Pack payment details">
+              <span><small>PACK PAYMENT</small><b>20 USDG</b></span>
+              <span><small>NETWORK GAS</small><b>ETH</b></span>
+            </div>
             <label className="eligibility"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /><span>I am 18+ and legally eligible to use Robinhood Chain Stock Tokens in my jurisdiction.</span></label>
             {notice && <p className="notice" role="status">{notice}</p>}
             <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || (Boolean(account && networkReady) && !termsAccepted)}>{busy ? "PROCESSING…" : modalAction}</button>
-            <small>No payment is requested unless a funded contract slot is available.</small>
+            <small>Approval authorizes exactly 20 USDG. The contract cannot open a pack unless sales are enabled and a funded inventory slot exists.</small>
           </div>
         </div>
       )}

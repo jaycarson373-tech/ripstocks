@@ -2,6 +2,20 @@
 
 StonkRips is Robinhood Chain-only. The existing contract and environment identifiers retain their legacy names for deployment compatibility.
 
+## User payment flow
+
+1. The user connects an injected EVM wallet and switches to Robinhood Chain mainnet (`4663`).
+2. The site verifies that the pack contract is enabled, no other request blocks the queue, and at least one funded prize exists.
+3. The wallet approves exactly `20_000_000` atoms of canonical USDG (20 USDG). Approval does not itself transfer funds.
+4. `openPack` transfers 20 USDG into the pack contract and locks the funded inventory state.
+5. After the future entropy block exists, `settlePack` forwards the 20 USDG to the configured treasury and transfers the selected Stock Token directly to the buyer.
+
+ETH is required only for transaction gas. The contract does not accept ETH or USDC as the pack payment asset. The header disconnect action requests account-permission revocation where the wallet supports it and otherwise clears the page session locally; disconnecting never broadcasts a transaction.
+
+## Hourly inventory lifecycle
+
+The automated hourly refill does not create unbacked prizes and does not silently spend arbitrary wallet balances. It uses only the creator-fee budget measured and recorded for the current Pons v2 epoch. After normalizing claimed fees into canonical SPY, 50% buys one approved Stock Token lot and loads that exact amount into the pack contract; the other 50% buys the hourly holder-drop asset. When no fees are claimable, the cycle records `no_fees` and performs neither action.
+
 ## Vercel or Sites
 
 ```bash

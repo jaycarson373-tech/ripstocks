@@ -138,6 +138,20 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   font: 900 10px var(--font-geist-mono);
   letter-spacing: 0.05em;
 }
+.wallet-button.is-connected {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--off-white);
+  border: 1px solid rgba(199,255,0,.35);
+  background: #090d08;
+}
+.wallet-button.is-connected small {
+  color: var(--lime);
+  font: 800 6px var(--font-geist-mono);
+  letter-spacing: .08em;
+}
 button:disabled { cursor: not-allowed; opacity: 0.42; }
 
 .hero {
@@ -729,6 +743,11 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .purchase-summary { padding: 20px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 9px; background: rgba(0,0,0,.32); }
 .purchase-summary b { color: var(--lime); font: 900 29px var(--font-geist-mono); }
 .purchase-summary small { margin-top: 8px; color: #737b72; font: 700 7px var(--font-geist-mono); letter-spacing: .1em; }
+.payment-rails { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 0; }
+.payment-rails span { padding: 10px 11px; border: 1px solid rgba(255,255,255,.09); border-radius: 7px; background: #050705; }
+.payment-rails small { display: block; margin-bottom: 5px; color: #697067; font: 750 6px var(--font-geist-mono); letter-spacing: .09em; }
+.payment-rails b { color: var(--off-white); font: 850 10px var(--font-geist-mono); }
+.payment-rails span:first-child b { color: var(--lime); }
 .eligibility { margin: 20px 0; display: flex; align-items: flex-start; gap: 11px; color: #899188; cursor: pointer; font-size: 11px; line-height: 1.5; }
 .eligibility input { margin-top: 2px; accent-color: var(--lime); }
 .modal-action { width: 100%; min-height: 55px; margin-top: 8px; border-radius: 8px; font: 900 10px var(--font-geist-mono); letter-spacing: .06em; }
