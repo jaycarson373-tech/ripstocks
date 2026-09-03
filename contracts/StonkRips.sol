@@ -6,7 +6,7 @@ interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
-/// @title RipStonks
+/// @title StonkRips
 /// @notice Inventory-backed $20 USDG packs for Robinhood Chain Stock Tokens.
 /// @dev One request settles at a time so neither inventory mutation nor settlement
 ///      ordering can change the funded prize pool after a buyer commits.

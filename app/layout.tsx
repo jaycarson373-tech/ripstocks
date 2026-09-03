@@ -14,20 +14,23 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.stonkdrops.fun"),
-  title: "RipStonks — The Stock Pack Arcade on Robinhood Chain",
-  description: "Rip one $20 USDG inventory-backed pack and receive a Stock Token directly to your wallet. Powered by a Pons v2 hourly fee flywheel.",
+  title: "StonkRips | Rip the Market",
+  description: "Rip $20 packs and pull onchain-selected Stock Tokens. Creator fees fund holder drops and refill future packs.",
+  applicationName: "StonkRips",
+  manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "RipStonks — Rip packs. Pull stocks.",
-    description: "$20 USDG funded Stock Token packs with an hourly Pons v2 fee flywheel on Robinhood Chain.",
-    images: [{ url: "/ripstonks-arcade.jpg", width: 1280, height: 426, alt: "RipStonks arcade with Stock Token case machines" }],
+    title: "StonkRips | Rip the Market",
+    description: "$20. One funded pack. One onchain Stock Token delivered to your wallet.",
+    siteName: "StonkRips",
+    images: [{ url: "/stonkrips-og.png", width: 1774, height: 887, alt: "StonkRips premium Stock Token pack — Rip the Market" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RipStonks — Rip packs. Pull stocks.",
-    description: "$20 USDG funded Stock Token packs with an hourly Pons v2 fee flywheel on Robinhood Chain.",
-    images: ["/ripstonks-arcade.jpg"],
+    title: "StonkRips | Rip the Market",
+    description: "$20. One funded pack. One onchain Stock Token delivered to your wallet.",
+    images: ["/stonkrips-og.png"],
   },
-  icons: { icon: "/favicon.svg", apple: "/ripstonks-pack.jpg" },
+  icons: { icon: "/favicon.svg", apple: "/stonkrips-pack.png" },
 };
 
 export default function RootLayout({

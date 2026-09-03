@@ -1,6 +1,6 @@
-# RipStonks launch configuration
+# StonkRips launch configuration
 
-RipStonks is Robinhood Chain-only. The existing contract and environment identifiers retain their legacy names for deployment compatibility.
+StonkRips is Robinhood Chain-only. The existing contract and environment identifiers retain their legacy names for deployment compatibility.
 
 ## Vercel or Sites
 

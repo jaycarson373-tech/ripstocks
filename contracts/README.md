@@ -1,6 +1,6 @@
-# RipStonks pack contract
+# StonkRips pack contract
 
-The existing `StonkRips.sol` deployment artifact sells one RipStonks inventory-backed pack for exactly 20 USDG. Its Solidity identifier is retained for deployment compatibility. Packs are off by default.
+The existing `StonkRips.sol` deployment artifact sells one StonkRips inventory-backed pack for exactly 20 USDG. Its Solidity identifier is retained for deployment compatibility. Packs are off by default.
 
 ## Security model
 

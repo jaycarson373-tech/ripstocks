@@ -1,8 +1,7 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
   <rect x="3" y="3" width="58" height="58" rx="15" fill="#030403" stroke="#C7FF00" stroke-width="3"/>
-  <path d="M18 19H46L40 27H24L18 19Z" fill="#C7FF00"/>
-  <path d="M22 29H42V45H22V29Z" fill="#090D08" stroke="#C7FF00" stroke-width="2"/>
-  <path d="M32 29V45" stroke="#C7FF00" stroke-width="2"/>
-  <path d="M22 35H42" stroke="#C7FF00" stroke-width="2"/>
-  <text x="32" y="55" fill="#C7FF00" font-family="Arial, sans-serif" font-size="8" font-weight="900" text-anchor="middle">RS</text>
+  <path d="M17 17H47L43 24H21L17 17Z" fill="#C7FF00"/>
+  <path d="M20 26H44V48H20V26Z" fill="#090D08" stroke="#C7FF00" stroke-width="2"/>
+  <path d="M24 32H40M24 38H40M24 44H35" stroke="#C7FF00" stroke-width="2"/>
+  <text x="32" y="22" fill="#030403" font-family="Arial, sans-serif" font-size="6" font-weight="900" text-anchor="middle">$RIP</text>
 </svg>

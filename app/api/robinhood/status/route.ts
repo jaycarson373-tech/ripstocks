@@ -8,6 +8,8 @@ const INVENTORY_VALUE_SELECTOR = "0xcba71e93";
 const PACK_PRICE_SELECTOR = "0x335c8b63";
 const PACKS_ENABLED_SELECTOR = "0xc4de49c7";
 const PRIZE_AT_SELECTOR = "0xe0a35431";
+const NEXT_REQUEST_ID_SELECTOR = "0x6a84a985";
+const ACTIVE_REQUEST_ID_SELECTOR = "0xb57e51c4";
 
 type RpcResponse = { id: number; result?: string; error?: { message?: string } };
 
@@ -102,22 +104,53 @@ async function automationSnapshot() {
   const automationLive = process.env.AUTOMATION_PUBLIC_LIVE === "true";
   const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  const fallback = { automationLive, completedEpochs: null as number | null, lastEpochStatus: null as string | null };
+  const fallback = {
+    automationLive,
+    completedEpochs: null as number | null,
+    lastEpochStatus: null as string | null,
+    lastHolderDrop: null as null | {
+      winner: string;
+      symbol: string;
+      tokenAmount: string;
+      transactionHash: string;
+      completedAt: string | null;
+    },
+  };
   if (!supabaseUrl || !serviceKey) return fallback;
   try {
     const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Prefer: "count=exact" };
-    const [latestResponse, countResponse] = await Promise.all([
+    const [latestResponse, countResponse, dropResponse] = await Promise.all([
       fetch(`${supabaseUrl}/rest/v1/pons_epochs?select=status&order=epoch_key.desc&limit=1`, { headers, cache: "no-store" }),
       fetch(`${supabaseUrl}/rest/v1/pons_epochs?select=id&status=eq.complete&limit=1`, { headers, cache: "no-store" }),
+      fetch(`${supabaseUrl}/rest/v1/pons_epochs?select=winner_address,drop_stock_symbol,drop_stock_amount_atoms,holder_drop_tx,completed_at&status=eq.complete&order=epoch_key.desc&limit=1`, { headers, cache: "no-store" }),
     ]);
-    if (!latestResponse.ok || !countResponse.ok) return fallback;
+    if (!latestResponse.ok || !countResponse.ok || !dropResponse.ok) return fallback;
     const latest = await latestResponse.json() as Array<{ status?: string }>;
+    const lastDrop = await dropResponse.json() as Array<{
+      winner_address?: string;
+      drop_stock_symbol?: string;
+      drop_stock_amount_atoms?: string;
+      holder_drop_tx?: string;
+      completed_at?: string;
+    }>;
     const range = countResponse.headers.get("content-range") || "";
     const total = Number.parseInt(range.split("/")[1] || "", 10);
     return {
       automationLive,
       completedEpochs: Number.isFinite(total) ? total : null,
       lastEpochStatus: latest[0]?.status || null,
+      lastHolderDrop: lastDrop[0]?.winner_address
+        && lastDrop[0]?.drop_stock_symbol
+        && lastDrop[0]?.drop_stock_amount_atoms
+        && lastDrop[0]?.holder_drop_tx
+        ? {
+            winner: lastDrop[0].winner_address,
+            symbol: lastDrop[0].drop_stock_symbol,
+            tokenAmount: formatUnits(BigInt(lastDrop[0].drop_stock_amount_atoms)),
+            transactionHash: lastDrop[0].holder_drop_tx,
+            completedAt: lastDrop[0].completed_at || null,
+          }
+        : null,
     };
   } catch {
     return fallback;
@@ -135,7 +168,9 @@ export async function GET() {
     inventoryCount: 0,
     inventoryValueUsd: null as number | null,
     maxPrizeUsd: null as number | null,
+    packEvUsd: null as number | null,
     packPriceUsd: 20,
+    totalPacksOpened: null as number | null,
     inventory: [] as Array<{
       symbol: string;
       tokenAmount: string;
@@ -145,6 +180,7 @@ export async function GET() {
       probabilityPct: number;
     }>,
     inventoryDataAvailable: false,
+    dataError: false,
     ...automation,
   };
 
@@ -152,11 +188,13 @@ export async function GET() {
 
   try {
     const rpcUrl = process.env.ROBINHOOD_RPC_URL || DEFAULT_RPC;
-    const [inventoryRaw, inventoryValue, packPrice, onchainEnabled] = await Promise.all([
+    const [inventoryRaw, inventoryValue, packPrice, onchainEnabled, nextRequestId, activeRequestId] = await Promise.all([
       ethCall(rpcUrl, contract, INVENTORY_COUNT_SELECTOR),
       ethCall(rpcUrl, contract, INVENTORY_VALUE_SELECTOR),
       ethCall(rpcUrl, contract, PACK_PRICE_SELECTOR),
       ethCall(rpcUrl, contract, PACKS_ENABLED_SELECTOR),
+      ethCall(rpcUrl, contract, NEXT_REQUEST_ID_SELECTOR),
+      ethCall(rpcUrl, contract, ACTIVE_REQUEST_ID_SELECTOR),
     ]);
     const inventoryCount = Number(inventoryRaw);
     const decoded = (await prizeCalls(rpcUrl, contract, inventoryCount)).map(decodePrize);
@@ -191,12 +229,14 @@ export async function GET() {
       inventoryCount,
       inventoryValueUsd: Number(inventoryValue) / 1_000_000,
       maxPrizeUsd: Number(maxPrizeUsd) / 1_000_000,
+      packEvUsd: inventoryCount ? Number(inventoryValue) / 1_000_000 / inventoryCount : null,
       packPriceUsd: Number(packPrice) / 1_000_000,
+      totalPacksOpened: Math.max(0, Number(nextRequestId - BigInt(1) - (activeRequestId === BigInt(0) ? BigInt(0) : BigInt(1)))),
       inventory,
       inventoryDataAvailable: true,
       ...automation,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
-    return NextResponse.json(safe, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ ...safe, dataError: true }, { headers: { "Cache-Control": "no-store" } });
   }
 }
