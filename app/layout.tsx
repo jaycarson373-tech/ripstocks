@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "RipStonks — Rip packs. Pull stocks.",
     description: "$20 USDG funded Stock Token packs with an hourly Pons v2 fee flywheel on Robinhood Chain.",
-    images: [{ url: "/ripstonks-arcade.jpg", width: 1280, height: 426, alt: "RipStonks arcade with Stock Token claw machines" }],
+    images: [{ url: "/ripstonks-arcade.jpg", width: 1280, height: 426, alt: "RipStonks arcade with Stock Token case machines" }],
   },
   twitter: {
     card: "summary_large_image",

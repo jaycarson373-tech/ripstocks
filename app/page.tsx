@@ -58,7 +58,9 @@ type PackResult = {
   transactionHash: string;
 };
 
-type RevealStage = "grab" | "tear" | "reveal";
+type RevealStage = "spin" | "lock" | "reveal";
+
+const REEL_WINNER_INDEX = 32;
 
 const ROBINHOOD_CHAIN_ID = 4663;
 const ROBINHOOD_CHAIN_HEX = "0x1237";
@@ -163,15 +165,19 @@ export default function Home() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [packModalOpen, setPackModalOpen] = useState(false);
   const [packResult, setPackResult] = useState<PackResult | null>(null);
-  const [revealStage, setRevealStage] = useState<RevealStage>("grab");
-  const [regionAllowed, setRegionAllowed] = useState<boolean | null>(null);
-  const [country, setCountry] = useState<string | null>(null);
+  const [revealStage, setRevealStage] = useState<RevealStage>("spin");
   const [recentPulls, setRecentPulls] = useState<RecentPull[]>([]);
   const [pullsState, setPullsState] = useState<"loading" | "ready" | "error">("loading");
 
   const networkReady = chainId === ROBINHOOD_CHAIN_ID;
   const inventoryBySymbol = useMemo(() => new Map(status.inventory.map((item) => [item.symbol, item])), [status.inventory]);
-  const arcadeReady = status.configured && status.packsLive && status.inventoryCount > 0 && regionAllowed !== false;
+  const revealSequence = useMemo(() => {
+    if (!packResult) return [];
+    return Array.from({ length: 35 }, (_, index) => index === REEL_WINNER_INDEX
+      ? packResult.stock
+      : STOCK_TOKENS[(index * 7 + 3) % STOCK_TOKENS.length]);
+  }, [packResult]);
+  const arcadeReady = status.configured && status.packsLive && status.inventoryCount > 0;
   const automationLabel = status.automationLive
     ? AUTOMATION_LABELS[status.lastEpochStatus || ""] || "HOURLY ENGINE ONLINE"
     : "AUTOMATION SAFE MODE";
@@ -190,16 +196,6 @@ export default function Home() {
       provider.removeListener?.("accountsChanged", syncAccounts);
       provider.removeListener?.("chainChanged", syncChain);
     };
-  }, []);
-
-  useEffect(() => {
-    void fetch("/api/robinhood/eligibility", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data: { allowed: boolean | null; country: string | null }) => {
-        setRegionAllowed(data.allowed);
-        setCountry(data.country);
-      })
-      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -242,10 +238,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!packResult || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const tearTimer = window.setTimeout(() => setRevealStage("tear"), 1_100);
-    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), 2_050);
+    const lockTimer = window.setTimeout(() => setRevealStage("lock"), 2_350);
+    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), 3_050);
     return () => {
-      window.clearTimeout(tearTimer);
+      window.clearTimeout(lockTimer);
       window.clearTimeout(revealTimer);
     };
   }, [packResult]);
@@ -298,7 +294,7 @@ export default function Home() {
       try { await switchNetwork(provider); } finally { setBusy(false); }
       return;
     }
-    if (!termsAccepted || regionAllowed === false) return;
+    if (!termsAccepted) return;
     if (!status.configured || !status.packsLive) {
       setNotice("Pack contract is not live yet. No payment was requested.");
       return;
@@ -356,7 +352,7 @@ export default function Home() {
       const valueUsd = Number(BigInt(`0x${data.slice(64, 128)}`)) / 1_000_000;
       const stock = STOCK_TOKENS.find((candidate) => candidate.address.toLowerCase() === tokenAddress);
       if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
-      setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "grab");
+      setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "spin");
       setPackResult({ stock, tokenAmount, valueUsd, transactionHash: settleHash });
       setPackModalOpen(false);
       setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
@@ -371,15 +367,13 @@ export default function Home() {
 
   const primaryLabel = busy
     ? "PROCESSING…"
-    : regionAllowed === false
-      ? "UNAVAILABLE IN REGION"
-      : !status.configured
-        ? "PACK CONTRACT PENDING"
-        : !status.operatorEnabled
-          ? "PACKS PAUSED"
-          : status.inventoryCount < 1
-            ? "ARCADE RESTOCKING"
-            : "RIP A $20 PACK";
+    : !status.configured
+      ? "PACK CONTRACT PENDING"
+      : !status.operatorEnabled
+        ? "PACKS PAUSED"
+        : status.inventoryCount < 1
+          ? "ARCADE RESTOCKING"
+          : "RIP A $20 PACK";
 
   const modalAction = !account
     ? "CONNECT WALLET"
@@ -430,29 +424,25 @@ export default function Home() {
             </div>
           </div>
 
-          <div className={`claw-machine state-${machineState.toLowerCase().replace(" ", "-")}`} aria-label={`RipStonks claw machine. Status: ${machineState}`}>
+          <div className={`case-machine state-${machineState.toLowerCase().replace(" ", "-")}`} aria-label={`RipStonks case-opening machine. Status: ${machineState}`}>
             <div className="machine-marquee">
-              <span>RIPSTONKS // CLAW_01</span>
+              <span>RIPSTONKS // CASE_01</span>
               <i>{machineState}</i>
             </div>
-            <div className="machine-glass">
-              <div className="ceiling-track" aria-hidden="true"><span /></div>
-              <div className="claw" aria-hidden="true"><i /><b /><em /></div>
-              <div className="cabinet-stock-wall" aria-hidden="true">
-                {STOCK_TOKENS.map((stock, index) => (
-                  <span className="cabinet-prize" key={stock.symbol} style={{ "--delay": `${index * -0.27}s`, "--tilt": `${(index % 5 - 2) * 2.5}deg` } as CSSProperties}>
+            <div className="case-stage">
+              <div className="case-selector" aria-hidden="true"><i /><span /></div>
+              <div className="case-preview-track" aria-hidden="true">
+                {[...STOCK_TOKENS, ...STOCK_TOKENS].map((stock, index) => (
+                  <span className="case-preview-card" key={`${stock.symbol}-case-${index}`}>
                     <StockLogo stock={stock} decorative />
                     <small>{stock.symbol}</small>
                   </span>
                 ))}
               </div>
-              <div className="rs-pack">
-                <Image src="/ripstonks-pack.jpg" alt="Black RipStonks RS pack" width={260} height={260} unoptimized />
-              </div>
-              <div className="glass-glare" aria-hidden="true" />
+              <div className="case-stage-label"><span>FULLY FUNDED STOCK TOKEN INVENTORY</span><b>ON-CHAIN RESULT · CLIENT-SIDE REVEAL</b></div>
             </div>
-            <div className="machine-console">
-              <div className="joystick" aria-hidden="true"><span /><i /></div>
+            <div className="case-console">
+              <Image src="/ripstonks-pack.jpg" alt="Black RipStonks RS pack" width={72} height={72} unoptimized />
               <div className="inventory-readout">
                 <small>CURRENT INVENTORY</small>
                 <b>{!status.configured ? "AWAITING CONTRACT" : !status.inventoryDataAvailable ? "DATA UNAVAILABLE" : `${status.inventoryCount} FUNDED ${status.inventoryCount === 1 ? "PULL" : "PULLS"}`}</b>
@@ -561,7 +551,7 @@ export default function Home() {
 
       <section className="legal shell">
         <b>IMPORTANT</b>
-        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. This interface blocks detected access from the United States, the United Kingdom, and Switzerland. Prize values and probabilities appear only when funded inventory can be read from the configured contract. Holder drops occur only when automation reports live and claimable fees exist. RipStonks is independent and is not endorsed by Robinhood, Pons, or 0x.</p>
+        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. Users are responsible for confirming they are legally eligible to use Robinhood Chain Stock Tokens in their jurisdiction. Prize values and probabilities appear only when funded inventory can be read from the configured contract. Holder drops occur only when automation reports live and claimable fees exist. RipStonks is independent and is not endorsed by Robinhood, Pons, or 0x.</p>
       </section>
 
       <footer className="shell">
@@ -574,12 +564,12 @@ export default function Home() {
         <div className="pack-modal" role="dialog" aria-modal="true" aria-labelledby="pack-modal-title">
           <div className="pack-modal-card">
             <button className="modal-close" type="button" onClick={() => setPackModalOpen(false)} aria-label="Close pack window">×</button>
-            <span>RIPSTONKS // CLAW_01</span>
+            <span>RIPSTONKS // CASE_01</span>
             <h2 id="pack-modal-title">READY TO RIP?</h2>
             <div className="purchase-summary"><b>$20 USDG</b><small>ONE FUNDED STOCK TOKEN · ETH GAS REQUIRED</small></div>
-            <label className="eligibility"><input type="checkbox" checked={termsAccepted} disabled={regionAllowed === false} onChange={(event) => setTermsAccepted(event.target.checked)} /><span>{regionAllowed === false ? `This interface is unavailable in detected region ${country || "restricted"}.` : "I am 18+ and legally eligible to use Robinhood Chain Stock Tokens in my jurisdiction."}</span></label>
+            <label className="eligibility"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /><span>I am 18+ and legally eligible to use Robinhood Chain Stock Tokens in my jurisdiction.</span></label>
             {notice && <p className="notice" role="status">{notice}</p>}
-            <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || regionAllowed === false || (Boolean(account && networkReady) && !termsAccepted)}>{busy ? "PROCESSING…" : modalAction}</button>
+            <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || (Boolean(account && networkReady) && !termsAccepted)}>{busy ? "PROCESSING…" : modalAction}</button>
             <small>No payment is requested unless a funded contract slot is available.</small>
           </div>
         </div>
@@ -587,10 +577,22 @@ export default function Home() {
 
       {packResult && (
         <div className={`result-modal reveal-${revealStage}`} role="dialog" aria-modal="true" aria-label="Confirmed pack result">
-          <div className="reveal-machine">
+          <div className="case-reveal">
             {revealStage !== "reveal" && <button className="skip-reveal" type="button" onClick={() => setRevealStage("reveal")}>SKIP ANIMATION</button>}
-            <div className="result-claw" aria-hidden="true"><i /><b /><em /></div>
-            <div className="result-pack"><Image src="/ripstonks-pack.jpg" alt="RipStonks pack opening" width={220} height={220} unoptimized /></div>
+            <div className="case-reveal-header"><span>RIPSTONKS // VERIFIED REVEAL</span><b>{revealStage === "spin" ? "OPENING CASE…" : revealStage === "lock" ? "RESULT LOCKED" : "PULL CONFIRMED"}</b></div>
+            <div className="case-reel-window" aria-hidden="true">
+              <div className="case-reel-marker"><i /><span /></div>
+              <div className="case-reel-track">
+                {revealSequence.map((stock, index) => (
+                  <div className={`case-reel-card${index === REEL_WINNER_INDEX ? " is-winning" : ""}`} key={`${stock.symbol}-reveal-${index}`}>
+                    <StockLogo stock={stock} decorative />
+                    <b>{stock.symbol}</b>
+                    <small>STOCK TOKEN</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="case-proof-note">THE REEL DISPLAYS THE RESULT ALREADY CONFIRMED BY THE ROBINHOOD CHAIN TRANSACTION.</p>
             <div className="confirmed-prize">
               <button type="button" onClick={() => setPackResult(null)} aria-label="Close result">×</button>
               <span>CONFIRMED ON-CHAIN</span>
