@@ -140,6 +140,12 @@ function formatUsd(value: number | null) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
+function formatCountdown(milliseconds: number) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1_000));
+  const minutes = Math.floor(seconds / 60);
+  return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 function randomCommitment() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
@@ -183,6 +189,7 @@ export default function Home() {
   const [revealStage, setRevealStage] = useState<RevealStage>("pack");
   const [recentPulls, setRecentPulls] = useState<RecentPull[]>([]);
   const [pullsState, setPullsState] = useState<"loading" | "ready" | "error">("loading");
+  const [clock, setClock] = useState<number | null>(null);
 
   const networkReady = chainId === ROBINHOOD_CHAIN_ID;
   const inventoryBySymbol = useMemo(() => new Map(status.inventory.map((item) => [item.symbol, item])), [status.inventory]);
@@ -198,6 +205,15 @@ export default function Home() {
     : "AUTOMATION SAFE MODE";
   const machineState = statusState === "error" || status.dataError ? "ERROR" : !status.configured ? "PRELAUNCH" : !status.operatorEnabled ? "PAUSED" : status.inventoryCount < 1 ? "EMPTY" : "READY";
   const packStatusLabel = machineState === "READY" ? "LIVE" : machineState === "EMPTY" ? "SOLD OUT" : machineState;
+  const holderDrawActive = status.automationLive && ["awaiting_seed", "holder_drop_swap", "holder_drop_send"].includes(status.lastEpochStatus || "");
+  const nextHourlyCycle = clock === null ? null : Math.ceil((clock + 1) / 3_600_000) * 3_600_000;
+  const holderCountdown = !status.automationLive
+    ? "ACTIVATING"
+    : holderDrawActive
+      ? "SELECTING"
+      : nextHourlyCycle === null
+        ? "SYNCING"
+        : formatCountdown(nextHourlyCycle - clock!);
 
   useEffect(() => {
     const provider = getProvider();
@@ -212,6 +228,13 @@ export default function Home() {
       provider.removeListener?.("accountsChanged", syncAccounts);
       provider.removeListener?.("chainChanged", syncChain);
     };
+  }, []);
+
+  useEffect(() => {
+    const tick = () => setClock(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 1_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -429,7 +452,7 @@ export default function Home() {
       <div className="ambient" aria-hidden="true" />
       <nav className="nav shell" aria-label="Primary navigation">
         <a href="#top" className="brand" aria-label="StonkRips home">
-          <span className="brand-logo" aria-hidden="true">$RIP</span>
+          <Image className="brand-logo" src="/stonkrips-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} priority />
           <b>STONK<span>RIPS</span></b>
         </a>
         <div className="nav-links">
@@ -526,7 +549,7 @@ export default function Home() {
             const unavailable = status.configured && !status.inventoryDataAvailable;
             return (
               <article className={inventory ? "is-loaded" : ""} key={stock.symbol}>
-                <div className="prize-card-head"><em>{String(index + 1).padStart(2, "0")}</em><StockLogo stock={stock} /><a href={`https://robinhoodchain.blockscout.com/token/${stock.address}`} target="_blank" rel="noreferrer" aria-label={`View ${stock.name} token on Blockscout`}>↗</a></div>
+                <div className="prize-card-head"><em>{String(index + 1).padStart(2, "0")}</em><StockLogo stock={stock} /><a href={`https://robinhoodchain.blockscout.com/token/${stock.address}`} target="_blank" rel="noreferrer" aria-label={`View ${stock.name} token on Blockscout`}>DETAILS</a></div>
                 <h3>{stock.symbol}</h3>
                 <p>{stock.name}</p>
                 <div className="prize-status"><span>{inventory ? "LOADED" : unavailable ? "UNAVAILABLE" : "NOT LOADED"}</span>{inventory && <b>{inventory.fundedPulls} FUNDED {inventory.fundedPulls === 1 ? "PULL" : "PULLS"}</b>}</div>
@@ -559,7 +582,17 @@ export default function Home() {
         <div className="section-heading compact">
           <span>REAL HOLDER REWARDS</span>
           <h2>HOLDER DROPS.</h2>
-          <p>One eligible weighted holder receives the Stock Token purchased by the live hourly fee cycle. Nothing appears here until the database records a completed transfer.</p>
+          <p>One eligible weighted holder receives the Stock Token purchased by the hourly fee cycle. Each 250 $RIP held at the snapshot block equals one whole ticket.</p>
+        </div>
+        <div className={`holder-draw-machine${holderDrawActive ? " is-selecting" : ""}`} aria-label={`Holder draw engine status: ${holderCountdown}`}>
+          <div className="holder-draw-topline"><span>NEXT HOURLY HOLDER DROP</span><b>{holderCountdown}</b></div>
+          <div className="holder-ticket-window" aria-hidden="true">
+            <i className="holder-ticket-marker" />
+            <div className="holder-ticket-track">
+              {Array.from({ length: 14 }, (_, index) => <span key={`holder-ticket-${index}`}><small>WEIGHTED</small><b>TICKET {String(index + 1).padStart(2, "0")}</b></span>)}
+            </div>
+          </div>
+          <div className="holder-draw-footer"><span>250 $RIP = 1 TICKET</span><span>FUTURE-BLOCK SELECTION</span><span>WINNER SHOWN AFTER CONFIRMATION</span></div>
         </div>
         <div className="holder-drop-panel">
           <div><small>STATUS</small><b>{status.automationLive ? automationLabel : "ACTIVATING"}</b></div>
@@ -598,9 +631,9 @@ export default function Home() {
         <div className="engine-stats">
           <span><b>{status.completedEpochs === null ? "NOT REPORTED" : status.completedEpochs}</b><small>COMPLETED FEE CYCLES</small></span>
           <span><b>{status.inventoryDataAvailable ? status.inventoryCount : "NOT REPORTED"}</b><small>FUNDED PACK LOTS</small></span>
-          <span><b>250,000</b><small>LAUNCH TOKENS PER TICKET</small></span>
+          <span><b>250</b><small>$RIP PER TICKET</small></span>
         </div>
-        <p className="engine-note">Holder weight is the wallet&apos;s launch-token balance divided by 250,000, rounded down to whole tickets at the committed snapshot block. Contracts, pools, the automation wallet, and configured exclusions do not participate.</p>
+        <p className="engine-note">Holder weight is the wallet&apos;s $RIP balance divided by 250, rounded down to whole tickets at the committed snapshot block. Contracts, pools, the automation wallet, and configured exclusions do not participate.</p>
         <a href={PONS_TOKEN_URL || "https://robinhood.ponslaunchpad.com/"} target="_blank" rel="noreferrer">{PONS_TOKEN_URL ? "OPEN STONKRIPS ON PONS ↗" : "OPEN PONS V2 ↗"}</a>
       </section>
 
@@ -639,7 +672,7 @@ export default function Home() {
         <div className="section-heading compact"><span>THE OPERATOR MANUAL</span><h2>DOCS.</h2></div>
         <div className="docs-grid">
           <article><b>01</b><h3>PACK PAYMENT</h3><p>Connect an EVM wallet and approve exactly 20 canonical USDG. A successful open moves that USDG into the pack contract; settlement forwards it to the treasury and delivers one funded Stock Token. ETH is used only for Robinhood Chain gas.</p></article>
-          <article><b>02</b><h3>HOLDER WEIGHT</h3><p>Eligible externally owned wallets receive one whole ticket per 250,000 launch tokens at the committed snapshot block. Configured exclusions and contracts do not participate.</p></article>
+          <article><b>02</b><h3>HOLDER WEIGHT</h3><p>Eligible externally owned wallets receive one whole ticket per 250 $RIP at the committed snapshot block. Configured exclusions and contracts do not participate.</p></article>
           <article><b>03</b><h3>HOURLY RESTOCK</h3><p>Once per UTC hour, the Railway worker claims the configured Pons v2 creator-fee stream and normalizes it into SPY. Half buys and loads one real funded pack lot; half buys the Stock Token sent in the holder drop. If no fees are available, nothing is invented or loaded.</p></article>
           <article><b>04</b><h3>SUSTAINABILITY</h3><p>Inventory value, current pack EV, funded pulls, and completed holder drops are measured from real sources. Parameters are reviewed manually and any change should be disclosed before activation.</p></article>
         </div>
@@ -660,7 +693,7 @@ export default function Home() {
       </section>
 
       <footer className="shell">
-        <a href="#top" className="brand" aria-label="StonkRips home"><span className="brand-logo" aria-hidden="true">$RIP</span><b>STONK<span>RIPS</span></b></a>
+        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
         <div><a href="#proof">PROOF</a><a href="#docs">DOCS</a><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}</div>
         <span>ROBINHOOD CHAIN · 4663</span>
       </footer>
@@ -671,7 +704,7 @@ export default function Home() {
             <button className="modal-close" type="button" onClick={() => setPackModalOpen(false)} aria-label="Close pack window">×</button>
             <span>STONKRIPS // PACK_01</span>
             <h2 id="pack-modal-title">READY TO RIP?</h2>
-            <Image className="modal-pack" src="/stonkrips-pack.png" alt="Sealed StonkRips pack" width={256} height={384} />
+            <Image className="modal-pack" src="/stonkrips-logo.png" alt="StonkRips foil stock pack" width={256} height={256} />
             <div className="purchase-summary"><b>$20 USDG</b><small>ONE FUNDED STOCK TOKEN · ETH GAS REQUIRED</small></div>
             <div className="payment-rails" aria-label="Pack payment details">
               <span><small>PACK PAYMENT</small><b>20 USDG</b></span>

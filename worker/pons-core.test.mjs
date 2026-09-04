@@ -21,7 +21,7 @@ test("50/50 split preserves every atom", () => {
 });
 
 test("weighted tickets exclude dust and select deterministically", () => {
-  const unit = ticketUnit("250000", 18);
+  const unit = ticketUnit("250", 18);
   const candidates = [
     { address: "0x0000000000000000000000000000000000000001", balance: unit - 1n },
     { address: "0x0000000000000000000000000000000000000002", balance: unit },

@@ -100,7 +100,7 @@ function readConfig() {
     supabaseKey: required("SUPABASE_SERVICE_ROLE_KEY", process.env.SUPABASE_SERVICE_ROLE_KEY),
     intervalMinutes: positiveInteger("DROP_INTERVAL_MINUTES", process.env.DROP_INTERVAL_MINUTES, 60),
     feeSplitBps: basisPoints("FEE_SPLIT_BPS", process.env.FEE_SPLIT_BPS, 5_000),
-    tokensPerTicket: process.env.TOKENS_PER_TICKET || "250000",
+    tokensPerTicket: process.env.TOKENS_PER_TICKET || "250",
     chunkSize: positiveInteger("HOLDER_LOG_CHUNK_SIZE", process.env.HOLDER_LOG_CHUNK_SIZE, 2_000),
     excluded: (process.env.HOLDER_EXCLUDE_ADDRESSES || "").split(",").map((value) => value.trim()).filter(Boolean).map(getAddress),
   };

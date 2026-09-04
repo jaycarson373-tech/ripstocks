@@ -2,7 +2,7 @@
 
 StonkRips is an inventory-backed $20 USDG Stock Token pack interface for Robinhood Chain.
 
-It also includes a launch-gated Railway worker for Pons v2 creator fees. Once reviewed and enabled, each hourly cycle normalizes claimed fees into canonical SPY, directs 50% to one weighted holder Stock Token drop, and directs 50% to a new funded pack inventory lot.
+It also includes a launch-gated Railway worker for Pons v2 creator fees. Once reviewed and enabled, each hourly cycle normalizes claimed fees into canonical SPY, directs 50% to one weighted holder Stock Token drop, and directs 50% to a new funded pack inventory lot. Eligible externally owned holders receive one whole weighted ticket per 250 $RIP held at the committed snapshot block.
 
 ## Product flow
 
