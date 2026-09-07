@@ -1,6 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ensureRobinhoodChain, walletAccount, walletChainId, walletErrorMessage } from "../app/lib/wallet-provider.ts";
+import { ensureRobinhoodChain, isPhantomProvider, selectEvmProvider, walletAccount, walletChainId, walletErrorMessage } from "../app/lib/wallet-provider.ts";
+
+test("Phantom is never selected for the Robinhood Chain flow", () => {
+  const phantom = { isPhantom: true, request: async () => null };
+  const evm = { request: async () => null };
+  assert.equal(selectEvmProvider([{ provider: phantom }, { provider: evm }]), evm);
+  assert.equal(selectEvmProvider([{ provider: phantom }]), null);
+  assert.equal(isPhantomProvider({ provider: evm, info: { name: "Phantom", rdns: "app.phantom" } }), true);
+});
+
+test("an announced Robinhood provider is preferred over other compatible EVM wallets", () => {
+  const generic = { request: async () => null };
+  const robinhood = { request: async () => null };
+  assert.equal(selectEvmProvider([
+    { provider: generic, info: { name: "Generic EVM" } },
+    { provider: robinhood, info: { name: "Robinhood Wallet", rdns: "com.robinhood.wallet" } },
+  ]), robinhood);
+});
 
 test("an already connected Robinhood wallet needs no network prompt", async () => {
   const methods = [];

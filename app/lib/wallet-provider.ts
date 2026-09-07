@@ -2,10 +2,65 @@ export type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
   on?: (event: string, listener: (...args: unknown[]) => void) => void;
   removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
+  providers?: EthereumProvider[];
+  isPhantom?: boolean;
+  isRobinhood?: boolean;
 };
+
+type ProviderInfo = {
+  name?: string;
+  rdns?: string;
+};
+
+type ProviderCandidate = {
+  provider: EthereumProvider;
+  info?: ProviderInfo;
+};
+
+type ProviderHost = {
+  ethereum?: EthereumProvider;
+  addEventListener: (type: string, listener: EventListener) => void;
+  dispatchEvent: (event: Event) => boolean;
+};
+
+const announcedProviders: ProviderCandidate[] = [];
+let providerDiscoveryStarted = false;
 
 export const ROBINHOOD_CHAIN_ID = 4663;
 const ROBINHOOD_CHAIN_HEX = "0x1237";
+
+function providerIdentity(candidate: ProviderCandidate) {
+  return `${candidate.info?.name ?? ""} ${candidate.info?.rdns ?? ""}`.toLowerCase();
+}
+
+export function isPhantomProvider(candidate: ProviderCandidate): boolean {
+  return candidate.provider.isPhantom === true || providerIdentity(candidate).includes("phantom");
+}
+
+export function selectEvmProvider(candidates: ProviderCandidate[]): EthereumProvider | null {
+  const compatible = candidates.filter((candidate) => candidate.provider && !isPhantomProvider(candidate));
+  return compatible.find((candidate) => candidate.provider.isRobinhood === true || providerIdentity(candidate).includes("robinhood"))?.provider
+    ?? compatible[0]?.provider
+    ?? null;
+}
+
+function startProviderDiscovery(host: ProviderHost) {
+  if (providerDiscoveryStarted) return;
+  providerDiscoveryStarted = true;
+  host.addEventListener("eip6963:announceProvider", ((event: CustomEvent<ProviderCandidate>) => {
+    const candidate = event.detail;
+    if (!candidate?.provider || announcedProviders.some((entry) => entry.provider === candidate.provider)) return;
+    announcedProviders.push(candidate);
+  }) as EventListener);
+  host.dispatchEvent(new Event("eip6963:requestProvider"));
+}
+
+export function findEvmProvider(host: ProviderHost): EthereumProvider | null {
+  startProviderDiscovery(host);
+  const legacy = host.ethereum;
+  const legacyProviders = legacy?.providers?.map((provider) => ({ provider })) ?? (legacy ? [{ provider: legacy }] : []);
+  return selectEvmProvider([...announcedProviders, ...legacyProviders]);
+}
 
 export function walletAccount(value: unknown): string {
   const account = Array.isArray(value) ? value[0] : undefined;

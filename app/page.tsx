@@ -7,7 +7,7 @@ import { buildCaseReel, type CaseReelItem } from "@/app/lib/case-reel";
 import { type StockToken } from "@/app/lib/stock-tokens";
 import { ACTIVE_PACK, PACK_PRICE_USD, PACK_RARITIES, PACK_RARITY_ODDS_PUBLISHED, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
 import { type RarityTier } from "@/app/lib/rarity";
-import { ensureRobinhoodChain, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider } from "@/app/lib/wallet-provider";
+import { ensureRobinhoodChain, findEvmProvider, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider } from "@/app/lib/wallet-provider";
 
 type InventoryStock = {
   symbol: string;
@@ -114,7 +114,7 @@ const AUTOMATION_LABELS: Record<string, string> = {
 
 function getProvider() {
   if (typeof window === "undefined") return null;
-  return (window as Window & { ethereum?: EthereumProvider }).ethereum ?? null;
+  return findEvmProvider(window as Window & { ethereum?: EthereumProvider });
 }
 
 function shortAddress(address: string) {
@@ -387,7 +387,7 @@ export default function Home() {
   async function connectWallet() {
     const provider = getProvider();
     if (!provider) {
-      setNotice("On mobile, open StonkRips in your EVM wallet’s browser. On desktop, enable your wallet extension to connect.");
+      setNotice("StonkRips uses Robinhood Chain, not Phantom. Open the site in a compatible EVM wallet or enable an EVM wallet extension.");
       return;
     }
     setBusy(true);
