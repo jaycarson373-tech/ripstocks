@@ -55,7 +55,7 @@ function formatUnits(value: bigint, decimals = 18) {
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const contract = (process.env.NEXT_PUBLIC_STONKRIPS_CONTRACT || "").trim();
   if (!ADDRESS_PATTERN.test(contract)) {
     return NextResponse.json({ configured: false, pulls: [] }, { headers: { "Cache-Control": "no-store" } });
@@ -63,17 +63,21 @@ export async function GET() {
 
   try {
     const rpcUrl = process.env.ROBINHOOD_RPC_URL || DEFAULT_RPC;
+    const walletParam = new URL(request.url).searchParams.get("wallet")?.trim() || "";
+    const wallet = ADDRESS_PATTERN.test(walletParam) ? walletParam.toLowerCase() : null;
+    const resultLimit = wallet ? 100 : 12;
+    const topics = wallet ? [PRIZE_DELIVERED_TOPIC, null, `0x${wallet.slice(2).padStart(64, "0")}`] : [PRIZE_DELIVERED_TOPIC];
     const latest = BigInt(await rpc<string>(rpcUrl, "eth_blockNumber", []));
     const configuredStart = process.env.PACK_CONTRACT_START_BLOCK;
     const minimum = configuredStart && /^\d+$/.test(configuredStart) ? BigInt(configuredStart) : latest > BLOCK_WINDOW * BigInt(MAX_WINDOWS) ? latest - BLOCK_WINDOW * BigInt(MAX_WINDOWS) : BigInt(0);
     const logs: RpcLog[] = [];
     let toBlock = latest;
-    for (let window = 0; window < MAX_WINDOWS && toBlock >= minimum && logs.length < 12; window += 1) {
+    for (let window = 0; window < MAX_WINDOWS && toBlock >= minimum && logs.length < resultLimit; window += 1) {
       const fromBlock = toBlock > BLOCK_WINDOW ? toBlock - BLOCK_WINDOW + BigInt(1) : BigInt(0);
       const boundedFrom = fromBlock < minimum ? minimum : fromBlock;
       const batch = await rpc<RpcLog[]>(rpcUrl, "eth_getLogs", [{
         address: contract,
-        topics: [PRIZE_DELIVERED_TOPIC],
+        topics,
         fromBlock: `0x${boundedFrom.toString(16)}`,
         toBlock: `0x${toBlock.toString(16)}`,
       }]);
@@ -86,7 +90,7 @@ export async function GET() {
       .map(decodePull)
       .filter((pull): pull is NonNullable<typeof pull> => Boolean(pull))
       .sort((a, b) => (BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1))
-      .slice(0, 12);
+      .slice(0, resultLimit);
     const blockNumbers = [...new Set(decoded.map((pull) => pull.blockNumber))];
     const blocks = await Promise.all(blockNumbers.map((number) => rpc<RpcBlock>(rpcUrl, "eth_getBlockByNumber", [number, false])));
     const timestamps = new Map(blockNumbers.map((number, index) => [number, blocks[index]?.timestamp ? Number(BigInt(blocks[index].timestamp as string)) * 1_000 : null]));

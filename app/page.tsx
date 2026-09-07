@@ -201,6 +201,8 @@ export default function Home() {
   const [revealStage, setRevealStage] = useState<RevealStage>("pack");
   const [recentPulls, setRecentPulls] = useState<RecentPull[]>([]);
   const [pullsState, setPullsState] = useState<"loading" | "ready" | "error">("loading");
+  const [myRips, setMyRips] = useState<RecentPull[]>([]);
+  const [myRipsState, setMyRipsState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [clock, setClock] = useState<number | null>(null);
   const [reelStop, setReelStop] = useState("-5800px");
   const [recoverableRequest, setRecoverableRequest] = useState<{ requestId: bigint; buyer: string; entropyBlock: bigint } | null>(null);
@@ -209,7 +211,6 @@ export default function Home() {
 
   const networkReady = chainId === ROBINHOOD_CHAIN_ID;
   const inventoryBySymbol = useMemo(() => new Map(status.inventory.map((item) => [item.symbol, item])), [status.inventory]);
-  const myRips = useMemo(() => account ? recentPulls.filter((pull) => pull.wallet.toLowerCase() === account.toLowerCase()) : [], [account, recentPulls]);
   const reelItems = useMemo<CaseReelItem<StockToken, RarityTier>[]>(() => {
     if (!packResult) return [];
     return buildCaseReel(STOCK_TOKENS, packResult.stock, packResult.rarity, (stock) => {
@@ -307,6 +308,31 @@ export default function Home() {
     const timer = window.setInterval(load, 15_000);
     return () => { active = false; window.clearInterval(timer); };
   }, []);
+
+  useEffect(() => {
+    if (!account) {
+      void Promise.resolve().then(() => {
+        setMyRips([]);
+        setMyRipsState("idle");
+      });
+      return;
+    }
+    let active = true;
+    void Promise.resolve().then(() => { if (active) setMyRipsState("loading"); });
+    void fetch(`/api/robinhood/pulls?wallet=${encodeURIComponent(account)}`, { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json() as { pulls?: RecentPull[] };
+        if (!active) return;
+        if (!response.ok) {
+          setMyRipsState("error");
+          return;
+        }
+        setMyRips(payload.pulls || []);
+        setMyRipsState("ready");
+      })
+      .catch(() => { if (active) setMyRipsState("error"); });
+    return () => { active = false; };
+  }, [account]);
 
   useEffect(() => {
     let active = true;
@@ -720,9 +746,9 @@ export default function Home() {
         <div className="my-rips">
           <div><span>MY RIPS</span><small>VERIFIED FROM THE CONNECTED WALLET</small></div>
           {!account && <p>CONNECT YOUR WALLET TO FILTER VERIFIED PULLS.</p>}
-          {account && pullsState === "loading" && <p>READING YOUR VERIFIED RIPS…</p>}
-          {account && pullsState === "error" && <p>YOUR VERIFIED RIPS ARE TEMPORARILY UNAVAILABLE.</p>}
-          {account && pullsState === "ready" && myRips.length === 0 && <p>NO VERIFIED RIPS FOUND FOR {shortAddress(account)}.</p>}
+          {account && myRipsState === "loading" && <p>READING YOUR VERIFIED RIPS…</p>}
+          {account && myRipsState === "error" && <p>YOUR VERIFIED RIPS ARE TEMPORARILY UNAVAILABLE.</p>}
+          {account && myRipsState === "ready" && myRips.length === 0 && <p>NO VERIFIED RIPS FOUND FOR {shortAddress(account)}.</p>}
           {account && myRips.map((pull) => {
             const rarity = rarityForValue(pull.valueUsd);
             const completedAt = pull.timestamp ? new Date(pull.timestamp).toLocaleString() : "TIME UNAVAILABLE";
