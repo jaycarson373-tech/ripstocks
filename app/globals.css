@@ -378,6 +378,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .stock-universe-strip > span { min-width: 0; padding: 10px 6px; display: flex; align-items: center; justify-content: center; gap: 7px; border-right: 1px solid rgba(255,255,255,.06); }
 .stock-universe-strip > span:last-child { border-right: 0; }
 .stock-universe-strip .stock-token-logo { width: 24px; height: 24px; border-radius: 6px; }
+.stock-universe-strip .stock-token-logo img { padding: 3px; }
 .stock-universe-strip b { font: 850 7px var(--font-geist-mono); }
 .live-stats { margin-top: 42px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); border-block: 1px solid var(--line); }
 .live-stats > span { min-width: 0; padding: 23px 20px; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
@@ -547,12 +548,13 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
   border: 1px solid color-mix(in srgb, var(--stock-color) 45%, #fff);
   box-shadow: 0 0 18px color-mix(in srgb, var(--stock-color) 17%, transparent);
 }
-.stock-token-logo img { width: 100%; height: 100%; object-fit: cover; }
+.stock-token-logo img { width: 100%; height: 100%; padding: 6px; object-fit: contain; }
 .stock-token-logo i { display: none; }
 .market-tape { overflow: hidden; padding: 9px 0; border-block: 1px solid var(--line); background: #070907; }
 .market-tape > div { width: max-content; display: flex; animation: tape 30s linear infinite; }
 .market-tape span { display: inline-flex; align-items: center; gap: 8px; margin: 0 23px; font: 850 10px var(--font-geist-mono); }
 .market-tape .stock-token-logo { width: 22px; height: 22px; border-radius: 6px; }
+.market-tape .stock-token-logo img { padding: 3px; }
 .market-tape i { color: var(--lime); margin-left: 12px; font-style: normal; }
 
 .arcade-steps { padding: 92px 0 120px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
