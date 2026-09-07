@@ -3,8 +3,10 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { buildCaseReel, type CaseReelItem } from "@/app/lib/case-reel";
 import { type StockToken } from "@/app/lib/stock-tokens";
-import { ACTIVE_PACK, PACK_PRICE_USD, PACK_STOCKS as STOCK_TOKENS } from "@/app/lib/pack-config";
+import { ACTIVE_PACK, PACK_PRICE_USD, PACK_RARITIES, PACK_RARITY_ODDS_PUBLISHED, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
+import { type RarityTier } from "@/app/lib/rarity";
 import { ensureRobinhoodChain, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider } from "@/app/lib/wallet-provider";
 
 type InventoryStock = {
@@ -23,7 +25,6 @@ type PackStatus = {
   inventoryCount: number;
   inventoryValueUsd: number | null;
   maxPrizeUsd: number | null;
-  packEvUsd: number | null;
   packPriceUsd: number;
   totalPacksOpened: number | null;
   inventory: InventoryStock[];
@@ -62,6 +63,7 @@ type PackResult = {
   tokenAmount: string;
   valueUsd: number;
   transactionHash: string;
+  rarity: RarityTier;
 };
 
 type RevealStage = "pack" | "spin" | "lock" | "reveal";
@@ -70,9 +72,13 @@ const WALLET_DISCONNECTED_KEY = "stonkrips.wallet-disconnected";
 const CANONICAL_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const PACK_REQUESTED_TOPIC = "0x72ce6acbcd0dcdfc48c244249d669a4a6cfd9f429795cdcc5c430ad27273f383";
 const PRIZE_DELIVERED_TOPIC = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
+const ACTIVE_REQUEST_SELECTOR = "0xb57e51c4";
+const REQUEST_SELECTOR = "0x81d12c58";
+const REEL_WINNER_INDEX = 45;
 const PACK_CONTRACT = (process.env.NEXT_PUBLIC_STONKRIPS_CONTRACT || "").trim();
 const PONS_TOKEN_URL = (process.env.NEXT_PUBLIC_PONS_TOKEN_URL || "").trim();
 const X_URL = (process.env.NEXT_PUBLIC_X_URL || "").trim();
+const PUBLIC_RESERVE_DISPLAY_FLOOR_USD = ACTIVE_PACK.inventoryRequirements.publicAvailabilityFloorUsd;
 
 const EMPTY_STATUS: PackStatus = {
   configured: Boolean(PACK_CONTRACT),
@@ -81,7 +87,6 @@ const EMPTY_STATUS: PackStatus = {
   inventoryCount: 0,
   inventoryValueUsd: null,
   maxPrizeUsd: null,
-  packEvUsd: null,
   packPriceUsd: PACK_PRICE_USD,
   totalPacksOpened: null,
   inventory: [],
@@ -160,6 +165,20 @@ async function waitForReceipt(provider: EthereumProvider, transactionHash: strin
   throw new Error("RECEIPT_TIMEOUT");
 }
 
+async function readActivePackRequest(provider: EthereumProvider) {
+  const requestIdHex = await provider.request({ method: "eth_call", params: [{ to: PACK_CONTRACT, data: ACTIVE_REQUEST_SELECTOR }, "latest"] }) as string;
+  const requestId = BigInt(requestIdHex);
+  if (requestId === BigInt(0)) return null;
+  const encoded = await provider.request({ method: "eth_call", params: [{ to: PACK_CONTRACT, data: `${REQUEST_SELECTOR}${hexWord(requestId)}` }, "latest"] }) as string;
+  const value = encoded.replace(/^0x/, "");
+  if (value.length < 320) throw new Error("ACTIVE_REQUEST_UNAVAILABLE");
+  return {
+    requestId,
+    buyer: `0x${value.slice(24, 64)}`.toLowerCase(),
+    entropyBlock: BigInt(`0x${value.slice(192, 256)}`),
+  };
+}
+
 function StockLogo({ stock, decorative = false }: { stock: StockToken; decorative?: boolean }) {
   return (
     <span className="stock-token-logo" style={{ "--stock-color": stock.color } as CSSProperties}>
@@ -183,16 +202,34 @@ export default function Home() {
   const [recentPulls, setRecentPulls] = useState<RecentPull[]>([]);
   const [pullsState, setPullsState] = useState<"loading" | "ready" | "error">("loading");
   const [clock, setClock] = useState<number | null>(null);
+  const [reelStop, setReelStop] = useState("-5800px");
+  const [recoverableRequest, setRecoverableRequest] = useState<{ requestId: bigint; buyer: string; entropyBlock: bigint } | null>(null);
   const manuallyDisconnected = useRef(false);
+  const revealTrackRef = useRef<HTMLDivElement>(null);
 
   const networkReady = chainId === ROBINHOOD_CHAIN_ID;
   const inventoryBySymbol = useMemo(() => new Map(status.inventory.map((item) => [item.symbol, item])), [status.inventory]);
-  const arcadeReady = statusState === "ready" && !status.dataError && status.configured && status.packsLive && status.inventoryCount > 0;
+  const myRips = useMemo(() => account ? recentPulls.filter((pull) => pull.wallet.toLowerCase() === account.toLowerCase()) : [], [account, recentPulls]);
+  const reelItems = useMemo<CaseReelItem<StockToken, RarityTier>[]>(() => {
+    if (!packResult) return [];
+    return buildCaseReel(STOCK_TOKENS, packResult.stock, packResult.rarity, (stock) => {
+      const inventory = inventoryBySymbol.get(stock.symbol);
+      const averageLoadedValue = inventory && inventory.fundedPulls > 0 ? inventory.loadedValueUsd / inventory.fundedPulls : 0;
+      return rarityForValue(averageLoadedValue);
+    }, REEL_WINNER_INDEX);
+  }, [inventoryBySymbol, packResult]);
+  const publicReserveReady = status.inventoryValueUsd !== null && status.inventoryValueUsd >= PUBLIC_RESERVE_DISPLAY_FLOOR_USD;
+  const approximateAvailability = !status.inventoryDataAvailable
+    ? "UNAVAILABLE"
+    : !publicReserveReady || status.inventoryCount < 1
+      ? "RESTOCKING"
+      : `≈ ${status.inventoryCount} LEFT`;
+  const arcadeReady = ACTIVE_PACK.enabled && statusState === "ready" && !status.dataError && status.configured && status.packsLive && status.inventoryCount > 0 && publicReserveReady;
   const automationLabel = status.automationLive
     ? AUTOMATION_LABELS[status.lastEpochStatus || ""] || "HOURLY ENGINE ONLINE"
     : "AUTOMATION SAFE MODE";
-  const machineState = statusState === "loading" ? "CHECKING" : statusState === "error" || status.dataError ? "ERROR" : !status.configured ? "PRELAUNCH" : !status.operatorEnabled ? "PAUSED" : status.inventoryCount < 1 ? "EMPTY" : "READY";
-  const packStatusLabel = machineState === "READY" ? "LIVE" : machineState === "EMPTY" ? "SOLD OUT" : machineState;
+  const machineState = statusState === "loading" ? "CHECKING" : statusState === "error" || status.dataError ? "ERROR" : !status.configured ? "PRELAUNCH" : !ACTIVE_PACK.enabled || !status.operatorEnabled ? "PAUSED" : status.inventoryCount < 1 || !publicReserveReady ? "RESTOCKING" : "READY";
+  const packStatusLabel = machineState === "READY" ? "LIVE" : machineState;
   const holderDrawActive = status.automationLive && ["awaiting_seed", "holder_drop_swap", "holder_drop_send"].includes(status.lastEpochStatus || "");
   const nextHourlyCycle = clock === null ? null : Math.ceil((clock + 1) / 3_600_000) * 3_600_000;
   const holderCountdown = !status.automationLive
@@ -233,6 +270,21 @@ export default function Home() {
       provider.removeListener?.("disconnect", syncDisconnect);
     };
   }, []);
+
+  useEffect(() => {
+    const provider = getProvider();
+    if (!provider || !account || !networkReady || !status.configured) {
+      void Promise.resolve().then(() => setRecoverableRequest(null));
+      return;
+    }
+    let active = true;
+    void readActivePackRequest(provider)
+      .then((request) => {
+        if (active) setRecoverableRequest(request?.buyer === account.toLowerCase() ? request : null);
+      })
+      .catch(() => { if (active) setRecoverableRequest(null); });
+    return () => { active = false; };
+  }, [account, networkReady, status.configured]);
 
   useEffect(() => {
     const tick = () => setClock(Date.now());
@@ -281,10 +333,16 @@ export default function Home() {
 
   useEffect(() => {
     if (!packResult || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const spinTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "spin"), 400);
-    const lockTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "lock"), 1_400);
-    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), 1_650);
+    const measure = () => {
+      const winner = revealTrackRef.current?.querySelector<HTMLElement>("[data-winning='true']");
+      if (winner) setReelStop(`${-(winner.offsetLeft + winner.offsetWidth / 2)}px`);
+    };
+    const frame = window.requestAnimationFrame(measure);
+    const spinTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "spin"), 450);
+    const lockTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "lock"), 4_650);
+    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), 5_250);
     return () => {
+      window.cancelAnimationFrame(frame);
       window.clearTimeout(spinTimer);
       window.clearTimeout(lockTimer);
       window.clearTimeout(revealTimer);
@@ -342,6 +400,47 @@ export default function Home() {
     }
   }
 
+  async function settleAndReveal(provider: EthereumProvider, requestId: bigint, entropyBlock: bigint) {
+    setNotice("Pack locked. Waiting for the future Robinhood Chain block…");
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const blockHex = await provider.request({ method: "eth_blockNumber" }) as string;
+      if (BigInt(blockHex) > entropyBlock) break;
+      await delay(1_500);
+      if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
+    }
+
+    setNotice("Outcome ready. Confirm the final onchain settlement.");
+    let settleHash: string;
+    let settleReceipt: RpcReceipt;
+    try {
+      settleHash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: account, to: PACK_CONTRACT, data: `0x8533498d${hexWord(requestId)}`, value: "0x0" }],
+      }) as string;
+      settleReceipt = await waitForReceipt(provider, settleHash);
+    } catch (error) {
+      const requestBlock = entropyBlock > BigInt(2) ? entropyBlock - BigInt(2) : BigInt(0);
+      const logs = await provider.request({ method: "eth_getLogs", params: [{ address: PACK_CONTRACT, fromBlock: `0x${requestBlock.toString(16)}`, toBlock: "latest", topics: [PRIZE_DELIVERED_TOPIC, `0x${hexWord(requestId)}`] }] }) as Array<{ transactionHash: string }>;
+      if (logs.length !== 1) throw error;
+      settleHash = logs[0].transactionHash;
+      settleReceipt = await waitForReceipt(provider, settleHash);
+    }
+    const prizeLog = settleReceipt.logs.find((log) => log.address.toLowerCase() === PACK_CONTRACT.toLowerCase() && log.topics[0]?.toLowerCase() === PRIZE_DELIVERED_TOPIC);
+    if (!prizeLog?.topics[3]) throw new Error("PRIZE_EVENT_MISSING");
+    const tokenAddress = `0x${prizeLog.topics[3].slice(-40)}`.toLowerCase();
+    const data = prizeLog.data.replace(/^0x/, "");
+    const tokenAmount = formatTokenUnits(BigInt(`0x${data.slice(0, 64)}`));
+    const valueUsd = Number(BigInt(`0x${data.slice(64, 128)}`)) / 1_000_000;
+    const stock = STOCK_TOKENS.find((candidate) => candidate.address.toLowerCase() === tokenAddress);
+    if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
+    setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "pack");
+    setPackResult({ stock, tokenAmount, valueUsd, transactionHash: settleHash, rarity: rarityForValue(valueUsd) });
+    setRecoverableRequest(null);
+    setPackModalOpen(false);
+    setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
+    setNotice("");
+  }
+
   async function openPack() {
     if (!account) return connectWallet();
     const provider = getProvider();
@@ -352,15 +451,39 @@ export default function Home() {
       return;
     }
     if (!termsAccepted) return;
-    if (!status.configured || !status.packsLive) {
-      setNotice("Pack contract is not live yet. No payment was requested.");
-      return;
-    }
-    if (status.inventoryCount < 1) {
-      setNotice("Inventory is empty. No payment was requested.");
+    if (!status.configured) {
+      setNotice("Pack contract is not configured. No payment was requested.");
       return;
     }
     setBusy(true);
+    setNotice("Checking for an unfinished pack…");
+    try {
+      const activeRequest = await readActivePackRequest(provider);
+      if (activeRequest) {
+        if (activeRequest.buyer !== account.toLowerCase()) {
+          setNotice("Another pack is settling. No payment was requested; try again after it finishes.");
+          setBusy(false);
+          return;
+        }
+        await settleAndReveal(provider, activeRequest.requestId, activeRequest.entropyBlock);
+        setBusy(false);
+        return;
+      }
+    } catch {
+      setNotice("The active pack state could not be verified. No payment was requested.");
+      setBusy(false);
+      return;
+    }
+    if (!status.packsLive) {
+      setNotice("Pack contract is not live yet. No payment was requested.");
+      setBusy(false);
+      return;
+    }
+    if (status.inventoryCount < 1 || !publicReserveReady) {
+      setNotice("The pack reserve is below the public availability floor. No payment was requested.");
+      setBusy(false);
+      return;
+    }
     setNotice(`Checking your ${PACK_PRICE_USD} USDG allowance…`);
     try {
       const priceAtoms = BigInt(ACTIVE_PACK.priceUsdgAtoms);
@@ -394,45 +517,7 @@ export default function Home() {
       if (!requestLog?.topics[1]) throw new Error("REQUEST_EVENT_MISSING");
       const requestId = BigInt(requestLog.topics[1]);
       const entropyBlock = BigInt(requestLog.data);
-      setNotice("Pack locked. Waiting for the future Robinhood Chain block…");
-
-      for (let attempt = 0; attempt < 80; attempt += 1) {
-        const blockHex = await provider.request({ method: "eth_blockNumber" }) as string;
-        if (BigInt(blockHex) > entropyBlock) break;
-        await delay(1_500);
-        if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
-      }
-
-      setNotice("Reveal ready. Confirm the final on-chain settlement.");
-      let settleHash: string;
-      let settleReceipt: RpcReceipt;
-      try {
-        settleHash = await provider.request({
-          method: "eth_sendTransaction",
-          params: [{ from: account, to: PACK_CONTRACT, data: `0x8533498d${hexWord(requestId)}`, value: "0x0" }],
-        }) as string;
-        settleReceipt = await waitForReceipt(provider, settleHash);
-      } catch (error) {
-        // A recovery worker may already have settled this request. Only an
-        // actual successful receipt can recover the result, never the animation.
-        const logs = await provider.request({ method: "eth_getLogs", params: [{ address: PACK_CONTRACT, fromBlock: openReceipt.blockNumber, toBlock: "latest", topics: [PRIZE_DELIVERED_TOPIC, `0x${hexWord(requestId)}`] }] }) as Array<{ transactionHash: string }>;
-        if (logs.length !== 1) throw error;
-        settleHash = logs[0].transactionHash;
-        settleReceipt = await waitForReceipt(provider, settleHash);
-      }
-      const prizeLog = settleReceipt.logs.find((log) => log.address.toLowerCase() === PACK_CONTRACT.toLowerCase() && log.topics[0]?.toLowerCase() === PRIZE_DELIVERED_TOPIC);
-      if (!prizeLog?.topics[3]) throw new Error("PRIZE_EVENT_MISSING");
-      const tokenAddress = `0x${prizeLog.topics[3].slice(-40)}`.toLowerCase();
-      const data = prizeLog.data.replace(/^0x/, "");
-      const tokenAmount = formatTokenUnits(BigInt(`0x${data.slice(0, 64)}`));
-      const valueUsd = Number(BigInt(`0x${data.slice(64, 128)}`)) / 1_000_000;
-      const stock = STOCK_TOKENS.find((candidate) => candidate.address.toLowerCase() === tokenAddress);
-      if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
-      setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "pack");
-      setPackResult({ stock, tokenAmount, valueUsd, transactionHash: settleHash });
-      setPackModalOpen(false);
-      setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
-      setNotice("");
+      await settleAndReveal(provider, requestId, entropyBlock);
     } catch (error) {
       const code = (error as { code?: number })?.code;
       setNotice(code === 4001 ? "Transaction cancelled. No new transaction was sent." : "The pack could not complete. Check wallet activity before retrying.");
@@ -443,13 +528,15 @@ export default function Home() {
 
   const primaryLabel = busy
     ? "PROCESSING…"
+    : recoverableRequest
+      ? "RESUME PACK"
     : statusState === "error" || status.dataError
       ? "PACK STATUS UNAVAILABLE"
       : !status.configured
       ? "PACK CONTRACT PENDING"
       : !status.operatorEnabled
         ? "PACKS PAUSED"
-        : status.inventoryCount < 1
+        : status.inventoryCount < 1 || !publicReserveReady
           ? "ARCADE RESTOCKING"
           : `RIP ${ACTIVE_PACK.label} — $${PACK_PRICE_USD}`;
 
@@ -464,7 +551,7 @@ export default function Home() {
       <div className="ambient" aria-hidden="true" />
       <nav className="nav shell" aria-label="Primary navigation">
         <a href="#top" className="brand" aria-label="StonkRips home">
-          <Image className="brand-logo" src="/stonkrips-open-pack-512.png" alt="StonkRips open stock pack logo" width={48} height={48} priority />
+          <Image className="brand-logo" src="/stonkrips-transparent-192.png" alt="StonkRips Stock Token pack logo" width={48} height={48} priority />
           <b>STONK<span>RIPS</span></b>
         </a>
         <div className="nav-links">
@@ -496,7 +583,7 @@ export default function Home() {
             <p className="lead"><strong>{ACTIVE_PACK.label} — ${PACK_PRICE_USD}.</strong> One onchain-selected Stock Token. Delivered directly to your wallet.</p>
             <p className="sublead">Funded Stock Token inventory. Settled pack proceeds can restock hourly. Pons creator fees and holder drops come later.</p>
             <div className="hero-actions">
-              <button className="rip-button" type="button" onClick={() => void (!account ? connectWallet() : setPackModalOpen(true))} disabled={busy || (Boolean(account) && !arcadeReady)}>
+              <button className="rip-button" type="button" onClick={() => void (!account ? connectWallet() : setPackModalOpen(true))} disabled={busy || (Boolean(account) && !arcadeReady && !recoverableRequest)}>
                 {!account ? "CONNECT WALLET TO RIP" : primaryLabel}<span aria-hidden="true">●</span>
               </button>
               <a className="secondary-button" href="#pack">VIEW PACK</a>
@@ -511,8 +598,8 @@ export default function Home() {
 
           <div className={"pack-showcase playable-pack state-" + machineState.toLowerCase().replace(" ", "-")} id="pack" aria-label={"StonkRips pack. Status: " + machineState} aria-busy={busy}>
             <div className="pack-glow" aria-hidden="true" />
-            <button className="pack-product interactive-pack" type="button" onClick={() => void (!account ? connectWallet() : setPackModalOpen(true))} disabled={busy || (Boolean(account) && !arcadeReady)} aria-label={!account ? "Connect wallet to StonkRips" : `Open ${ACTIVE_PACK.label} for ${PACK_PRICE_USD} USDG`}>
-              <Image className="premium-pack" src="/stonkrips-open-pack-logo.png" alt="StonkRips open black pack with stock cards" width={1254} height={1254} priority />
+            <button className="pack-product interactive-pack" type="button" onClick={() => void (!account ? connectWallet() : setPackModalOpen(true))} disabled={busy || (Boolean(account) && !arcadeReady && !recoverableRequest)} aria-label={!account ? "Connect wallet to StonkRips" : recoverableRequest ? "Resume the previously purchased StonkRips pack" : `Open ${ACTIVE_PACK.label} for ${PACK_PRICE_USD} USDG`}>
+              <Image className="premium-pack" src="/stonkrips-pack-transparent.png" alt="StonkRips black foil pack with authentic stock logos" width={1024} height={1536} priority />
               <span className="foil-sheen" aria-hidden="true" />
             </button>
             <div className="pack-readout">
@@ -520,29 +607,53 @@ export default function Home() {
               <i>{packStatusLabel}</i>
               <dl>
                 <div><dt>PACK PRICE</dt><dd>{PACK_PRICE_USD} USDG</dd></div>
-                <div><dt>FUNDED PACKS</dt><dd>{!status.configured ? "PENDING" : !status.inventoryDataAvailable ? "UNAVAILABLE" : status.inventoryCount}</dd></div>
+                <div><dt>PACKS AVAILABLE</dt><dd>{!status.configured ? "PENDING" : approximateAvailability}</dd></div>
                 <div><dt>STOCK UNIVERSE</dt><dd>{STOCK_TOKENS.length}</dd></div>
-                <div><dt>PACK EV</dt><dd>{status.packEvUsd === null ? "UNAVAILABLE" : formatUsd(status.packEvUsd)}</dd></div>
+                <div><dt>RESERVE BACKING</dt><dd>{status.inventoryValueUsd === null ? "UNAVAILABLE" : formatUsd(status.inventoryValueUsd)}</dd></div>
               </dl>
+              <div className="rarity-legend" aria-label="Configured StonkRips rarity tiers">
+                <small>WHAT ARE YOU PULLING?</small>
+                <div>{PACK_RARITIES.map((tier) => <span key={tier.id} style={{ "--rarity-color": tier.color } as CSSProperties}>{tier.label}</span>)}</div>
+                {!PACK_RARITY_ODDS_PUBLISHED && <em>RARITY ODDS ARE NOT PUBLISHED UNTIL THE PACK IS FULLY FUNDED.</em>}
+              </div>
               {account && <div className="pack-wallet"><span>{shortAddress(account)}</span><button type="button" disabled={busy} onClick={() => void disconnectWallet()}>Disconnect</button></div>}
-              <button type="button" onClick={() => void (!account ? connectWallet() : !networkReady ? openPack() : setPackModalOpen(true))} disabled={busy || (Boolean(account && networkReady) && !arcadeReady)}>{busy ? "WAITING FOR WALLET / CHAIN…" : !account ? "CONNECT WALLET" : !networkReady ? "SWITCH NETWORK" : arcadeReady ? `RIP PACK — ${PACK_PRICE_USD} USDG` : primaryLabel}</button>
-              <small>ETH covers network gas. The confirmed Stock Token is sent directly to your connected wallet.</small>
+              <button type="button" onClick={() => void (!account ? connectWallet() : !networkReady ? openPack() : setPackModalOpen(true))} disabled={busy || (Boolean(account && networkReady) && !arcadeReady && !recoverableRequest)}>{busy ? "WAITING FOR WALLET / CHAIN…" : !account ? "CONNECT WALLET" : !networkReady ? "SWITCH NETWORK" : recoverableRequest ? "RESUME PACK" : arcadeReady ? `RIP PACK — ${PACK_PRICE_USD} USDG` : primaryLabel}</button>
+              <small>Availability is an estimate from the latest onchain snapshot and can sell out at any time. ETH covers network gas.</small>
               {notice && <p className="pack-progress" role="status">{notice}</p>}
             </div>
             {packResult && (
-              <div className={`hero-pack-result reveal-${revealStage}`} aria-live="polite">
-                {revealStage !== "reveal" ? <>
-                  <span>TRANSACTION CONFIRMED · OPENING YOUR PACK</span>
-                  <Image src="/stonkrips-open-pack-512.png" alt="Your confirmed pack is opening" width={300} height={300} />
-                  <button type="button" onClick={() => setRevealStage("reveal")}>SKIP ANIMATION</button>
-                </> : <>
-                  <span>YOU PULLED · DELIVERED TO YOUR WALLET</span>
+              <div className={`hero-pack-result reveal-${revealStage}`} style={{ "--reel-stop": reelStop, "--winning-rarity": packResult.rarity.color } as CSSProperties} aria-live="polite">
+                {revealStage !== "reveal" && <button className="skip-reveal" type="button" onClick={() => setRevealStage("reveal")}>SKIP ANIMATION</button>}
+                <div className="pack-opening-intro">
+                  <span>RESULT CONFIRMED ONCHAIN</span>
+                  <Image src="/stonkrips-transparent-512.png" alt="Your confirmed Stock Token pack is opening" width={300} height={300} />
+                </div>
+                <div className="hero-case-reel">
+                  <div className="case-reveal-header"><span>WHAT ARE YOU PULLING?</span><b>RESULT LOCKED</b></div>
+                  <div className="case-reel-window">
+                    <div className="case-reel-marker" aria-hidden="true"><i /><span /></div>
+                    <div className="case-reel-track" ref={revealTrackRef}>
+                      {reelItems.map((item, index) => (
+                        <div className={`case-reel-card${item.winning ? " is-winning" : ""}`} data-winning={item.winning ? "true" : undefined} style={{ "--rarity-color": item.rarity.color } as CSSProperties} key={`${item.stock.symbol}-${index}`}>
+                          <StockLogo stock={item.stock} />
+                          <b>{item.stock.symbol}</b>
+                          <small>{item.rarity.label}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="case-proof-note">The reel displays the outcome already confirmed by the pack contract. It never chooses or rerolls the prize.</p>
+                </div>
+                <div className="confirmed-prize" style={{ "--rarity-color": packResult.rarity.color } as CSSProperties}>
+                  <span>YOU PULLED</span>
                   <StockLogo stock={packResult.stock} />
                   <h2>{packResult.stock.name}</h2>
-                  <p className="hero-result-amount">{packResult.tokenAmount} {packResult.stock.symbol}</p>
+                  <em>{packResult.stock.symbol} · {packResult.rarity.label}</em>
+                  <p>{packResult.tokenAmount} {packResult.stock.symbol}</p>
                   <small>{formatUsd(packResult.valueUsd)} value when loaded · not a current price</small>
-                  <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION</a><button type="button" onClick={() => { setPackResult(null); setTermsAccepted(false); }}>BACK TO PACK</button></div>
-                </>}
+                  <b>DELIVERED · {shortAddress(account)}</b>
+                  <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION ↗</a><button type="button" onClick={() => { setPackResult(null); setTermsAccepted(false); }}>RIP ANOTHER →</button></div>
+                </div>
               </div>
             )}
           </div>
@@ -556,8 +667,8 @@ export default function Home() {
 
       <section className="live-stats shell" aria-label="Verified StonkRips statistics">
         <span><b>{status.totalPacksOpened === null ? "NOT REPORTED" : status.totalPacksOpened}</b><small>TOTAL PACKS OPENED</small></span>
-        <span><b>{status.inventoryDataAvailable ? status.inventoryCount : "NOT REPORTED"}</b><small>FUNDED PACKS</small></span>
-        <span><b>{status.packEvUsd === null ? "NOT REPORTED" : formatUsd(status.packEvUsd)}</b><small>CURRENT PACK EV</small></span>
+        <span><b>{status.inventoryDataAvailable ? approximateAvailability : "NOT REPORTED"}</b><small>PACK AVAILABILITY</small></span>
+        <span><b>{status.inventoryValueUsd === null ? "NOT REPORTED" : formatUsd(status.inventoryValueUsd)}</b><small>ONCHAIN RESERVE</small></span>
         <span><b>{status.completedEpochs === null ? "NOT REPORTED" : status.completedEpochs}</b><small>HOLDER DROPS COMPLETED</small></span>
       </section>
 
@@ -571,7 +682,7 @@ export default function Home() {
         <div className="section-heading">
           <span>THE VERIFIED POSSIBLE PULLS</span>
           <h2>WHAT&apos;S INSIDE<br/>THE MACHINES.</h2>
-          <p>Browse the supported Stock Token universe. Only assets already loaded into the pack contract can be selected.</p>
+          <p>Supported is not the same as funded. A stock can only be pulled when its card says loaded; odds use the latest onchain inventory snapshot.</p>
         </div>
         <div className="prize-grid">
           {STOCK_TOKENS.map((stock, index) => {
@@ -582,12 +693,12 @@ export default function Home() {
                 <div className="prize-card-head"><em>{String(index + 1).padStart(2, "0")}</em><StockLogo stock={stock} /><a href={`https://robinhoodchain.blockscout.com/token/${stock.address}`} target="_blank" rel="noreferrer" aria-label={`View ${stock.name} token on Blockscout`}>DETAILS</a></div>
                 <h3>{stock.symbol}</h3>
                 <p>{stock.name}</p>
-                <div className="prize-status"><span>{inventory ? "LOADED" : unavailable ? "UNAVAILABLE" : "NOT LOADED"}</span>{inventory && <b>{inventory.fundedPulls} FUNDED {inventory.fundedPulls === 1 ? "PULL" : "PULLS"}</b>}</div>
+                <div className="prize-status"><span>{inventory ? "LOADED" : unavailable ? "UNAVAILABLE" : "NOT LOADED"}</span>{inventory && <b>{inventory.probabilityPct.toFixed(2)}% CURRENT ODDS</b>}</div>
               </article>
             );
           })}
         </div>
-        <p className="token-disclosure">Stock Tokens provide economic exposure to referenced assets. They are not traditional shares and do not provide shareholder rights.</p>
+        <p className="token-disclosure">Odds and availability can change whenever funded inventory changes. Stock Tokens provide economic exposure to referenced assets; they are not traditional shares and do not provide shareholder rights.</p>
       </section>
 
       <section className="recent-pulls shell" id="recent-pulls">
@@ -605,6 +716,18 @@ export default function Home() {
               <span>{shortAddress(pull.wallet)}</span><b>{pull.symbol}</b><span>{pull.tokenAmount}</span><span>{formatUsd(pull.valueUsd)}</span><time dateTime={pull.timestamp ? new Date(pull.timestamp).toISOString() : undefined}>{pull.timestamp ? new Date(pull.timestamp).toLocaleString() : "UNAVAILABLE"}</time><a href={`https://robinhoodchain.blockscout.com/tx/${pull.transactionHash}`} target="_blank" rel="noreferrer">VIEW ↗</a>
             </div>
           ))}
+        </div>
+        <div className="my-rips">
+          <div><span>MY RIPS</span><small>VERIFIED FROM THE CONNECTED WALLET</small></div>
+          {!account && <p>CONNECT YOUR WALLET TO FILTER VERIFIED PULLS.</p>}
+          {account && pullsState === "loading" && <p>READING YOUR VERIFIED RIPS…</p>}
+          {account && pullsState === "error" && <p>YOUR VERIFIED RIPS ARE TEMPORARILY UNAVAILABLE.</p>}
+          {account && pullsState === "ready" && myRips.length === 0 && <p>NO VERIFIED RIPS FOUND FOR {shortAddress(account)}.</p>}
+          {account && myRips.map((pull) => {
+            const rarity = rarityForValue(pull.valueUsd);
+            const completedAt = pull.timestamp ? new Date(pull.timestamp).toLocaleString() : "TIME UNAVAILABLE";
+            return <a href={`https://robinhoodchain.blockscout.com/tx/${pull.transactionHash}`} target="_blank" rel="noreferrer" key={`mine-${pull.transactionHash}`}><StockLogo stock={STOCK_TOKENS.find((stock) => stock.symbol === pull.symbol) || STOCK_TOKENS[0]} /><b>{pull.symbol}</b><span>{rarity.label}</span><small>{ACTIVE_PACK.label} · {pull.tokenAmount} · {formatUsd(pull.valueUsd)} AT LOAD · {completedAt}</small></a>;
+          })}
         </div>
       </section>
 
@@ -705,7 +828,7 @@ export default function Home() {
           <article><b>01</b><h3>PACK PAYMENT</h3><p>Connect an EVM wallet and approve exactly {PACK_PRICE_USD} canonical USDG. A successful open moves that USDG into the pack contract; settlement forwards it to the treasury and delivers one funded Stock Token. ETH is used only for Robinhood Chain gas.</p></article>
           <article><b>02</b><h3>HOLDER WEIGHT</h3><p>Holder eligibility is not active before the Pons token exists. The final snapshot and ticket rules will be documented after integration verification.</p></article>
           <article><b>03</b><h3>HOURLY RESTOCK</h3><p>When enabled, the Railway treasury worker reserves the previous hour’s confirmed settlement receipts, buys configured Stock Tokens using those USDG proceeds, and loads the exact amount received. Signed transactions are journaled before broadcast; retries reuse the same transaction. Pons is not required.</p></article>
-          <article><b>04</b><h3>SUSTAINABILITY</h3><p>Inventory value, current pack EV, funded pulls, and completed holder drops are measured from real sources. Parameters are reviewed manually and any change should be disclosed before activation.</p></article>
+          <article><b>04</b><h3>SUSTAINABILITY</h3><p>Inventory value, funded pulls, and completed holder drops are measured from real sources. Parameters are reviewed manually and any change should be disclosed before activation.</p></article>
         </div>
       </section>
 
@@ -724,7 +847,7 @@ export default function Home() {
       </section>
 
       <footer className="shell">
-        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-open-pack-512.png" alt="StonkRips open stock pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
+        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-transparent-192.png" alt="StonkRips Stock Token pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
         <div><a href="#proof">PROOF</a><a href="#docs">DOCS</a><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}</div>
         <span>ROBINHOOD CHAIN · 4663</span>
       </footer>
@@ -735,7 +858,7 @@ export default function Home() {
             <button className="modal-close" type="button" onClick={() => setPackModalOpen(false)} aria-label="Close pack window">×</button>
             <span>STONKRIPS // {ACTIVE_PACK.id}</span>
             <h2 id="pack-modal-title">READY TO RIP?</h2>
-            <Image className="modal-pack" src="/stonkrips-open-pack-512.png" alt="StonkRips open stock pack" width={256} height={256} />
+            <Image className="modal-pack" src="/stonkrips-transparent-512.png" alt="StonkRips Stock Token pack" width={256} height={256} />
             <div className="purchase-summary"><b>{PACK_PRICE_USD} USDG</b><small>ONE FUNDED STOCK TOKEN · ETH GAS REQUIRED</small></div>
             <div className="payment-rails" aria-label="Pack payment details">
               <span><small>PACK PAYMENT</small><b>{PACK_PRICE_USD} USDG</b></span>
@@ -743,7 +866,7 @@ export default function Home() {
             </div>
             <label className="eligibility"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /><span>I am 18+ and legally eligible to use Robinhood Chain Stock Tokens in my jurisdiction.</span></label>
             {notice && <p className="notice" role="status">{notice}</p>}
-            <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || (Boolean(account && networkReady) && (!termsAccepted || !arcadeReady))}>{busy ? "PROCESSING…" : account && networkReady && !arcadeReady ? primaryLabel : modalAction}</button>
+            <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || (Boolean(account && networkReady) && (!termsAccepted || (!arcadeReady && !recoverableRequest)))}>{busy ? "PROCESSING…" : recoverableRequest ? "RESUME CONFIRMED PACK" : account && networkReady && !arcadeReady ? primaryLabel : modalAction}</button>
             <small>Approval authorizes exactly {PACK_PRICE_USD} USDG. The contract cannot open a pack unless sales are enabled and a funded inventory slot exists.</small>
           </div>
         </div>

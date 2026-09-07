@@ -119,7 +119,6 @@ export async function GET() {
     inventoryCount: 0,
     inventoryValueUsd: null as number | null,
     maxPrizeUsd: null as number | null,
-    packEvUsd: null as number | null,
     packPriceUsd: PACK_PRICE_USD,
     totalPacksOpened: null as number | null,
     inventory: [] as Array<{
@@ -182,7 +181,6 @@ export async function GET() {
       inventoryCount,
       inventoryValueUsd: Number(inventoryValue) / 1_000_000,
       maxPrizeUsd: Number(maxPrizeUsd) / 1_000_000,
-      packEvUsd: inventoryCount ? Number(inventoryValue) / 1_000_000 / inventoryCount : null,
       packPriceUsd: Number(packPrice) / 1_000_000,
       totalPacksOpened: Math.max(0, Number(nextRequestId - BigInt(1) - (activeRequestId === BigInt(0) ? BigInt(0) : BigInt(1)))),
       inventory,

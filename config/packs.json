@@ -3,10 +3,26 @@
   "packs": [{
     "id": "PACK_01",
     "label": "PACK #01",
+    "enabled": true,
     "priceUsdgAtoms": "20000000",
+    "visualTheme": "acid-arcade",
+    "selectionModel": "uniform-funded-inventory-slots",
+    "inventoryRequirements": {
+      "publicAvailabilityFloorUsd": 50
+    },
+    "rarity": {
+      "publishOdds": false,
+      "tiers": [
+        { "id": "standard", "label": "STANDARD", "color": "#4d7cff", "minUsd": 0, "maxUsdExclusive": 10, "weightBps": null },
+        { "id": "uncommon", "label": "UNCOMMON", "color": "#a855f7", "minUsd": 10, "maxUsdExclusive": 20, "weightBps": null },
+        { "id": "rare", "label": "RARE", "color": "#ec4899", "minUsd": 20, "maxUsdExclusive": 50, "weightBps": null },
+        { "id": "redline", "label": "REDLINE", "color": "#ef4444", "minUsd": 50, "maxUsdExclusive": 100, "weightBps": null },
+        { "id": "golden-rip", "label": "GOLDEN RIP", "color": "#f5c542", "minUsd": 100, "maxUsdExclusive": null, "weightBps": null }
+      ]
+    },
     "targetReturnBps": 9800,
     "initialSeedPlanUsd": [5, 5, 8, 10, 15, 18, 20, 25, 40, 50],
-    "symbols": ["SPY", "NVDA", "TSLA", "GME", "PLTR", "COIN", "RKLB", "SPCX", "AAPL"],
+    "symbols": ["SPY", "NVDA", "TSLA", "GME", "PLTR", "COIN", "RKLB", "SPCX", "AAPL", "MRVL"],
     "restockLotUsd": [5, 7, 8, 10, 12, 15, 18, 20, 25, 30, 40, 50, 75, 100]
   }]
 }

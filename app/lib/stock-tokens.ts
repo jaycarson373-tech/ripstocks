@@ -18,6 +18,7 @@ export const STOCK_TOKENS: StockToken[] = [
   { symbol: "RKLB", name: "Rocket Lab", address: "0x3b14C39E89D60D627b42a1A4CA45b5bb45Fc12e2", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x3b14c39e89d60d627b42a1a4ca45b5bb45fc12e2.png", color: "#f4f7ee" },
   { symbol: "SPCX", name: "SpaceX Class A", address: "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea.png", color: "#f4f7ee" },
   { symbol: "AAPL", name: "Apple", address: "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0xaf3d76f1834a1d425780943c99ea8a608f8a93f9.png", color: "#f4f7ee" },
+  { symbol: "MRVL", name: "Marvell Technology", address: "0x62fd0668e10D8B72339BE2DCF7643001688ff13B", logoUrl: "https://cdn.robinhood.com/ncw_assets/logos/0x62fd0668e10d8b72339be2dcf7643001688ff13b.png", color: "#d71920" },
 ];
 
 export const STOCK_TOKEN_BY_ADDRESS = new Map(

@@ -51,7 +51,7 @@ test("stock order is deterministic and contains the full rotation", () => {
   const first = deterministicStockOrder(`0x${"12".repeat(32)}`, "epoch", "drop");
   const second = deterministicStockOrder(`0x${"12".repeat(32)}`, "epoch", "drop");
   assert.deepEqual(first, second);
-  assert.equal(new Set(first.map((stock) => stock.symbol)).size, 9);
+  assert.equal(new Set(first.map((stock) => stock.symbol)).size, 10);
 });
 
 test("contract deployment block is discovered without a configured start block", async () => {

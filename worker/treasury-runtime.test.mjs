@@ -31,7 +31,7 @@ test("Railway deployment artifact matches current contract source", () => {
 test("treasury works without creator key or Pons CA; defaults off", () => {
   const cfg = treasuryConfig(env);
   assert.equal(cfg.priceAtoms, 20_000_000n);
-  assert.equal(cfg.stocks.length, 9);
+  assert.equal(cfg.stocks.length, 10);
   assert.equal(cfg.ponsToken, undefined);
   assert.equal(cfg.creatorPrivateKey, undefined);
   assert.equal(cfg.reinvestEnabled, false);

@@ -14,6 +14,7 @@ export const STOCK_TOKENS = [
   ["RKLB", "0x3b14C39E89D60D627b42a1A4CA45b5bb45Fc12e2"],
   ["SPCX", "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"],
   ["AAPL", "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9"],
+  ["MRVL", "0x62fd0668e10D8B72339BE2DCF7643001688ff13B"],
 ].map(([symbol, address]) => ({ symbol, address: getAddress(address) }));
 
 export function parseMode(value = "off") {
