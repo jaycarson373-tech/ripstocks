@@ -28,3 +28,5 @@ forge test
 
 See `docs/launch-env.md` and `contracts/README.md` before any production launch.
 For the worker and one-paste Supabase setup, see `docs/pons-automation-setup.md` and `supabase/pons-automation.sql`.
+
+The initial inventory loader accepts 250 canonical USDG by default and converts the configured ten prize budgets into real Stock Tokens through 0x. It leaves sales disabled until the separate guarded `packs:activate` command confirms funded inventory and enables the contract.

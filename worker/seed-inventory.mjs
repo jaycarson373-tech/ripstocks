@@ -9,6 +9,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import {
   CANONICAL_SPY,
+  CANONICAL_USDG,
   ROBINHOOD_CHAIN_ID,
   STOCK_TOKENS,
   addressEnv,
@@ -78,10 +79,10 @@ async function approve(publicClient, walletClient, account, token, spender, amou
   return hash;
 }
 
-async function zeroX(cfg, account, endpoint, buyToken, sellAmount) {
+async function zeroX(cfg, account, endpoint, sellToken, buyToken, sellAmount) {
   const query = new URLSearchParams({
     chainId: String(ROBINHOOD_CHAIN_ID),
-    sellToken: getAddress(CANONICAL_SPY),
+    sellToken,
     buyToken,
     sellAmount: sellAmount.toString(),
     taker: account.address,
@@ -115,7 +116,7 @@ async function prices() {
   return result;
 }
 
-function quoteAtomsForUsd(usd, spyPrice) {
+function spyAtomsForUsd(usd, spyPrice) {
   const usdMicros = decimalToScaled(usd, 6);
   const priceMicros = decimalToScaled(spyPrice.ask, 6);
   const multiplierAtoms = decimalToScaled(spyPrice.multiplier, 18);
@@ -132,7 +133,9 @@ async function main() {
     zeroXKey: required("ZEROX_API_KEY", process.env.ZEROX_API_KEY),
     slippageBps: Number.parseInt(process.env.ZEROX_SLIPPAGE_BPS || "100", 10),
     values: prizeValues(process.env.INITIAL_PRIZE_USD_VALUES),
+    seedAsset: (process.env.INITIAL_SEED_ASSET || "USDG").trim().toUpperCase(),
   };
+  if (!new Set(["USDG", "SPY"]).has(cfg.seedAsset)) throw new Error("INITIAL_SEED_ASSET must be USDG or SPY");
   const account = privateKeyToAccount(privateKey(process.env.AUTOMATION_PRIVATE_KEY));
   const transport = http(cfg.rpcUrl, { retryCount: 3, retryDelay: 1_000, timeout: 30_000 });
   const publicClient = createPublicClient({ chain: robinhood, transport });
@@ -152,29 +155,30 @@ async function main() {
 
   const priceMap = await prices();
   const spyPrice = priceMap.get("SPY");
+  const sellToken = getAddress(cfg.seedAsset === "USDG" ? CANONICAL_USDG : CANONICAL_SPY);
   const plans = cfg.values.map((usd, index) => ({
     stock: STOCK_TOKENS[index],
     targetUsd: usd,
-    sellAmount: quoteAtomsForUsd(usd, spyPrice),
+    sellAmount: cfg.seedAsset === "USDG" ? decimalToScaled(usd, 6) : spyAtomsForUsd(usd, spyPrice),
   }));
   const totalSell = plans.reduce((sum, plan) => sum + plan.sellAmount, 0n);
-  const available = await tokenBalance(publicClient, getAddress(CANONICAL_SPY), account.address);
-  if (available < totalSell) throw new Error("Automation wallet does not hold enough canonical SPY for the configured seed schedule");
+  const available = await tokenBalance(publicClient, sellToken, account.address);
+  if (available < totalSell) throw new Error(`Automation wallet does not hold enough canonical ${cfg.seedAsset} for the configured seed schedule`);
 
   await Promise.all(plans.map(async (plan) => {
     const approved = await publicClient.readContract({ address: cfg.packContract, abi: packAbi, functionName: "approvedStock", args: [plan.stock.address] });
     if (!approved) throw new Error(`${plan.stock.symbol} is not approved by the pack contract`);
-    if (plan.stock.address !== getAddress(CANONICAL_SPY)) await zeroX(cfg, account, "price", plan.stock.address, plan.sellAmount);
+    if (plan.stock.address !== sellToken) await zeroX(cfg, account, "price", sellToken, plan.stock.address, plan.sellAmount);
   }));
 
   for (const plan of plans) {
     let amount = plan.sellAmount;
     let swapTransaction = null;
-    if (plan.stock.address !== getAddress(CANONICAL_SPY)) {
-      const quote = await zeroX(cfg, account, "quote", plan.stock.address, plan.sellAmount);
+    if (plan.stock.address !== sellToken) {
+      const quote = await zeroX(cfg, account, "quote", sellToken, plan.stock.address, plan.sellAmount);
       const spender = quote.issues?.allowance?.spender || quote.allowanceTarget;
       if (!spender || !quote.transaction?.to || !quote.transaction?.data) throw new Error(`0x omitted executable fields for ${plan.stock.symbol}`);
-      await approve(publicClient, walletClient, account, getAddress(CANONICAL_SPY), getAddress(spender), plan.sellAmount);
+      await approve(publicClient, walletClient, account, sellToken, getAddress(spender), plan.sellAmount);
       const before = await tokenBalance(publicClient, plan.stock.address, account.address);
       swapTransaction = await walletClient.sendTransaction({
         account,
@@ -207,7 +211,7 @@ async function main() {
       loadTransaction,
     });
   }
-  output("seed_inventory_complete", { fundedPacksAdded: plans.length, packsRemainDisabled: true });
+  output("seed_inventory_complete", { fundedPacksAdded: plans.length, seedAsset: cfg.seedAsset, packsRemainDisabled: true });
 }
 
 main().catch((error) => {

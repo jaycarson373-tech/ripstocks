@@ -44,7 +44,7 @@ SUPABASE_SERVICE_ROLE_KEY=CHANGE_ME
 
 DROP_INTERVAL_MINUTES=60
 FEE_SPLIT_BPS=5000
-TOKENS_PER_TICKET=250000
+TOKENS_PER_TICKET=250
 WORKER_POLL_SECONDS=60
 HOLDER_LOG_CHUNK_SIZE=2000
 HOLDER_EXCLUDE_ADDRESSES=
@@ -61,7 +61,9 @@ It needs enough ETH for claims, approvals, swaps, transfers, and inventory loads
 
 `PONS_TOKEN_START_BLOCK` is optional. When it is empty, the worker discovers the token's deployment block using historical chain state. `STOCKRIPS_PACK_CONTRACT` can initially be empty: after the private key and Pons token CA are stored in Railway, run `npm run launch:bootstrap` to verify the launch and deploy a disabled, empty pack contract owned by the same wallet. The command prints public addresses only and never prints the private key.
 
-For the initial funded prize pool, fund that wallet with canonical SPY plus ETH gas, then run `SEED_INVENTORY_CONFIRM=I_UNDERSTAND npm run inventory:seed`. The default schedule loads one real funded lot for each supported Stock Token, targeting `$5,$10,$15,$20,$20,$25,$30,$35,$40,$50` (a $250 total target). Override the ten values with `INITIAL_PRIZE_USD_VALUES` only before the first run. The loader checks all ten 0x routes before broadcasting, records every public transaction in its output, and leaves packs disabled. It refuses to reseed a non-empty contract unless `ALLOW_NONEMPTY_SEED=true` is explicitly supplied.
+For the initial funded prize pool, fund that wallet with **250 canonical USDG plus ETH gas**, then run `SEED_INVENTORY_CONFIRM=I_UNDERSTAND npm run inventory:seed`. The loader defaults to `INITIAL_SEED_ASSET=USDG` and loads one real funded lot for each supported Stock Token, targeting `$5,$10,$15,$20,$20,$25,$30,$35,$40,$50` (a $250 total target). Set `INITIAL_SEED_ASSET=SPY` only when the wallet is intentionally funded with canonical SPY instead. Override the ten values with `INITIAL_PRIZE_USD_VALUES` only before the first run. The loader checks all required 0x routes before broadcasting, records every public transaction in its output, and leaves packs disabled. It refuses to reseed a non-empty contract unless `ALLOW_NONEMPTY_SEED=true` is explicitly supplied.
+
+After the ten inventory loads are confirmed, run `ENABLE_PACKS_CONFIRM=I_UNDERSTAND npm run packs:activate`. This command refuses to enable an empty contract, verifies the signer is both owner and treasury, and leaves the web launch gates unchanged until the on-chain activation succeeds.
 
 ## 4. Safe activation
 
@@ -70,7 +72,9 @@ For the initial funded prize pool, fund that wallet with canonical SPY plus ETH 
 3. Confirm the worker reports `dry_run`, the Pons launch resolves, its pair is SPY, the signer owns the pack contract, and an epoch appears in Supabase without any transaction hashes. Dry-run simulates fee collection and 0x routing but does not broadcast.
 4. Test the complete cycle on a fork or test deployment.
 5. Fund the signer with ETH and confirm the 0x key has Robinhood RWA access.
-6. Set `AUTOMATION_MODE=live` only after review.
+6. Run the funded seed and pack activation commands.
+7. Set the web contract address, then set `PACKS_LIVE=true` only after the status endpoint reports funded inventory.
+8. Set `AUTOMATION_MODE=live` only after review. Set `AUTOMATION_PUBLIC_LIVE=true` only after a completed audited epoch exists.
 
 Never place `AUTOMATION_PRIVATE_KEY`, `ZEROX_API_KEY`, or `SUPABASE_SERVICE_ROLE_KEY` in Vercel/Sites public variables or in any `NEXT_PUBLIC_` variable.
 

@@ -47,7 +47,7 @@ After `AUTOMATION_PRIVATE_KEY` and `PONS_TOKEN_ADDRESS` are stored in Railway, t
 `PACKS_LIVE` is deliberately server-side. The status endpoint also verifies the on-chain inventory count before enabling checkout.
 `AUTOMATION_PUBLIC_LIVE` controls only the public status label; set it to `true` only after Railway is live and a complete audited epoch exists.
 
-The repository includes `npm run inventory:seed` for the initial ten-lot prize pool. It requires canonical SPY and ETH gas in the automation wallet and an explicit `SEED_INVENTORY_CONFIRM=I_UNDERSTAND` confirmation. It never enables pack sales.
+The repository includes `npm run inventory:seed` for the initial ten-lot prize pool. It defaults to the requested 250 canonical USDG seed schedule and also requires ETH gas in the automation wallet plus an explicit `SEED_INVENTORY_CONFIRM=I_UNDERSTAND` confirmation. It never enables pack sales. After verifying the loaded lots, `ENABLE_PACKS_CONFIRM=I_UNDERSTAND npm run packs:activate` performs the separate guarded on-chain activation.
 
 ## Canonical chain values
 
