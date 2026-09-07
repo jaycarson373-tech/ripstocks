@@ -9,6 +9,9 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#030403",
     theme_color: "#c7ff00",
-    icons: [{ src: "/favicon.svg", sizes: "any", type: "image/svg+xml" }],
+    icons: [
+      { src: "/stonkrips-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/stonkrips-pack-logo.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    ],
   };
 }

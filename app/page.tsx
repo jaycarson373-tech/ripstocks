@@ -452,7 +452,7 @@ export default function Home() {
       <div className="ambient" aria-hidden="true" />
       <nav className="nav shell" aria-label="Primary navigation">
         <a href="#top" className="brand" aria-label="StonkRips home">
-          <Image className="brand-logo" src="/stonkrips-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} priority />
+          <Image className="brand-logo" src="/stonkrips-pack-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} priority />
           <b>STONK<span>RIPS</span></b>
         </a>
         <div className="nav-links">
@@ -693,7 +693,7 @@ export default function Home() {
       </section>
 
       <footer className="shell">
-        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
+        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-pack-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
         <div><a href="#proof">PROOF</a><a href="#docs">DOCS</a><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}</div>
         <span>ROBINHOOD CHAIN · 4663</span>
       </footer>
@@ -704,7 +704,7 @@ export default function Home() {
             <button className="modal-close" type="button" onClick={() => setPackModalOpen(false)} aria-label="Close pack window">×</button>
             <span>STONKRIPS // PACK_01</span>
             <h2 id="pack-modal-title">READY TO RIP?</h2>
-            <Image className="modal-pack" src="/stonkrips-logo.png" alt="StonkRips foil stock pack" width={256} height={256} />
+            <Image className="modal-pack" src="/stonkrips-pack-logo.png" alt="StonkRips foil stock pack" width={256} height={256} />
             <div className="purchase-summary"><b>$20 USDG</b><small>ONE FUNDED STOCK TOKEN · ETH GAS REQUIRED</small></div>
             <div className="payment-rails" aria-label="Pack payment details">
               <span><small>PACK PAYMENT</small><b>20 USDG</b></span>

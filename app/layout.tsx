@@ -30,7 +30,14 @@ export const metadata: Metadata = {
     description: "$20. One funded pack. One onchain Stock Token delivered to your wallet.",
     images: ["/stonkrips-og.png"],
   },
-  icons: { icon: "/stonkrips-logo.png", apple: "/stonkrips-logo.png" },
+  icons: {
+    icon: [
+      { url: "/stonkrips-favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/stonkrips-favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    shortcut: "/stonkrips-favicon-32.png",
+    apple: { url: "/stonkrips-apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+  },
 };
 
 export default function RootLayout({

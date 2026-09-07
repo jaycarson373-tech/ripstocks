@@ -2,6 +2,8 @@
 
 StonkRips is Robinhood Chain-only. The existing contract and environment identifiers retain their legacy names for deployment compatibility.
 
+For exact deployment, funding, and activation commands, follow [Deploy StonkRips and open the first funded pack](./deploy-contract.md).
+
 ## User payment flow
 
 1. The user connects an injected EVM wallet and switches to Robinhood Chain mainnet (`4663`).
