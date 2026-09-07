@@ -16,6 +16,8 @@ The worker calls the current Pons v2 fee locker's `collectFees(token)` entry poi
 
 Create a new Supabase project, open **SQL Editor**, paste all of `supabase/pons-automation.sql`, and run it once. Do not expose the service-role key in the browser.
 
+Then run the additive `supabase/pack-reinvestment.sql` for hourly pack-sale recycling. It reserves settled payments, funded lot plans, and signed transaction journals. It does not reset existing tables or enable spending.
+
 ## 2. 0x access
 
 Create a 0x API key and complete 0x's explicit Robinhood RWA opt-in. A normal key without that approval cannot quote Robinhood Stock Tokens.
@@ -26,6 +28,7 @@ Paste this block into the Railway worker service, then replace every `CHANGE_ME`
 
 ```bash
 AUTOMATION_MODE=off
+PACK_RECEIPT_REINVEST_ENABLED=false
 AUTOMATION_PRIVATE_KEY=CHANGE_ME
 ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 
@@ -94,3 +97,7 @@ SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 
 Turn `PACKS_LIVE=true` only after the pack contract is enabled on-chain and reports real funded inventory. The private key and 0x key belong only on Railway.
 Turn `AUTOMATION_PUBLIC_LIVE=true` only after Railway is in live mode and Supabase contains at least one successfully completed epoch.
+
+## 6. Reinvest settled pack payments
+
+Follow [pack-reinvestment.md](./pack-reinvestment.md). Set `PACK_RECEIPT_REINVEST_ENABLED=true` in Railway only after its SQL is installed, first in dry-run. Each closed hour's confirmed 20 USDG payments are reserved once and fully allocated to varied $5–$50 Stock Token purchase budgets. Creator fees still use their separate 50/50 allocation. No Vercel flag enables spending, and no wallet private key is added to the website.

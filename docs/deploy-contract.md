@@ -70,6 +70,8 @@ The test buyer needs 20 USDG plus ETH gas in their own wallet. Connect, approve 
 
 Set Railway `AUTOMATION_MODE=dry-run`, redeploy, and verify the database and on-chain checks. After the complete flow is verified, set `AUTOMATION_MODE=live`. Keep `DROP_INTERVAL_MINUTES=60`, `FEE_SPLIT_BPS=5000`, and `TOKENS_PER_TICKET=250`.
 
-The existing worker claims creator fees, normalizes them into SPY, uses half for a holder Stock Token drop, and loads the other half as a new funded inventory lot. It does not currently recycle the separate 20 USDG pack-sale receipts automatically; those accumulate in the treasury. Do not advertise sale-receipt recycling until that separate path is implemented and verified.
+The worker claims creator fees, normalizes them into SPY, uses half for a holder Stock Token drop, and loads the other half as a new funded inventory lot.
+
+To also reinvest settled pack-sale revenue, apply [pack-reinvestment.sql](../supabase/pack-reinvestment.sql) after the base SQL, and set Railway `PACK_RECEIPT_REINVEST_ENABLED=true` while `AUTOMATION_MODE=dry-run`. Verify `pack_sale_reinvestment_dry_run` against real settled sale receipts. Only then switch `AUTOMATION_MODE=live`. No extra Vercel secret or contract change is required. See [receipt reinvestment](./pack-reinvestment.md) for the hourly cutoff, varied sizes, and retry rules.
 
 Set the website's `AUTOMATION_PUBLIC_LIVE=true` only after a completed, transaction-backed worker epoch exists.

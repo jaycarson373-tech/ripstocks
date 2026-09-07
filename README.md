@@ -14,7 +14,7 @@ It also includes a launch-gated Railway worker for Pons v2 creator fees. Once re
 
 Wallet connection is client-side and can be disconnected from the header. Pack checkout remains disabled until the configured contract reports that packs are enabled and at least one real funded inventory slot exists.
 
-The hourly restock is separate from checkout revenue: the Railway worker claims the configured Pons v2 creator-fee stream, normalizes it into canonical SPY, routes 50% into one holder Stock Token drop, and routes 50% into one new funded pack lot. A cycle with no claimable fees creates no inventory or holder reward.
+The creator-fee budget remains separate from checkout revenue: the Railway worker normalizes it into canonical SPY, routes 50% into one holder Stock Token drop, and routes 50% into one new funded pack lot. The optional hourly pack-sale reinvestment path allocates the full 20 USDG from each verified settlement to varied, fully funded stock lots. It can restock even when no creator fees are claimable; it does not create an unfunded holder reward. Both spending paths remain gated off until configured and reviewed.
 
 The UI remains disabled unless all three conditions are true: a contract address is configured, `PACKS_LIVE=true`, and the contract reports funded inventory.
 
@@ -28,5 +28,6 @@ forge test
 
 See `docs/launch-env.md` and `contracts/README.md` before any production launch.
 For the worker and one-paste Supabase setup, see `docs/pons-automation-setup.md` and `supabase/pons-automation.sql`.
+For settled-sale recycling, also apply `supabase/pack-reinvestment.sql` and follow `docs/pack-reinvestment.md`.
 
 The initial inventory loader accepts 250 canonical USDG by default and converts the configured ten prize budgets into real Stock Tokens through 0x. It leaves sales disabled until the separate guarded `packs:activate` command confirms funded inventory and enables the contract.

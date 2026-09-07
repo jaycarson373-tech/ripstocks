@@ -9,6 +9,8 @@ import {
   zeroAddress,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { randomUUID } from "node:crypto";
+import { ReinvestmentStore, runPackReinvestment } from "./pack-reinvestment.mjs";
 import {
   CANONICAL_SPY,
   PONS_V2_FACTORY,
@@ -103,6 +105,8 @@ function readConfig() {
     tokensPerTicket: process.env.TOKENS_PER_TICKET || "250",
     chunkSize: positiveInteger("HOLDER_LOG_CHUNK_SIZE", process.env.HOLDER_LOG_CHUNK_SIZE, 2_000),
     excluded: (process.env.HOLDER_EXCLUDE_ADDRESSES || "").split(",").map((value) => value.trim()).filter(Boolean).map(getAddress),
+    reinvestEnabled: process.env.PACK_RECEIPT_REINVEST_ENABLED === "true",
+    packStartBlock: process.env.PACK_CONTRACT_START_BLOCK?.trim() ? BigInt(process.env.PACK_CONTRACT_START_BLOCK) : null,
   };
   if (cfg.intervalMinutes !== 60) throw new Error("DROP_INTERVAL_MINUTES must remain 60 for the published hourly mechanic");
   if (cfg.feeSplitBps !== 5_000) throw new Error("FEE_SPLIT_BPS must remain 5000 for the published 50/50 split");
@@ -620,7 +624,7 @@ async function processEpoch(cfg, store, epoch, launch, publicClient, walletClien
 async function tick(cfg) {
   const store = new AuditStore(cfg.supabaseUrl, cfg.supabaseKey);
   const { publicClient, walletClient, account } = clients(cfg);
-  const holder = `${account.address}:${process.pid}`;
+  const holder = `${account.address}:${randomUUID()}`;
   if (!await store.acquire(holder)) {
     log("tick_skipped_locked");
     return;
@@ -628,6 +632,12 @@ async function tick(cfg) {
   let epoch;
   try {
     const launch = await validateOnchain(cfg, publicClient, account);
+    const lease = async () => { if (!await store.acquire(holder)) throw new Error("Automation lease lost; refusing reinvestment broadcast"); };
+    await runPackReinvestment({
+      cfg, store: new ReinvestmentStore(store), publicClient, walletClient, account, holder, lease, log,
+      quote: (sellToken, buyToken, amount) => zeroXQuote(cfg, account, sellToken, buyToken, amount),
+      stockValue: stockUsdMicros,
+    });
     await resolveTokenStartBlock(cfg, publicClient);
     if (cfg.mode === "live") await settleReadyPack(cfg, publicClient, walletClient, account);
     epoch = await store.getPendingEpoch();

@@ -18,6 +18,8 @@ ETH is required only for transaction gas. The contract does not accept ETH or US
 
 The automated hourly refill does not create unbacked prizes and does not silently spend arbitrary wallet balances. It uses only the creator-fee budget measured and recorded for the current Pons v2 epoch. After normalizing claimed fees into canonical SPY, 50% buys one approved Stock Token lot and loads that exact amount into the pack contract; the other 50% buys the hourly holder-drop asset. When no fees are claimable, the cycle records `no_fees` and performs neither action.
 
+The separate, opt-in [pack-sale reinvestment path](./pack-reinvestment.md) reserves confirmed 20 USDG settlement receipts and uses their full payment budget for varied Stock Token lots at the next UTC hour. It can refill independently of `no_fees`; it does not change the 50/50 creator-fee split. Apply `supabase/pack-reinvestment.sql` and review in dry-run before enabling `PACK_RECEIPT_REINVEST_ENABLED` with live automation.
+
 ## Vercel or Sites
 
 ```bash

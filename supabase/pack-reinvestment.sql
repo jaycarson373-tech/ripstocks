@@ -1,0 +1,121 @@
+-- Additive migration: run AFTER pons-automation.sql. Does not enable spending.
+-- Only verified, settled 20 USDG pack sales enter this separate ledger.
+begin;
+
+create table if not exists public.pack_reinvestment_epochs (
+  id text primary key,
+  scope text not null,
+  chain_id integer not null check (chain_id = 4663),
+  pack_contract text not null,
+  treasury text not null,
+  epoch_key timestamptz not null,
+  scan_from_block bigint not null,
+  scan_to_block bigint not null check (scan_to_block >= scan_from_block),
+  scan_block_hash text not null,
+  budget_atoms text not null check (budget_atoms ~ '^[0-9]+$'),
+  status text not null check (status in ('planned', 'complete')),
+  created_at timestamptz not null default now(),
+  completed_at timestamptz,
+  unique (scope, epoch_key)
+);
+create unique index if not exists pack_reinvestment_one_pending
+  on public.pack_reinvestment_epochs (scope) where status = 'planned';
+
+create table if not exists public.pack_sale_receipts (
+  chain_id integer not null,
+  pack_contract text not null,
+  request_id text not null check (request_id ~ '^[1-9][0-9]*$'),
+  epoch_id text not null references public.pack_reinvestment_epochs(id),
+  transaction_hash text not null,
+  block_number bigint not null,
+  block_hash text not null,
+  amount_atoms text not null check (amount_atoms = '20000000'),
+  primary key (chain_id, pack_contract, request_id),
+  unique (chain_id, pack_contract, transaction_hash)
+);
+
+create table if not exists public.pack_reinvestment_lots (
+  id text primary key,
+  scope text not null,
+  epoch_id text not null references public.pack_reinvestment_epochs(id),
+  lot_index integer not null check (lot_index >= 0),
+  usd_atoms text not null check (usd_atoms in ('5000000','10000000','15000000','20000000','25000000','30000000','35000000','40000000','50000000')),
+  stock_address text,
+  stock_symbol text,
+  token_amount_atoms text check (token_amount_atoms ~ '^[1-9][0-9]*$'),
+  declared_usd_micros text check (declared_usd_micros ~ '^[1-9][0-9]*$'),
+  load_transaction text,
+  completed_at timestamptz,
+  unique (epoch_id, lot_index)
+);
+
+-- Signed bytes must NEVER be exposed by a public API. They are stored before
+-- broadcast, so uncertain sends/restarts reuse one hash instead of paying twice.
+create table if not exists public.pack_reinvestment_transactions (
+  id text primary key,
+  scope text not null,
+  lot_id text not null references public.pack_reinvestment_lots(id),
+  step text not null,
+  transaction_hash text not null unique,
+  serialized_transaction text not null,
+  created_at timestamptz not null default now(),
+  confirmed_at timestamptz,
+  receipt_status text check (receipt_status in ('success', 'reverted')),
+  unique (lot_id, step)
+);
+
+alter table public.pack_reinvestment_epochs enable row level security;
+alter table public.pack_sale_receipts enable row level security;
+alter table public.pack_reinvestment_lots enable row level security;
+alter table public.pack_reinvestment_transactions enable row level security;
+revoke all on public.pack_reinvestment_epochs, public.pack_sale_receipts,
+  public.pack_reinvestment_lots, public.pack_reinvestment_transactions from anon, authenticated;
+grant select, insert, update on public.pack_reinvestment_epochs, public.pack_sale_receipts,
+  public.pack_reinvestment_lots, public.pack_reinvestment_transactions to service_role;
+
+create or replace function public.reserve_pack_reinvestment(p_epoch jsonb, p_receipts jsonb, p_lots jsonb, p_holder text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  result public.pack_reinvestment_epochs;
+  previous public.pack_reinvestment_epochs;
+  receipt_total numeric;
+  lot_total numeric;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_epoch->>'scope', 0));
+  if not exists (select 1 from public.automation_locks where lock_name = 'pons-hourly-worker'
+    and holder = p_holder and expires_at > now()) then raise exception 'Automation lease is not held'; end if;
+  select * into result from public.pack_reinvestment_epochs where id = p_epoch->>'id';
+  if found then return to_jsonb(result); end if;
+  if jsonb_array_length(p_receipts) > 2000 or jsonb_array_length(p_lots) > 2000 then raise exception 'Batch too large'; end if;
+  select coalesce(sum((value->>'amount_atoms')::numeric),0) into receipt_total from jsonb_array_elements(p_receipts);
+  select coalesce(sum((value->>'usd_atoms')::numeric),0) into lot_total from jsonb_array_elements(p_lots);
+  if receipt_total <> (p_epoch->>'budget_atoms')::numeric or lot_total <> receipt_total then
+    raise exception 'Sale receipts and lot budgets do not reconcile';
+  end if;
+  if exists (select 1 from jsonb_array_elements(p_receipts) where
+    (value->>'block_number')::bigint < (p_epoch->>'scan_from_block')::bigint or
+    (value->>'block_number')::bigint > (p_epoch->>'scan_to_block')::bigint) then raise exception 'Receipt outside scan range'; end if;
+  if p_epoch->>'scope' <> '4663:' || (p_epoch->>'pack_contract') || ':' || (p_epoch->>'treasury') then raise exception 'Invalid scope'; end if;
+  select * into previous from public.pack_reinvestment_epochs where scope = p_epoch->>'scope' order by epoch_key desc limit 1;
+  if found and (previous.status <> 'complete' or previous.scan_to_block + 1 <> (p_epoch->>'scan_from_block')::bigint
+    or previous.epoch_key >= (p_epoch->>'epoch_key')::timestamptz) then raise exception 'Scan overlaps or previous epoch is incomplete'; end if;
+  insert into public.pack_reinvestment_epochs (id, scope, chain_id, pack_contract, treasury, epoch_key,
+    scan_from_block, scan_to_block, scan_block_hash, budget_atoms, status, completed_at)
+  values (p_epoch->>'id', p_epoch->>'scope', (p_epoch->>'chain_id')::integer,
+    p_epoch->>'pack_contract', p_epoch->>'treasury', (p_epoch->>'epoch_key')::timestamptz,
+    (p_epoch->>'scan_from_block')::bigint, (p_epoch->>'scan_to_block')::bigint,
+    p_epoch->>'scan_block_hash', receipt_total::text, case when lot_total = 0 then 'complete' else 'planned' end,
+    case when lot_total = 0 then now() else null end) returning * into result;
+  insert into public.pack_sale_receipts (chain_id,pack_contract,request_id,epoch_id,transaction_hash,block_number,block_hash,amount_atoms)
+  select result.chain_id,result.pack_contract,value->>'request_id',result.id,
+    value->>'transaction_hash',(value->>'block_number')::bigint,value->>'block_hash',value->>'amount_atoms'
+  from jsonb_array_elements(p_receipts);
+  insert into public.pack_reinvestment_lots (id,scope,epoch_id,lot_index,usd_atoms)
+  select value->>'id',result.scope,result.id,(value->>'lot_index')::integer,value->>'usd_atoms'
+  from jsonb_array_elements(p_lots);
+  return to_jsonb(result);
+end;
+$$;
+revoke all on function public.reserve_pack_reinvestment(jsonb,jsonb,jsonb,text) from public, anon, authenticated;
+grant execute on function public.reserve_pack_reinvestment(jsonb,jsonb,jsonb,text) to service_role;
+commit;

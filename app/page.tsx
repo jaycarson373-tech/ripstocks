@@ -624,7 +624,8 @@ export default function Home() {
         <div className="restock-copy">
           <span>PONS V2 CREATOR FEES</span>
           <h2>EVERY FEE<br/><em>RELOADS THE ARCADE.</em></h2>
-          <p>Each successful hourly cycle claims Pons v2 creator fees. Any project-token side is converted into canonical SPY, then the resulting budget is routed 50/50. If no fees are available, no drop or inventory is created.</p>
+          <p>Each successful hourly cycle claims Pons v2 creator fees. Any project-token side is converted into canonical SPY, then the resulting budget is routed 50/50. No claimable fees means no fee-funded drop or refill.</p>
+          <p>When receipt reinvestment is enabled, settled $20 USDG pack payments also refill inventory at the next hourly cycle, in varied stock amounts. Sale payments stay separate from the 50/50 creator-fee split.</p>
           <i className={status.automationLive ? "is-live" : ""}>{automationLabel}</i>
         </div>
         <div className="restock-machine" aria-label="50 percent holder drop and 50 percent pack inventory split">
