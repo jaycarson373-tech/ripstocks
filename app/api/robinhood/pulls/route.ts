@@ -4,10 +4,9 @@ import { STOCK_TOKEN_BY_ADDRESS } from "@/app/lib/stock-tokens";
 const DEFAULT_RPC = "https://rpc.mainnet.chain.robinhood.com";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const PRIZE_DELIVERED_TOPIC = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
-const BLOCK_WINDOW = BigInt(9_500);
-const MAX_WINDOWS = 10;
+const MAX_LOOKBACK_BLOCKS = BigInt(95_000);
 
-type RpcEnvelope<T> = { result?: T; error?: { message?: string } };
+type RpcEnvelope<T> = { id?: number; result?: T; error?: { message?: string } };
 type RpcLog = {
   address: string;
   blockNumber: string;
@@ -28,6 +27,20 @@ async function rpc<T>(rpcUrl: string, method: string, params: unknown[]) {
   const payload = await response.json() as RpcEnvelope<T>;
   if (payload.result === undefined || payload.error) throw new Error(payload.error?.message || "Robinhood RPC request failed");
   return payload.result;
+}
+
+async function rpcBatch<T>(rpcUrl: string, calls: Array<{ method: string; params: unknown[] }>) {
+  if (!calls.length) return [];
+  const response = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(calls.map((call, id) => ({ jsonrpc: "2.0", id, ...call }))),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Robinhood RPC returned ${response.status}`);
+  const payload = await response.json() as RpcEnvelope<T>[];
+  if (!Array.isArray(payload) || payload.length !== calls.length || payload.some((item) => item.result === undefined || item.error)) throw new Error("Robinhood RPC batch failed");
+  return payload.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)).map((item) => item.result as T);
 }
 
 function decodePull(log: RpcLog) {
@@ -69,22 +82,15 @@ export async function GET(request: Request) {
     const topics = wallet ? [PRIZE_DELIVERED_TOPIC, null, `0x${wallet.slice(2).padStart(64, "0")}`] : [PRIZE_DELIVERED_TOPIC];
     const latest = BigInt(await rpc<string>(rpcUrl, "eth_blockNumber", []));
     const configuredStart = process.env.PACK_CONTRACT_START_BLOCK;
-    const minimum = configuredStart && /^\d+$/.test(configuredStart) ? BigInt(configuredStart) : latest > BLOCK_WINDOW * BigInt(MAX_WINDOWS) ? latest - BLOCK_WINDOW * BigInt(MAX_WINDOWS) : BigInt(0);
-    const logs: RpcLog[] = [];
-    let toBlock = latest;
-    for (let window = 0; window < MAX_WINDOWS && toBlock >= minimum && logs.length < resultLimit; window += 1) {
-      const fromBlock = toBlock > BLOCK_WINDOW ? toBlock - BLOCK_WINDOW + BigInt(1) : BigInt(0);
-      const boundedFrom = fromBlock < minimum ? minimum : fromBlock;
-      const batch = await rpc<RpcLog[]>(rpcUrl, "eth_getLogs", [{
-        address: contract,
-        topics,
-        fromBlock: `0x${boundedFrom.toString(16)}`,
-        toBlock: `0x${toBlock.toString(16)}`,
-      }]);
-      logs.push(...batch);
-      if (boundedFrom === BigInt(0) || boundedFrom === minimum) break;
-      toBlock = boundedFrom - BigInt(1);
-    }
+    const lookbackFloor = latest > MAX_LOOKBACK_BLOCKS ? latest - MAX_LOOKBACK_BLOCKS : BigInt(0);
+    const requestedStart = configuredStart && /^\d+$/.test(configuredStart) ? BigInt(configuredStart) : lookbackFloor;
+    const minimum = requestedStart > lookbackFloor ? requestedStart : lookbackFloor;
+    const logs = await rpc<RpcLog[]>(rpcUrl, "eth_getLogs", [{
+      address: contract,
+      topics,
+      fromBlock: `0x${minimum.toString(16)}`,
+      toBlock: `0x${latest.toString(16)}`,
+    }]);
 
     const decoded = logs
       .map(decodePull)
@@ -92,7 +98,7 @@ export async function GET(request: Request) {
       .sort((a, b) => (BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1))
       .slice(0, resultLimit);
     const blockNumbers = [...new Set(decoded.map((pull) => pull.blockNumber))];
-    const blocks = await Promise.all(blockNumbers.map((number) => rpc<RpcBlock>(rpcUrl, "eth_getBlockByNumber", [number, false])));
+    const blocks = await rpcBatch<RpcBlock>(rpcUrl, blockNumbers.map((number) => ({ method: "eth_getBlockByNumber", params: [number, false] })));
     const timestamps = new Map(blockNumbers.map((number, index) => [number, blocks[index]?.timestamp ? Number(BigInt(blocks[index].timestamp as string)) * 1_000 : null]));
     return NextResponse.json({
       configured: true,
