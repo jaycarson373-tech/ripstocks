@@ -2,14 +2,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { STOCK_TOKENS, type StockToken } from "@/app/lib/stock-tokens";
-
-type EthereumProvider = {
-  request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
-  on?: (event: string, listener: (...args: unknown[]) => void) => void;
-  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
-};
+import { ensureRobinhoodChain, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider } from "@/app/lib/wallet-provider";
 
 type InventoryStock = {
   symbol: string;
@@ -72,8 +67,7 @@ type RevealStage = "pack" | "spin" | "lock" | "reveal";
 
 const REEL_WINNER_INDEX = 32;
 
-const ROBINHOOD_CHAIN_ID = 4663;
-const ROBINHOOD_CHAIN_HEX = "0x1237";
+const WALLET_DISCONNECTED_KEY = "stonkrips.wallet-disconnected";
 const CANONICAL_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const PACK_REQUESTED_TOPIC = "0x72ce6acbcd0dcdfc48c244249d669a4a6cfd9f429795cdcc5c430ad27273f383";
 const PRIZE_DELIVERED_TOPIC = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
@@ -190,6 +184,7 @@ export default function Home() {
   const [recentPulls, setRecentPulls] = useState<RecentPull[]>([]);
   const [pullsState, setPullsState] = useState<"loading" | "ready" | "error">("loading");
   const [clock, setClock] = useState<number | null>(null);
+  const manuallyDisconnected = useRef(false);
 
   const networkReady = chainId === ROBINHOOD_CHAIN_ID;
   const inventoryBySymbol = useMemo(() => new Map(status.inventory.map((item) => [item.symbol, item])), [status.inventory]);
@@ -216,17 +211,33 @@ export default function Home() {
         : formatCountdown(nextHourlyCycle - clock!);
 
   useEffect(() => {
+    try { manuallyDisconnected.current = sessionStorage.getItem(WALLET_DISCONNECTED_KEY) === "true"; } catch { /* Storage can be blocked by the browser. */ }
     const provider = getProvider();
     if (!provider) return;
-    const syncAccounts = (accounts: unknown) => setAccount(Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "");
-    const syncChain = (value: unknown) => setChainId(typeof value === "string" ? Number.parseInt(value, 16) : null);
+    let active = true;
+    const syncAccounts = (accounts: unknown) => {
+      if (active && !manuallyDisconnected.current) {
+        setAccount(walletAccount(accounts));
+        setTermsAccepted(false);
+      }
+    };
+    const syncChain = (value: unknown) => { if (active) setChainId(walletChainId(value)); };
+    const syncDisconnect = () => {
+      if (!active) return;
+      setAccount("");
+      setChainId(null);
+      setTermsAccepted(false);
+    };
     void provider.request({ method: "eth_accounts" }).then(syncAccounts).catch(() => undefined);
     void provider.request({ method: "eth_chainId" }).then(syncChain).catch(() => undefined);
     provider.on?.("accountsChanged", syncAccounts);
     provider.on?.("chainChanged", syncChain);
+    provider.on?.("disconnect", syncDisconnect);
     return () => {
+      active = false;
       provider.removeListener?.("accountsChanged", syncAccounts);
       provider.removeListener?.("chainChanged", syncChain);
+      provider.removeListener?.("disconnect", syncDisconnect);
     };
   }, []);
 
@@ -289,38 +300,30 @@ export default function Home() {
 
   async function switchNetwork(provider: EthereumProvider) {
     try {
-      await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ROBINHOOD_CHAIN_HEX }] });
+      setChainId(await ensureRobinhoodChain(provider));
     } catch (error) {
-      const code = (error as { code?: number })?.code;
-      if (code !== 4902) throw error;
-      await provider.request({
-        method: "wallet_addEthereumChain",
-        params: [{
-          chainId: ROBINHOOD_CHAIN_HEX,
-          chainName: "Robinhood Chain",
-          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-          rpcUrls: ["https://rpc.mainnet.chain.robinhood.com"],
-          blockExplorerUrls: ["https://robinhoodchain.blockscout.com"],
-        }],
-      });
+      setChainId(walletChainId(await provider.request({ method: "eth_chainId" }).catch(() => null)));
+      throw error;
     }
-    setChainId(ROBINHOOD_CHAIN_ID);
   }
 
   async function connectWallet() {
     const provider = getProvider();
     if (!provider) {
-      setNotice("Install an EVM wallet such as Robinhood Wallet, MetaMask, or Rabby to continue.");
+      setNotice("On mobile, open StonkRips in your EVM wallet’s browser. On desktop, enable your wallet extension to connect.");
       return;
     }
     setBusy(true);
     setNotice("");
     try {
-      const accounts = await provider.request({ method: "eth_requestAccounts" }) as string[];
-      setAccount(accounts[0] || "");
+      const nextAccount = walletAccount(await provider.request({ method: "eth_requestAccounts" }));
+      if (!nextAccount) throw new Error("NO_WALLET_ACCOUNT");
+      manuallyDisconnected.current = false;
+      try { sessionStorage.removeItem(WALLET_DISCONNECTED_KEY); } catch { /* The in-memory session still works. */ }
+      setAccount(nextAccount);
       await switchNetwork(provider);
-    } catch {
-      setNotice("Wallet connection was cancelled. No transaction was sent.");
+    } catch (error) {
+      setNotice(walletErrorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -328,6 +331,13 @@ export default function Home() {
 
   async function disconnectWallet() {
     const provider = getProvider();
+    manuallyDisconnected.current = true;
+    try { sessionStorage.setItem(WALLET_DISCONNECTED_KEY, "true"); } catch { /* The current page still disconnects. */ }
+    setAccount("");
+    setChainId(null);
+    setTermsAccepted(false);
+    setPackModalOpen(false);
+    setNotice("Wallet disconnected from StonkRips. No transaction was sent.");
     setBusy(true);
     try {
       await provider?.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
@@ -335,10 +345,6 @@ export default function Home() {
       // Not every injected wallet implements EIP-2255. Clearing the local
       // session still disconnects this page without sending a transaction.
     } finally {
-      setAccount("");
-      setTermsAccepted(false);
-      setPackModalOpen(false);
-      setNotice("Wallet disconnected from StonkRips. No transaction was sent.");
       setBusy(false);
     }
   }
@@ -349,7 +355,7 @@ export default function Home() {
     if (!provider) return;
     if (!networkReady) {
       setBusy(true);
-      try { await switchNetwork(provider); } finally { setBusy(false); }
+      try { await switchNetwork(provider); } catch (error) { setNotice(walletErrorMessage(error)); } finally { setBusy(false); }
       return;
     }
     if (!termsAccepted) return;
