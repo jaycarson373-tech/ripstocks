@@ -1,5 +1,7 @@
 # Deploy StonkRips and open the first funded pack
 
+**Short user version:** [Start here](./start-here.md). The commands below are the operator checklist, not ten tasks the user has to perform. Use `supabase/launch-setup.sql` for one combined database paste.
+
 The Pons token CA and the pack contract address are different contracts. `PONS_TOKEN_ADDRESS` is your existing Pons v2 token. The steps below deploy the separate contract that accepts 20 USDG and delivers a funded Stock Token.
 
 Run these commands from this repository on a computer with Node.js 22+, Git, and Foundry (`forge`) installed. `railway run` runs the command **locally**, with Railway's environment injected into that process. The Railway worker container does not contain Foundry or the Solidity sources, so do not run the bootstrap from a container shell.

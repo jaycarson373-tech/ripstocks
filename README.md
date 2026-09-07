@@ -20,6 +20,8 @@ The UI remains disabled unless all three conditions are true: a contract address
 
 ## Commands
 
+For the short, two-part user setup, start with [Start here](./docs/start-here.md). The operator can run `npm run launch:check` with Railway's environment to check missing inputs without sending transactions.
+
 ```bash
 npm run dev
 npm run vercel-build
@@ -27,7 +29,6 @@ forge test
 ```
 
 See `docs/launch-env.md` and `contracts/README.md` before any production launch.
-For the worker and one-paste Supabase setup, see `docs/pons-automation-setup.md` and `supabase/pons-automation.sql`.
-For settled-sale recycling, also apply `supabase/pack-reinvestment.sql` and follow `docs/pack-reinvestment.md`.
+For the complete one-paste Supabase setup, use `supabase/launch-setup.sql`. It includes the base worker ledger and settled-sale reinvestment in order, preserving existing data. Details remain in `docs/pons-automation-setup.md` and `docs/pack-reinvestment.md`.
 
 The initial inventory loader accepts 250 canonical USDG by default and converts the configured ten prize budgets into real Stock Tokens through 0x. It leaves sales disabled until the separate guarded `packs:activate` command confirms funded inventory and enables the contract.

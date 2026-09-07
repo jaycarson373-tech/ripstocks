@@ -13,6 +13,8 @@
     "railway-start": "next start -p ${PORT:-3000}",
     "railway-boot": "npm run railway-build && npm run railway-start",
     "pons-worker": "node worker/pons-fee-worker.mjs",
+    "launch:check": "node worker/launch-check.mjs",
+    "launch:sql": "node scripts/prepare-launch-sql.mjs",
     "launch:bootstrap": "forge build && node worker/bootstrap-launch.mjs",
     "inventory:seed": "node worker/seed-inventory.mjs",
     "packs:activate": "node worker/activate-packs.mjs",

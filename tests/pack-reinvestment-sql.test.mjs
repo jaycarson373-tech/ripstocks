@@ -3,7 +3,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { launchSql } from "../scripts/prepare-launch-sql.mjs";
 const { PGlite } = await import(process.env.PGLITE_MODULE || "@electric-sql/pglite");
+
+test("one-paste setup is current, repeatable, and gives only server access", async () => {
+  const bundle = await readFile(new URL("../supabase/launch-setup.sql", import.meta.url), "utf8");
+  assert.equal(bundle, await launchSql(), "Regenerate with npm run launch:sql after migration changes");
+  const db = new PGlite();
+  try {
+    await db.exec("create role anon; create role authenticated; create role service_role bypassrls;");
+    const sql = bundle.replace("create extension if not exists pgcrypto;", "");
+    await db.exec(sql);
+    await db.exec(sql);
+    await db.exec("set role service_role");
+    assert.equal((await db.query("select count(*)::int as n from public.pons_epochs")).rows[0].n, 0);
+    assert.equal((await db.query("select count(*)::int as n from public.pack_sale_receipts")).rows[0].n, 0);
+    await db.query("select public.acquire_automation_lock($1)", ["one-paste-check"]);
+    await db.exec("reset role; set role anon");
+    await assert.rejects(db.query("select * from public.pons_epochs"), /permission denied/);
+    await assert.rejects(db.query("select * from public.pack_reinvestment_transactions"), /permission denied/);
+  } finally { await db.close(); }
+});
 
 test("Postgres reservations are atomic, deduplicated, precise, and server-only", async () => {
   const db = new PGlite();
