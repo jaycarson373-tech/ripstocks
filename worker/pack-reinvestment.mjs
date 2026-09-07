@@ -2,7 +2,7 @@ import { decodeEventLog, encodeFunctionData, getAddress, keccak256, parseAbi, pa
 import { CANONICAL_USDG, ROBINHOOD_CHAIN_ID, deriveSeed, deterministicStockOrder, discoverContractStartBlock, epochKey } from "./pons-core.mjs";
 
 export const SALE_ATOMS = 20_000_000n;
-export const LOT_VALUES_USD = [5, 10, 15, 20, 25, 30, 35, 40, 50];
+export const LOT_VALUES_USD = [5, 7, 8, 10, 12, 15, 18, 20, 25, 30, 40, 50, 75, 100];
 const CONFIRMATIONS = 12n;
 const transfer = parseAbiItem("event Transfer(address indexed from,address indexed to,uint256 value)");
 const delivered = parseAbiItem("event PrizeDelivered(uint256 indexed requestId,address indexed buyer,address indexed token,uint256 tokenAmount,uint256 declaredUsdMicros)");
@@ -16,19 +16,24 @@ function decode(log, event) {
 
 // An openPack request is NOT revenue. Only a successful settlement which paid
 // this treasury in canonical USDG can enter the reinvestment ledger.
-export function saleFromReceipt(receipt, contract, treasury) {
+export function saleFromReceipt(receipt, contract, treasury, priceAtoms = SALE_ATOMS) {
   if (receipt.status !== "success") return null;
   const prizes = receipt.logs.filter(log => same(log.address, contract)).map(log => decode(log, delivered)).filter(Boolean);
   if (prizes.length !== 1) return null;
   const paid = receipt.logs.filter(log => same(log.address, CANONICAL_USDG)).map(log => decode(log, transfer))
     .filter(args => args && same(args.from, contract) && same(args.to, treasury));
-  if (paid.length !== 1 || paid[0].value !== SALE_ATOMS) return null;
+  if (paid.length !== 1 || paid[0].value !== priceAtoms) return null;
+  if (receivedStockAtoms(receipt, prizes[0].token, prizes[0].buyer) !== prizes[0].tokenAmount) return null;
   return {
     request_id: prizes[0].requestId.toString(),
     transaction_hash: receipt.transactionHash,
     block_number: receipt.blockNumber.toString(),
     block_hash: receipt.blockHash,
-    amount_atoms: SALE_ATOMS.toString(),
+    amount_atoms: priceAtoms.toString(),
+    buyer: prizes[0].buyer,
+    stock_address: prizes[0].token,
+    token_amount_atoms: prizes[0].tokenAmount.toString(),
+    declared_usd_micros: prizes[0].declaredUsdMicros.toString(),
   };
 }
 
@@ -39,14 +44,26 @@ export function receivedStockAtoms(receipt, token, wallet) {
 
 // Sizes are inventory purchase budgets, NOT user outcome probabilities. The
 // persisted epoch seed makes retries reproduce the same fully funded partition.
-export function planLots(budget, seed, epochId) {
+export function planLots(budget, seed, epochId, priceAtoms = SALE_ATOMS, values = LOT_VALUES_USD) {
   let remaining = BigInt(budget);
-  if (remaining < 0n || remaining % SALE_ATOMS !== 0n) throw new Error("Reinvestment budget must consist of whole settled 20 USDG sales");
+  if (priceAtoms <= 0n || remaining < 0n || remaining % priceAtoms !== 0n) throw new Error("Reinvestment budget must consist of whole settled pack sales");
   const lots = [];
   while (remaining > 0n) {
-    const options = LOT_VALUES_USD.map(value => BigInt(value) * 1_000_000n).filter(value => value <= remaining);
+    const units = values.map(value => BigInt(value) * 1_000_000n);
+    const canCompose = target => {
+      if (target === 0n) return true;
+      if (target < 0n || target % 1_000_000n !== 0n) return false;
+      const dollars = Number(target / 1_000_000n);
+      const reachable = new Uint8Array(dollars + 1);
+      reachable[0] = 1;
+      for (let amount = 1; amount <= dollars; amount += 1) reachable[amount] = values.some(value => value <= amount && reachable[amount - value]);
+      return Boolean(reachable[dollars]);
+    };
+    const options = units.filter(value => value > 0n && value <= remaining && canCompose(remaining - value));
+    if (!options.length) options.push(remaining); // Exact sub-dollar remainder, never discarded.
     // Even a single sale can refill with varied sizes, e.g. 5 + 15 USDG.
-    const choices = lots.length === 0 && remaining === SALE_ATOMS ? options.filter(value => value < remaining) : options;
+    const smaller = options.filter(value => value < remaining);
+    const choices = lots.length === 0 && remaining === priceAtoms && smaller.length ? smaller : options;
     const amount = choices[Number(deriveSeed(seed, epochId, `lot-size:${lots.length}`) % BigInt(choices.length))];
     lots.push({ id: `${epochId}:${lots.length}`, lot_index: lots.length, usd_atoms: amount.toString() });
     remaining -= amount;
@@ -152,7 +169,7 @@ export async function processReinvestmentLot(ctx, epoch, initialLot) {
   if (await ctx.publicClient.readContract({ address: ctx.cfg.packContract, abi: packAbi, functionName: "activeRequestId" }) !== 0n) return;
   if (!lot.stock_address) {
     let selected;
-    for (const stock of deterministicStockOrder(epoch.scan_block_hash, epoch.id, `sale-stock:${lot.lot_index}`)) {
+    for (const stock of deterministicStockOrder(epoch.scan_block_hash, epoch.id, `sale-stock:${lot.lot_index}`).filter(stock => !ctx.cfg.stocks || ctx.cfg.stocks.some(allowed => same(allowed.address, stock.address)))) {
       try {
         const quote = await ctx.quote(CANONICAL_USDG, stock.address, budget);
         validateSaleQuote(quote, stock, budget);
@@ -164,6 +181,7 @@ export async function processReinvestmentLot(ctx, epoch, initialLot) {
     lot = await ctx.store.patch("pack_reinvestment_lots", lot.id, { stock_address: selected.address, stock_symbol: selected.symbol });
   }
   const stock = { address: getAddress(lot.stock_address), symbol: lot.stock_symbol };
+  if (ctx.cfg.stocks && !ctx.cfg.stocks.some(allowed => same(allowed.address, stock.address))) throw new Error("Stock is outside the configured pack universe");
   if (!await ctx.publicClient.readContract({ address: ctx.cfg.packContract, abi: packAbi, functionName: "approvedStock", args: [stock.address] })) throw new Error("Sale-funded Stock Token is no longer approved");
   if (!lot.token_amount_atoms) {
     const receipt = await durableTransaction(ctx, lot, "swap", async () => {
@@ -245,14 +263,14 @@ export async function runPackReinvestment(ctx, now = new Date()) {
         seen.add(log.transactionHash);
         const receipt = await ctx.publicClient.getTransactionReceipt({ hash: log.transactionHash });
         if (receipt.blockHash !== log.blockHash || receipt.blockNumber > cutoff.number) throw new Error("Pack settlement changed during receipt scan");
-        const sale = saleFromReceipt(receipt, ctx.cfg.packContract, ctx.account.address);
+        const sale = saleFromReceipt(receipt, ctx.cfg.packContract, ctx.account.address, ctx.cfg.priceAtoms);
         if (sale) receipts.push(sale);
       }
     }
     if ((await ctx.publicClient.getBlock({ blockNumber: cutoff.number })).hash !== cutoff.hash) throw new Error("Reinvestment cutoff reorganized during scan");
     const budget = receipts.reduce((sum, row) => sum + BigInt(row.amount_atoms), 0n);
     const id = `${scope}:${key}`;
-    const lots = planLots(budget, cutoff.hash, id);
+    const lots = planLots(budget, cutoff.hash, id, ctx.cfg.priceAtoms, ctx.cfg.restockLotUsd);
     epoch = { id, scope, epoch_key: key, chain_id: ROBINHOOD_CHAIN_ID, pack_contract: ctx.cfg.packContract.toLowerCase(), treasury: ctx.account.address.toLowerCase(), scan_from_block: start.toString(), scan_to_block: cutoff.number.toString(), scan_block_hash: cutoff.hash, budget_atoms: budget.toString(), status: lots.length ? "planned" : "complete" };
     if (ctx.cfg.mode === "dry-run") {
       ctx.log("pack_sale_reinvestment_dry_run", { epoch: key, settledSales: receipts.length, budgetUsdgAtoms: budget.toString(), lotBudgetsUsdgAtoms: lots.map(lot => lot.usd_atoms) });

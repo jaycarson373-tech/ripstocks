@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 export async function launchSql() {
-  const base = await readFile(new URL("../supabase/pons-automation.sql", import.meta.url), "utf8");
+  const base = await readFile(new URL("../supabase/treasury-core.sql", import.meta.url), "utf8");
   const reinvestment = await readFile(new URL("../supabase/pack-reinvestment.sql", import.meta.url), "utf8");
   return [
     "-- StonkRips: ONE paste into the intended Supabase project's SQL Editor.",
@@ -12,9 +12,6 @@ export async function launchSql() {
     "begin;",
     base,
     reinvestment.replace(/^begin;\s*$/m, "").replace(/^commit;\s*$/m, ""),
-    "-- Explicit service access also works on projects without default grants.",
-    "grant select, insert, update on public.pons_epochs to service_role;",
-    "grant select on public.pons_audit_events, public.automation_locks to service_role;",
     "commit;",
     "",
   ].join("\n");

@@ -18,6 +18,7 @@ function saleReceipt() {
   return { status: "success", transactionHash: hash, blockNumber: 100n, blockHash: hash, logs: [
     { address: pack, topics: encodeEventTopics({ abi: [prizeEvent], args: { requestId: 1n, buyer, token: STOCK_TOKENS[0].address } }), data: encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [123456789012345678n, 25_000_000n]) },
     transferLog(CANONICAL_USDG, pack, treasury, 20_000_000n),
+    transferLog(STOCK_TOKENS[0].address, pack, buyer, 123456789012345678n),
   ] };
 }
 
@@ -25,6 +26,7 @@ test("only a settled pack with its exact canonical USDG treasury payment counts"
   const receipt = saleReceipt();
   assert.equal(saleFromReceipt(receipt, pack, treasury).amount_atoms, "20000000");
   assert.equal(saleFromReceipt({ ...receipt, status: "reverted" }, pack, treasury), null);
+  assert.equal(saleFromReceipt({ ...receipt, logs: receipt.logs.slice(0, 2) }, pack, treasury), null, "an event without actual stock delivery is not a sale");
   assert.equal(saleFromReceipt({ ...receipt, logs: [receipt.logs[1]] }, pack, treasury), null);
   assert.equal(saleFromReceipt({ ...receipt, logs: [receipt.logs[0], transferLog(CANONICAL_USDG, buyer, treasury, 20_000_000n)] }, pack, treasury), null);
   assert.equal(saleFromReceipt({ ...receipt, logs: [receipt.logs[0], transferLog(CANONICAL_USDG, pack, buyer, 20_000_000n)] }, pack, treasury), null);

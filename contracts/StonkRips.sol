@@ -7,7 +7,7 @@ interface IERC20 {
 }
 
 /// @title StonkRips
-/// @notice Inventory-backed $20 USDG packs for Robinhood Chain Stock Tokens.
+/// @notice Inventory-backed USDG packs. Deploy one contract per pack configuration.
 /// @dev One request settles at a time so neither inventory mutation nor settlement
 ///      ordering can change the funded prize pool after a buyer commits.
 contract StonkRips {
@@ -25,7 +25,7 @@ contract StonkRips {
         bool settled;
     }
 
-    uint256 public constant packPrice = 20_000_000;
+    uint256 public immutable packPrice;
     uint256 public constant ENTROPY_DELAY = 2;
     address public constant canonicalUsdg = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
 
@@ -62,8 +62,10 @@ contract StonkRips {
         locked = 1;
     }
 
-    constructor(address treasury_, address[] memory approvedStocks_) {
+    constructor(address treasury_, address[] memory approvedStocks_, uint256 priceUsdgAtoms_) {
         require(treasury_ != address(0), "ZERO_TREASURY");
+        require(priceUsdgAtoms_ > 0, "ZERO_PRICE");
+        packPrice = priceUsdgAtoms_;
         owner = msg.sender;
         treasury = treasury_;
         emit OwnershipTransferred(address(0), msg.sender);

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { STOCK_TOKENS, STOCK_TOKEN_BY_ADDRESS } from "@/app/lib/stock-tokens";
+import { STOCK_TOKEN_BY_ADDRESS } from "@/app/lib/stock-tokens";
+
+import { ACTIVE_PACK, PACK_PRICE_USD, PACK_STOCKS as STOCK_TOKENS } from "@/app/lib/pack-config";
 
 const DEFAULT_RPC = "https://rpc.mainnet.chain.robinhood.com";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
@@ -100,61 +102,10 @@ async function liveValuations(amounts: Map<string, bigint>) {
   }
 }
 
-async function automationSnapshot() {
-  const automationLive = process.env.AUTOMATION_PUBLIC_LIVE === "true";
-  const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  const fallback = {
-    automationLive,
-    completedEpochs: null as number | null,
-    lastEpochStatus: null as string | null,
-    lastHolderDrop: null as null | {
-      winner: string;
-      symbol: string;
-      tokenAmount: string;
-      transactionHash: string;
-      completedAt: string | null;
-    },
-  };
-  if (!supabaseUrl || !serviceKey) return fallback;
-  try {
-    const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, Prefer: "count=exact" };
-    const [latestResponse, countResponse, dropResponse] = await Promise.all([
-      fetch(`${supabaseUrl}/rest/v1/pons_epochs?select=status&order=epoch_key.desc&limit=1`, { headers, cache: "no-store" }),
-      fetch(`${supabaseUrl}/rest/v1/pons_epochs?select=id&status=eq.complete&limit=1`, { headers, cache: "no-store" }),
-      fetch(`${supabaseUrl}/rest/v1/pons_epochs?select=winner_address,drop_stock_symbol,drop_stock_amount_atoms,holder_drop_tx,completed_at&status=eq.complete&order=epoch_key.desc&limit=1`, { headers, cache: "no-store" }),
-    ]);
-    if (!latestResponse.ok || !countResponse.ok || !dropResponse.ok) return fallback;
-    const latest = await latestResponse.json() as Array<{ status?: string }>;
-    const lastDrop = await dropResponse.json() as Array<{
-      winner_address?: string;
-      drop_stock_symbol?: string;
-      drop_stock_amount_atoms?: string;
-      holder_drop_tx?: string;
-      completed_at?: string;
-    }>;
-    const range = countResponse.headers.get("content-range") || "";
-    const total = Number.parseInt(range.split("/")[1] || "", 10);
-    return {
-      automationLive,
-      completedEpochs: Number.isFinite(total) ? total : null,
-      lastEpochStatus: latest[0]?.status || null,
-      lastHolderDrop: lastDrop[0]?.winner_address
-        && lastDrop[0]?.drop_stock_symbol
-        && lastDrop[0]?.drop_stock_amount_atoms
-        && lastDrop[0]?.holder_drop_tx
-        ? {
-            winner: lastDrop[0].winner_address,
-            symbol: lastDrop[0].drop_stock_symbol,
-            tokenAmount: formatUnits(BigInt(lastDrop[0].drop_stock_amount_atoms)),
-            transactionHash: lastDrop[0].holder_drop_tx,
-            completedAt: lastDrop[0].completed_at || null,
-          }
-        : null,
-    };
-  } catch {
-    return fallback;
-  }
+function automationSnapshot() {
+  // The retired Pons tables are deliberately not queried on the new database.
+  // No environment flag can advertise holder rewards before v2 is integrated.
+  return { automationLive: false, completedEpochs: null, lastEpochStatus: null, lastHolderDrop: null };
 }
 
 export async function GET() {
@@ -169,7 +120,7 @@ export async function GET() {
     inventoryValueUsd: null as number | null,
     maxPrizeUsd: null as number | null,
     packEvUsd: null as number | null,
-    packPriceUsd: 20,
+    packPriceUsd: PACK_PRICE_USD,
     totalPacksOpened: null as number | null,
     inventory: [] as Array<{
       symbol: string;
@@ -188,6 +139,7 @@ export async function GET() {
 
   try {
     const rpcUrl = process.env.ROBINHOOD_RPC_URL || DEFAULT_RPC;
+    if (BigInt(await rpc(rpcUrl, "eth_chainId", [])) !== BigInt(4663)) throw new Error("Wrong network");
     const [inventoryRaw, inventoryValue, packPrice, onchainEnabled, nextRequestId, activeRequestId] = await Promise.all([
       ethCall(rpcUrl, contract, INVENTORY_COUNT_SELECTOR),
       ethCall(rpcUrl, contract, INVENTORY_VALUE_SELECTOR),
@@ -196,6 +148,7 @@ export async function GET() {
       ethCall(rpcUrl, contract, NEXT_REQUEST_ID_SELECTOR),
       ethCall(rpcUrl, contract, ACTIVE_REQUEST_ID_SELECTOR),
     ]);
+    if (packPrice !== BigInt(ACTIVE_PACK.priceUsdgAtoms)) throw new Error("Pack price differs from configured catalog");
     const inventoryCount = Number(inventoryRaw);
     const decoded = (await prizeCalls(rpcUrl, contract, inventoryCount)).map(decodePrize);
     const grouped = new Map<string, { tokenAmount: bigint; loadedValueMicros: bigint; fundedPulls: number }>();
@@ -210,7 +163,7 @@ export async function GET() {
     const valuations = await liveValuations(amounts);
     const inventory = [...grouped].flatMap(([address, item]) => {
       const stock = STOCK_TOKEN_BY_ADDRESS.get(address);
-      if (!stock) return [];
+      if (!stock || !ACTIVE_PACK.symbols.includes(stock.symbol)) throw new Error("Unconfigured stock found in inventory");
       return [{
         symbol: stock.symbol,
         tokenAmount: formatUnits(item.tokenAmount),

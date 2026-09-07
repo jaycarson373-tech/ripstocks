@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { createPublicClient, formatUnits, http, isAddress, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { CANONICAL_USDG, ROBINHOOD_CHAIN_ID } from "./pons-core.mjs";
+import { supabaseHeaders } from "./supabase-headers.mjs";
 
 export function inspectLaunchInputs(env) {
   const problems = [];
@@ -14,9 +15,9 @@ export function inspectLaunchInputs(env) {
     try { wallet = privateKeyToAccount(key.startsWith("0x") ? key : `0x${key}`).address; }
     catch { problems.push("AUTOMATION_PRIVATE_KEY must be a valid 32-byte EVM key"); }
   }
-  if (!env.PONS_TOKEN_ADDRESS?.trim()) problems.push("PONS_TOKEN_ADDRESS is missing");
-  else if (!isAddress(env.PONS_TOKEN_ADDRESS.trim())) problems.push("PONS_TOKEN_ADDRESS must be an EVM token address");
-  if (!env.ZEROX_API_KEY?.trim()) problems.push("ZEROX_API_KEY is missing");
+  const swapProvider = (env.SWAP_PROVIDER || "uniswap-v4").trim();
+  if (!["uniswap-v4", "0x"].includes(swapProvider)) problems.push("SWAP_PROVIDER must be uniswap-v4 or 0x");
+  if (swapProvider === "0x" && !env.ZEROX_API_KEY?.trim()) problems.push("ZEROX_API_KEY is required only when SWAP_PROVIDER=0x");
   if (!env.SUPABASE_SERVICE_ROLE_KEY?.trim()) problems.push("SUPABASE_SERVICE_ROLE_KEY is missing");
   let databaseUrl = null;
   try {
@@ -43,18 +44,18 @@ export async function checkLaunch(env = process.env) {
           client.getBalance({ address: inputs.wallet }),
           client.readContract({ address: CANONICAL_USDG, abi: parseAbi(["function balanceOf(address) view returns (uint256)"]), functionName: "balanceOf", args: [inputs.wallet] }),
         ]);
-        return { status: eth > 0n && (inputs.contract || usdg >= 250_000_000n) ? "pass" : "blocked", detail: "Treasury balances (gas estimate still required before sending)", wallet: inputs.wallet, ETH: formatUnits(eth, 18), USDG: formatUnits(usdg, 6) };
+        return { status: eth > 0n && usdg > 0n ? "pass" : "blocked", detail: "Treasury balances (exact purchase budget and gas estimate still required before sending)", wallet: inputs.wallet, ETH: formatUnits(eth, 18), USDG: formatUnits(usdg, 6) };
       } catch { return { status: "blocked", detail: "RPC or treasury balance check failed; no transaction sent" }; }
     })(),
     (async () => {
       if (!inputs.databaseUrl || !env.SUPABASE_SERVICE_ROLE_KEY?.trim()) return { status: "blocked", detail: "Database check needs valid Supabase credentials" };
-      const tables = ["pons_epochs", "pons_audit_events", "automation_locks", "pack_reinvestment_epochs", "pack_sale_receipts", "pack_reinvestment_lots", "pack_reinvestment_transactions"];
+      const tables = ["treasury_purchases", "pack_settlements", "automation_locks", "pack_reinvestment_epochs", "pack_sale_receipts", "pack_reinvestment_lots", "pack_reinvestment_transactions"];
       try {
         // HEAD verifies schema/access without reading audit rows or signed bytes.
         const results = await Promise.all(tables.map(async table => {
           const response = await fetch(`${inputs.databaseUrl}/rest/v1/${table}?select=*&limit=0`, {
             method: "HEAD", redirect: "error", signal: AbortSignal.timeout(12000),
-            headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY.trim(), Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY.trim()}` },
+            headers: supabaseHeaders(env.SUPABASE_SERVICE_ROLE_KEY.trim()),
           });
           return { table, status: response.status };
         }));
@@ -65,7 +66,7 @@ export async function checkLaunch(env = process.env) {
   ]);
   checks.push(chain, database);
   checks.push({ status: "pending", detail: inputs.contract ? "Configured pack contract still requires on-chain bootstrap verification" : "Pack contract deployment pending; keep sales disabled" });
-  checks.push({ status: "pending", detail: "0x route access, seeded inventory, settlement, and worker dry-run require verification" });
+  checks.push({ status: "pending", detail: "Stock route, seeded inventory, settlement, and worker dry-run require verification" });
   return { readOnly: true, launchReady: false, configurationChecksPassed: !checks.some(check => check.status === "blocked"), checks };
 }
 

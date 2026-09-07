@@ -1,5 +1,5 @@
--- Additive migration: run AFTER pons-automation.sql. Does not enable spending.
--- Only verified, settled 20 USDG pack sales enter this separate ledger.
+-- Run AFTER treasury-core.sql. Does not enable spending.
+-- Only verified settled payments enter this ledger; price is validated on-chain by the worker.
 begin;
 
 create table if not exists public.pack_reinvestment_epochs (
@@ -29,7 +29,7 @@ create table if not exists public.pack_sale_receipts (
   transaction_hash text not null,
   block_number bigint not null,
   block_hash text not null,
-  amount_atoms text not null check (amount_atoms = '20000000'),
+  amount_atoms text not null check (amount_atoms ~ '^[1-9][0-9]*$'),
   primary key (chain_id, pack_contract, request_id),
   unique (chain_id, pack_contract, transaction_hash)
 );
@@ -39,7 +39,7 @@ create table if not exists public.pack_reinvestment_lots (
   scope text not null,
   epoch_id text not null references public.pack_reinvestment_epochs(id),
   lot_index integer not null check (lot_index >= 0),
-  usd_atoms text not null check (usd_atoms in ('5000000','10000000','15000000','20000000','25000000','30000000','35000000','40000000','50000000')),
+  usd_atoms text not null check (usd_atoms ~ '^[1-9][0-9]*$'),
   stock_address text,
   stock_symbol text,
   token_amount_atoms text check (token_amount_atoms ~ '^[1-9][0-9]*$'),
@@ -54,7 +54,7 @@ create table if not exists public.pack_reinvestment_lots (
 create table if not exists public.pack_reinvestment_transactions (
   id text primary key,
   scope text not null,
-  lot_id text not null references public.pack_reinvestment_lots(id),
+  lot_id text not null,
   step text not null,
   transaction_hash text not null unique,
   serialized_transaction text not null,
@@ -82,7 +82,7 @@ declare
   lot_total numeric;
 begin
   perform pg_advisory_xact_lock(hashtextextended(p_epoch->>'scope', 0));
-  if not exists (select 1 from public.automation_locks where lock_name = 'pons-hourly-worker'
+  if not exists (select 1 from public.automation_locks where lock_name = 'treasury-worker'
     and holder = p_holder and expires_at > now()) then raise exception 'Automation lease is not held'; end if;
   select * into result from public.pack_reinvestment_epochs where id = p_epoch->>'id';
   if found then return to_jsonb(result); end if;

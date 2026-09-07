@@ -40,7 +40,7 @@ contract StonkRipsTest {
         address[] memory approved = new address[](2);
         approved[0] = address(stockA);
         approved[1] = address(stockB);
-        packs = new StonkRips(TREASURY, approved);
+        packs = new StonkRips(TREASURY, approved, 20_000_000);
         MockToken(USDG).mint(address(this), 100_000_000);
         stockA.mint(address(this), 1 ether);
         stockB.mint(address(this), 1 ether);
@@ -53,6 +53,35 @@ contract StonkRipsTest {
         packs.loadPrize(address(stockA), 1 ether, 5_000_000);
         (bool ok,) = address(packs).call(abi.encodeCall(packs.openPack, (keccak256("commit"))));
         require(!ok, "packs must default disabled");
+    }
+
+    function testFuturePackHasItsOwnPrice() public {
+        address[] memory approved = new address[](1);
+        approved[0] = address(stockA);
+        StonkRips other = new StonkRips(TREASURY, approved, 7_500_000);
+        stockA.approve(address(other), 1 ether);
+        other.loadPrize(address(stockA), 1 ether, 5_000_000);
+        MockToken(USDG).approve(address(other), 7_500_000);
+        other.setPacksEnabled(true);
+        uint256 id = other.openPack(keccak256("future-pack"));
+        vm.roll(block.number + 3);
+        other.settlePack(id);
+        require(MockToken(USDG).balanceOf(TREASURY) == 7_500_000, "future pack payment changed");
+        require(packs.packPrice() == 20_000_000, "pack one price changed");
+    }
+
+    function testNoPaymentWithoutInventoryAndNoDuplicateSettlement() public {
+        packs.setPacksEnabled(true);
+        (bool empty,) = address(packs).call(abi.encodeCall(packs.openPack, (keccak256("empty"))));
+        require(!empty && MockToken(USDG).balanceOf(address(this)) == 100_000_000, "empty pack charged");
+        packs.loadPrize(address(stockA), 1 ether, 5_000_000);
+        uint256 id = packs.openPack(keccak256("valid"));
+        require(MockToken(USDG).balanceOf(TREASURY) == 0, "pending payment spent");
+        vm.roll(block.number + 3);
+        packs.settlePack(id);
+        (bool twice,) = address(packs).call(abi.encodeCall(packs.settlePack, (id)));
+        require(!twice && MockToken(USDG).balanceOf(TREASURY) == 20_000_000, "duplicate payment");
+        require(packs.inventoryCount() == 0, "inventory not consumed");
     }
 
     function testPaidPackSettlesOneFundedPrize() public {

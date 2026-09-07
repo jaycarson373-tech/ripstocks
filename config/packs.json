@@ -1,0 +1,12 @@
+{
+  "activePackId": "PACK_01",
+  "packs": [{
+    "id": "PACK_01",
+    "label": "PACK #01",
+    "priceUsdgAtoms": "20000000",
+    "targetReturnBps": 9800,
+    "initialSeedPlanUsd": [5, 5, 8, 10, 15, 18, 20, 25, 40, 50],
+    "symbols": ["SPY", "NVDA", "TSLA", "GME", "PLTR", "COIN", "RKLB", "SPCX", "AAPL"],
+    "restockLotUsd": [5, 7, 8, 10, 12, 15, 18, 20, 25, 30, 40, 50, 75, 100]
+  }]
+}

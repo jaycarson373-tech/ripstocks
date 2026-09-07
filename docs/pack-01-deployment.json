@@ -1,0 +1,15 @@
+{
+  "chainId": 4663,
+  "packId": "PACK_01",
+  "contract": "0x8bfa6a4a917f7e70539ee112ec7e70f053333fb7",
+  "owner": "0xEF869e580984b47b6a4B016a3c96Be50e36C8AB6",
+  "treasury": "0xEF869e580984b47b6a4B016a3c96Be50e36C8AB6",
+  "priceUsdgAtoms": "20000000",
+  "deploymentTransaction": "0x5ee37c0062f6e5a3c0771a6fbdf65c17128bdaa8a66e2b1c942498bf1cbc1795",
+  "deploymentBlock": "56990703",
+  "deploymentNonce": 0,
+  "receiptStatus": "success",
+  "gasUsed": "1694015",
+  "executionFeeETH": "0.00051612232611",
+  "note": "Initial deployment only. Sales disabled; no funded inventory at deployment. Never redeploy as a retry: recover using this address and transaction."
+}

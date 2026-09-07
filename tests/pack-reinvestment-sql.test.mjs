@@ -16,11 +16,11 @@ test("one-paste setup is current, repeatable, and gives only server access", asy
     await db.exec(sql);
     await db.exec(sql);
     await db.exec("set role service_role");
-    assert.equal((await db.query("select count(*)::int as n from public.pons_epochs")).rows[0].n, 0);
+    assert.equal((await db.query("select count(*)::int as n from public.treasury_purchases")).rows[0].n, 0);
     assert.equal((await db.query("select count(*)::int as n from public.pack_sale_receipts")).rows[0].n, 0);
     await db.query("select public.acquire_automation_lock($1)", ["one-paste-check"]);
     await db.exec("reset role; set role anon");
-    await assert.rejects(db.query("select * from public.pons_epochs"), /permission denied/);
+    await assert.rejects(db.query("select * from public.treasury_purchases"), /permission denied/);
     await assert.rejects(db.query("select * from public.pack_reinvestment_transactions"), /permission denied/);
   } finally { await db.close(); }
 });
@@ -30,7 +30,7 @@ test("Postgres reservations are atomic, deduplicated, precise, and server-only",
   try {
     await db.exec("create role anon; create role authenticated; create role service_role bypassrls;");
     // PGlite already includes gen_random_uuid(), but does not bundle pgcrypto.
-    const base = (await readFile(new URL("../supabase/pons-automation.sql", import.meta.url), "utf8")).replace("create extension if not exists pgcrypto;", "");
+    const base = (await readFile(new URL("../supabase/treasury-core.sql", import.meta.url), "utf8")).replace("create extension if not exists pgcrypto;", "");
     await db.exec(base);
     const migration = await readFile(new URL("../supabase/pack-reinvestment.sql", import.meta.url), "utf8");
     await db.exec(migration);

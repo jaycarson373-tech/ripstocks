@@ -1,5 +1,5 @@
--- StonkRips / Pons v2 hourly automation ledger.
--- Paste this entire file into a NEW Supabase project's SQL editor and run once.
+-- RETIRED legacy Pons schema; retained only for historical migration reference.
+-- DO NOT use for a fresh project. Run launch-setup.sql instead.
 
 create extension if not exists pgcrypto;
 

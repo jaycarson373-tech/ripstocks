@@ -1,0 +1,81 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { packConfig } from "./pack-config.mjs";
+import { treasuryConfig, validateTreasury, recoverTreasuryTransaction, resumeTreasuryPurchase, indexSettlements } from "./treasury-runtime.mjs";
+import { ponsV2Adapter } from "./pons-v2-adapter.mjs";
+import { planLots } from "./pack-reinvestment.mjs";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { supabaseHeaders } from "./supabase-headers.mjs";
+import { directPoolKey, minimumOutput, HOOD_V4_SWAP_ADAPTER } from "./uniswap-v4.mjs";
+test("modern Supabase server keys are not sent as bearer JWTs", () => {
+  assert.deepEqual(supabaseHeaders("sb_secret_test"), { apikey: "sb_secret_test" });
+  assert.equal(supabaseHeaders("legacy-service-role").Authorization, "Bearer legacy-service-role");
+  assert.throws(() => supabaseHeaders("sb_publishable_test"), /backend secret/);
+});
+const env = { AUTOMATION_MODE: "dry-run", AUTOMATION_PRIVATE_KEY: "01".repeat(32), STOCKRIPS_PACK_CONTRACT: "0x" + "11".repeat(20), SWAP_PROVIDER: "uniswap-v4", SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "test" };
+test("direct Robinhood v4 route uses sorted pool currencies and bounded slippage", () => {
+  const key = directPoolKey("0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C", 3000, 60);
+  assert.equal(key.currency0.toLowerCase(), "0x117cc2133c37b721f49de2a7a74833232b3b4c0c");
+  assert.equal(minimumOutput(1_000_000n, 100), 990_000n);
+  assert.match(HOOD_V4_SWAP_ADAPTER, /^0x[0-9A-Fa-f]{40}$/);
+  assert.throws(() => minimumOutput(1n, 501), /0–500/);
+});
+test("Railway deployment artifact matches current contract source", () => {
+  const artifact = JSON.parse(readFileSync(new URL("./artifacts/StonkRips.json", import.meta.url)));
+  const source = readFileSync(new URL("../contracts/StonkRips.sol", import.meta.url));
+  assert.equal(artifact.sourceSha256, createHash("sha256").update(source).digest("hex"));
+  assert.equal(artifact.abi.find(item => item.type === "constructor").inputs.length, 3);
+  assert(artifact.bytecode.object.length > 100);
+});
+test("treasury works without creator key or Pons CA; defaults off", () => {
+  const cfg = treasuryConfig(env);
+  assert.equal(cfg.priceAtoms, 20_000_000n);
+  assert.equal(cfg.stocks.length, 9);
+  assert.equal(cfg.ponsToken, undefined);
+  assert.equal(cfg.creatorPrivateKey, undefined);
+  assert.equal(cfg.reinvestEnabled, false);
+  assert.equal(treasuryConfig({}).mode, "off");
+});
+test("Pons legacy settings cannot activate claims or rewards", async () => {
+  assert.equal(treasuryConfig({ ...env, PONS_TOKEN_ADDRESS: "legacy", PONS_V2_FACTORY: "legacy" }).mode, "dry-run");
+  assert.throws(() => treasuryConfig({ ...env, CREATOR_FEE_CLAIM_ENABLED: "true" }), /disabled/);
+  assert.throws(() => treasuryConfig({ ...env, HOLDER_REWARDS_ENABLED: "true" }), /disabled/);
+  assert.equal(ponsV2Adapter().enabled, false);
+  await assert.rejects(ponsV2Adapter().claimCreatorFees(), /disabled/);
+  await assert.rejects(ponsV2Adapter().payHolderReward(), /disabled/);
+});
+test("future prices preserve every atom without assuming twenty-dollar sales", () => {
+  for (const price of [7_500_000n, 30_000_000n, 100_000_000n]) {
+    const budget = price * 3n;
+    const lots = planLots(budget, "0x" + "12".repeat(32), "different-pack", price, packConfig().restockLotUsd);
+    assert.equal(lots.reduce((sum, lot) => sum + BigInt(lot.usd_atoms), 0n), budget);
+    assert(lots.every(lot => BigInt(lot.usd_atoms) > 0n));
+  }
+  assert.throws(() => packConfig("UNKNOWN"), /Unknown pack/);
+});
+test("wrong network and mismatched price fail closed", async () => {
+  const address = "0x" + "11".repeat(20);
+  const cfg = treasuryConfig(env);
+  const ctx = { cfg, account: { address }, publicClient: { getChainId: async () => 4663, readContract: async ({ functionName }) => functionName === "packPrice" ? cfg.priceAtoms : functionName === "approvedStock" ? true : address } };
+  await validateTreasury(ctx);
+  ctx.publicClient.getChainId = async () => 1;
+  await assert.rejects(validateTreasury(ctx), /4663/);
+  ctx.publicClient.getChainId = async () => 4663;
+  ctx.publicClient.readContract = async ({ functionName }) => functionName === "packPrice" ? 30_000_000n : address;
+  await assert.rejects(validateTreasury(ctx), /price/);
+});
+test("dry run cannot broadcast a pending signed transaction", async () => {
+  await assert.rejects(recoverTreasuryTransaction({ cfg: { mode: "dry-run" }, store: { pendingTransaction: async () => ({ id: "pending" }) } }), /dry run sends nothing/);
+});
+test("disabling reinvestment prevents rebroadcast of a pending restock", async () => {
+  await assert.rejects(recoverTreasuryTransaction({ scope: "scope", cfg: { mode: "live", reinvestEnabled: false }, store: { pendingTransaction: async () => ({ lot_id: "reserved-sale-lot" }) } }), /paused/);
+});
+test("completed initial purchase retry never accesses a wallet", async () => {
+  await resumeTreasuryPurchase({ store: { patch: () => { throw new Error("must not patch"); } } }, { completed_at: "2026-09-07T00:00:00Z" });
+});
+test("empty chain activity produces no invented settlement rows", async () => {
+  let writes = 0;
+  await indexSettlements({ cfg: { mode: "live", packStartBlock: 10n }, scope: "test", lease: async () => {}, store: { rows: async () => [] }, audit: { request: async () => { writes++; } }, publicClient: { getBlockNumber: async () => 30n, getLogs: async () => [] } });
+  assert.equal(writes, 0);
+});

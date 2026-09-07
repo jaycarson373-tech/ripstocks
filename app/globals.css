@@ -89,10 +89,9 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 .brand-logo {
   width: 42px;
   height: 42px;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid rgba(199, 255, 0, 0.42);
-  box-shadow: 0 0 18px rgba(199, 255, 0, 0.15), inset 0 0 0 1px rgba(255,255,255,0.04);
+  object-fit: contain;
+  border-radius: 0;
+  border: 0;
 }
 .brand b {
   font-size: 16px;
@@ -850,7 +849,7 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
   .shell { width: min(100% - 24px, 1240px); }
   .nav { min-height: 68px; gap: 12px; }
   .nav::before { height: 68px; }
-  .brand-logo { width: 36px; height: 36px; border-radius: 8px; }
+  .brand-logo { width: 36px; height: 36px; }
   .brand b { font-size: 13px; }
   .wallet-button { min-width: 0; padding: 11px 12px; font-size: 8px; }
   .hero { min-height: auto; }
@@ -966,6 +965,44 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
   .confirmed-prize { padding-inline: 18px; }
   .confirmed-prize .stock-token-logo { width: 86px; height: 86px; }
   .confirmed-prize h2 { font-size: 40px; }
+}
+
+.interactive-pack { appearance: none; border: 0; background: transparent; padding: 0; cursor: pointer; }
+.interactive-pack:disabled { cursor: default; opacity: 1; }
+.interactive-pack:focus-visible { outline: 2px solid var(--lime); outline-offset: -4px; border-radius: 14px; }
+.interactive-pack:not(:disabled):active .premium-pack { transform: scale(.97); }
+.playable-pack .premium-pack { animation: heroPackFloat 5s ease-in-out infinite; }
+.playable-pack .pack-readout > span, .playable-pack .pack-readout dt { font-size: 12px; color: var(--muted); }
+.playable-pack .pack-readout dd { font-size: 20px; }
+.playable-pack .pack-readout dl div:first-child dd { color: var(--lime); font-size: 28px; }
+.playable-pack .pack-readout > button { min-height: 52px; font-size: 14px; line-height: 1.4; padding: 12px; }
+.playable-pack .pack-readout > small { display: block; color: var(--muted); font: 400 12px/1.6 var(--font-geist-sans); }
+.pack-wallet { margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+.pack-wallet button { min-height: 36px; padding: 4px 8px; color: var(--off-white); background: transparent; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.pack-progress { font: 400 14px/1.5 var(--font-geist-sans); color: var(--off-white); overflow-wrap: anywhere; }
+.hero-pack-result { position: absolute; inset: 0; z-index: 15; padding: 32px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at center, #222b0b, #030403 74%); }
+.hero-pack-result > span { font: 700 12px/1.6 var(--font-geist-mono); color: var(--lime); }
+.hero-pack-result > img { width: min(70%, 300px); height: auto; object-fit: contain; animation: packAnticipation .4s ease-in-out infinite; }
+.hero-pack-result.reveal-spin > img { animation: heroPackOpen 1s ease-out both; }
+.hero-pack-result > button { min-height: 44px; color: var(--off-white); background: transparent; border: 1px solid var(--line); padding: 10px 16px; border-radius: 7px; cursor: pointer; }
+.hero-pack-result .stock-token-logo { width: 100px; height: 100px; margin: 22px 0; }
+.hero-pack-result h2 { margin: 0; font-size: clamp(24px, 4vw, 42px); line-height: 1.15; }
+.hero-result-amount { max-width: 100%; overflow-wrap: anywhere; font: 700 16px/1.5 var(--font-geist-mono); color: var(--lime); }
+.hero-pack-result small { color: var(--muted); font-size: 12px; }
+.hero-pack-result .result-actions { flex-wrap: wrap; justify-content: center; }
+.hero-pack-result .result-actions a, .hero-pack-result .result-actions button { font-size: 12px; }
+@keyframes heroPackFloat { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(1deg); } }
+@keyframes heroPackOpen { 0% { transform: scale(1); opacity: 1; } 55% { transform: scale(1.1) rotate(3deg); filter: brightness(1.8); opacity: 1; } 100% { transform: translateY(-28px) scale(1.14); opacity: 0; } }
+@media (max-width: 640px) {
+  .playable-pack { grid-template-columns: minmax(0, 1fr); min-height: 520px; }
+  .playable-pack .pack-product { height: 210px; }
+  .playable-pack .premium-pack { width: 220px; }
+  .playable-pack .pack-readout { padding: 18px; border-left: 0; border-top: 1px solid var(--line); }
+  .playable-pack .pack-readout dl { grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+  .playable-pack .pack-readout > i { font-size: 12px; margin: 10px 0; }
+  .playable-pack .pack-readout dd { font-size: 16px; }
+  .playable-pack .pack-readout dl div:first-child dd { font-size: 22px; }
+  .hero-pack-result { padding: 24px 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

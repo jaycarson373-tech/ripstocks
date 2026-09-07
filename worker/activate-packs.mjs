@@ -8,6 +8,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ROBINHOOD_CHAIN_ID, addressEnv, required } from "./pons-core.mjs";
+import { packConfig } from "./pack-config.mjs";
 
 const robinhood = defineChain({
   id: ROBINHOOD_CHAIN_ID,
@@ -18,6 +19,7 @@ const robinhood = defineChain({
 });
 
 const packAbi = parseAbi([
+  "function packPrice() view returns (uint256)",
   "function owner() view returns (address)",
   "function treasury() view returns (address)",
   "function packsEnabled() view returns (bool)",
@@ -48,6 +50,7 @@ async function main() {
   const publicClient = createPublicClient({ chain: robinhood, transport });
   const walletClient = createWalletClient({ account, chain: robinhood, transport });
   if (await publicClient.getChainId() !== ROBINHOOD_CHAIN_ID) throw new Error("RPC is not Robinhood Chain mainnet");
+  if (await publicClient.readContract({ address: contract, abi: packAbi, functionName: "packPrice" }) !== packConfig(process.env.PACK_ID).priceAtoms) throw new Error("Pack price differs from the configured catalog");
 
   const [owner, treasury, enabled, activeRequestId, inventoryCount] = await Promise.all([
     publicClient.readContract({ address: contract, abi: packAbi, functionName: "owner" }),

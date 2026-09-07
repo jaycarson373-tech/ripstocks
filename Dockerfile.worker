@@ -7,5 +7,6 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY worker ./worker
+COPY config ./config
 
-CMD ["npm", "run", "pons-worker"]
+CMD ["npm", "run", "treasury-worker"]

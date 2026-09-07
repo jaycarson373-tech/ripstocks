@@ -4,7 +4,7 @@ import { inspectLaunchInputs } from "./launch-check.mjs";
 
 test("launch inputs report all missing fields without inventing a wallet", () => {
   const result = inspectLaunchInputs({});
-  assert.equal(result.problems.length, 5);
+  assert.equal(result.problems.length, 3);
   assert.equal(result.wallet, null);
   assert.equal(result.databaseUrl, null);
   assert.equal(result.contract, null);

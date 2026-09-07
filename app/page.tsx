@@ -3,7 +3,8 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { STOCK_TOKENS, type StockToken } from "@/app/lib/stock-tokens";
+import { type StockToken } from "@/app/lib/stock-tokens";
+import { ACTIVE_PACK, PACK_PRICE_USD, PACK_STOCKS as STOCK_TOKENS } from "@/app/lib/pack-config";
 import { ensureRobinhoodChain, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider } from "@/app/lib/wallet-provider";
 
 type InventoryStock = {
@@ -65,8 +66,6 @@ type PackResult = {
 
 type RevealStage = "pack" | "spin" | "lock" | "reveal";
 
-const REEL_WINNER_INDEX = 32;
-
 const WALLET_DISCONNECTED_KEY = "stonkrips.wallet-disconnected";
 const CANONICAL_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const PACK_REQUESTED_TOPIC = "0x72ce6acbcd0dcdfc48c244249d669a4a6cfd9f429795cdcc5c430ad27273f383";
@@ -83,7 +82,7 @@ const EMPTY_STATUS: PackStatus = {
   inventoryValueUsd: null,
   maxPrizeUsd: null,
   packEvUsd: null,
-  packPriceUsd: 20,
+  packPriceUsd: PACK_PRICE_USD,
   totalPacksOpened: null,
   inventory: [],
   inventoryDataAvailable: false,
@@ -125,7 +124,7 @@ function hexWord(value: string | bigint) {
 function formatTokenUnits(value: bigint, decimals = 18) {
   const padded = value.toString().padStart(decimals + 1, "0");
   const whole = padded.slice(0, -decimals);
-  const fraction = padded.slice(-decimals).replace(/0+$/, "").slice(0, 8);
+  const fraction = padded.slice(-decimals).replace(/0+$/, "");
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
@@ -188,22 +187,16 @@ export default function Home() {
 
   const networkReady = chainId === ROBINHOOD_CHAIN_ID;
   const inventoryBySymbol = useMemo(() => new Map(status.inventory.map((item) => [item.symbol, item])), [status.inventory]);
-  const revealSequence = useMemo(() => {
-    if (!packResult) return [];
-    return Array.from({ length: 35 }, (_, index) => index === REEL_WINNER_INDEX
-      ? packResult.stock
-      : STOCK_TOKENS[(index * 7 + 3) % STOCK_TOKENS.length]);
-  }, [packResult]);
-  const arcadeReady = status.configured && status.packsLive && status.inventoryCount > 0;
+  const arcadeReady = statusState === "ready" && !status.dataError && status.configured && status.packsLive && status.inventoryCount > 0;
   const automationLabel = status.automationLive
     ? AUTOMATION_LABELS[status.lastEpochStatus || ""] || "HOURLY ENGINE ONLINE"
     : "AUTOMATION SAFE MODE";
-  const machineState = statusState === "error" || status.dataError ? "ERROR" : !status.configured ? "PRELAUNCH" : !status.operatorEnabled ? "PAUSED" : status.inventoryCount < 1 ? "EMPTY" : "READY";
+  const machineState = statusState === "loading" ? "CHECKING" : statusState === "error" || status.dataError ? "ERROR" : !status.configured ? "PRELAUNCH" : !status.operatorEnabled ? "PAUSED" : status.inventoryCount < 1 ? "EMPTY" : "READY";
   const packStatusLabel = machineState === "READY" ? "LIVE" : machineState === "EMPTY" ? "SOLD OUT" : machineState;
   const holderDrawActive = status.automationLive && ["awaiting_seed", "holder_drop_swap", "holder_drop_send"].includes(status.lastEpochStatus || "");
   const nextHourlyCycle = clock === null ? null : Math.ceil((clock + 1) / 3_600_000) * 3_600_000;
   const holderCountdown = !status.automationLive
-    ? "ACTIVATING"
+    ? "PONS NOT CONNECTED"
     : holderDrawActive
       ? "SELECTING"
       : nextHourlyCycle === null
@@ -288,9 +281,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!packResult || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const spinTimer = window.setTimeout(() => setRevealStage("spin"), 650);
-    const lockTimer = window.setTimeout(() => setRevealStage("lock"), 2_650);
-    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), 3_150);
+    const spinTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "spin"), 400);
+    const lockTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "lock"), 1_400);
+    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), 1_650);
     return () => {
       window.clearTimeout(spinTimer);
       window.clearTimeout(lockTimer);
@@ -368,19 +361,21 @@ export default function Home() {
       return;
     }
     setBusy(true);
-    setNotice("Checking your 20 USDG allowance…");
+    setNotice(`Checking your ${PACK_PRICE_USD} USDG allowance…`);
     try {
-      const priceAtoms = BigInt(Math.round(status.packPriceUsd * 1_000_000));
+      const priceAtoms = BigInt(ACTIVE_PACK.priceUsdgAtoms);
+      const actualPrice = await provider.request({ method: "eth_call", params: [{ to: PACK_CONTRACT, data: "0x335c8b63" }, "latest"] }) as string;
+      if (BigInt(actualPrice) !== priceAtoms) throw new Error("Pack configuration changed. Refresh before purchasing.");
       const balanceData = `0x70a08231${hexWord(account)}`;
       const balanceHex = await provider.request({ method: "eth_call", params: [{ to: CANONICAL_USDG, data: balanceData }, "latest"] }) as string;
       if (BigInt(balanceHex) < priceAtoms) {
-        setNotice("This wallet needs at least 20 USDG before it can rip a funded pack.");
+        setNotice(`This wallet needs at least ${PACK_PRICE_USD} USDG before it can rip this funded pack.`);
         return;
       }
       const allowanceData = `0xdd62ed3e${hexWord(account)}${hexWord(PACK_CONTRACT)}`;
       const allowanceHex = await provider.request({ method: "eth_call", params: [{ from: account, to: CANONICAL_USDG, data: allowanceData }, "latest"] }) as string;
       if (BigInt(allowanceHex) < priceAtoms) {
-        setNotice("Approve exactly 20 USDG in your wallet.");
+        setNotice(`Approve exactly ${PACK_PRICE_USD} USDG in your wallet.`);
         const approvalHash = await provider.request({
           method: "eth_sendTransaction",
           params: [{ from: account, to: CANONICAL_USDG, data: `0x095ea7b3${hexWord(PACK_CONTRACT)}${hexWord(priceAtoms)}`, value: "0x0" }],
@@ -388,7 +383,7 @@ export default function Home() {
         await waitForReceipt(provider, approvalHash);
       }
 
-      setNotice("Confirm the $20 pack rip in your wallet.");
+      setNotice(`Confirm the $${PACK_PRICE_USD} ${ACTIVE_PACK.label} rip in your wallet.`);
       const commitment = randomCommitment();
       const openHash = await provider.request({
         method: "eth_sendTransaction",
@@ -409,11 +404,22 @@ export default function Home() {
       }
 
       setNotice("Reveal ready. Confirm the final on-chain settlement.");
-      const settleHash = await provider.request({
-        method: "eth_sendTransaction",
-        params: [{ from: account, to: PACK_CONTRACT, data: `0x8533498d${hexWord(requestId)}`, value: "0x0" }],
-      }) as string;
-      const settleReceipt = await waitForReceipt(provider, settleHash);
+      let settleHash: string;
+      let settleReceipt: RpcReceipt;
+      try {
+        settleHash = await provider.request({
+          method: "eth_sendTransaction",
+          params: [{ from: account, to: PACK_CONTRACT, data: `0x8533498d${hexWord(requestId)}`, value: "0x0" }],
+        }) as string;
+        settleReceipt = await waitForReceipt(provider, settleHash);
+      } catch (error) {
+        // A recovery worker may already have settled this request. Only an
+        // actual successful receipt can recover the result, never the animation.
+        const logs = await provider.request({ method: "eth_getLogs", params: [{ address: PACK_CONTRACT, fromBlock: openReceipt.blockNumber, toBlock: "latest", topics: [PRIZE_DELIVERED_TOPIC, `0x${hexWord(requestId)}`] }] }) as Array<{ transactionHash: string }>;
+        if (logs.length !== 1) throw error;
+        settleHash = logs[0].transactionHash;
+        settleReceipt = await waitForReceipt(provider, settleHash);
+      }
       const prizeLog = settleReceipt.logs.find((log) => log.address.toLowerCase() === PACK_CONTRACT.toLowerCase() && log.topics[0]?.toLowerCase() === PRIZE_DELIVERED_TOPIC);
       if (!prizeLog?.topics[3]) throw new Error("PRIZE_EVENT_MISSING");
       const tokenAddress = `0x${prizeLog.topics[3].slice(-40)}`.toLowerCase();
@@ -445,20 +451,20 @@ export default function Home() {
         ? "PACKS PAUSED"
         : status.inventoryCount < 1
           ? "ARCADE RESTOCKING"
-          : "RIP A PACK — $20";
+          : `RIP ${ACTIVE_PACK.label} — $${PACK_PRICE_USD}`;
 
   const modalAction = !account
     ? "CONNECT WALLET"
     : !networkReady
       ? "SWITCH TO ROBINHOOD CHAIN"
-      : "CONFIRM $20 USDG PACK";
+      : `CONFIRM ${PACK_PRICE_USD} USDG PACK`;
 
   return (
     <main id="top">
       <div className="ambient" aria-hidden="true" />
       <nav className="nav shell" aria-label="Primary navigation">
         <a href="#top" className="brand" aria-label="StonkRips home">
-          <Image className="brand-logo" src="/stonkrips-pack-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} priority />
+          <Image className="brand-logo" src="/stonkrips-open-pack-512.png" alt="StonkRips open stock pack logo" width={48} height={48} priority />
           <b>STONK<span>RIPS</span></b>
         </a>
         <div className="nav-links">
@@ -487,40 +493,58 @@ export default function Home() {
           <div className="hero-copy">
             <div className="network-label"><span /> THE STOCK MARKET HAS LOOT BOXES NOW.</div>
             <h1>RIP A PACK.<br/><em>PULL A STOCK.</em></h1>
-            <p className="lead"><strong>$20 per pack.</strong> One onchain-selected Stock Token. Delivered directly to your wallet.</p>
-            <p className="sublead">Every trade feeds the game. Pons v2 creator fees restock packs and fund hourly holder drops.</p>
+            <p className="lead"><strong>{ACTIVE_PACK.label} — ${PACK_PRICE_USD}.</strong> One onchain-selected Stock Token. Delivered directly to your wallet.</p>
+            <p className="sublead">Funded Stock Token inventory. Settled pack proceeds can restock hourly. Pons creator fees and holder drops come later.</p>
             <div className="hero-actions">
-              <button className="rip-button" type="button" onClick={() => setPackModalOpen(true)} disabled={!arcadeReady || busy}>
-                {primaryLabel}<span aria-hidden="true">●</span>
+              <button className="rip-button" type="button" onClick={() => void (!account ? connectWallet() : setPackModalOpen(true))} disabled={busy || (Boolean(account) && !arcadeReady)}>
+                {!account ? "CONNECT WALLET TO RIP" : primaryLabel}<span aria-hidden="true">●</span>
               </button>
               <a className="secondary-button" href="#pack">VIEW PACK</a>
             </div>
             {notice && <p className="notice" role="status">{notice}</p>}
             <div className="hero-facts" aria-label="StonkRips fixed product facts">
-              <span><b>$20</b><small>PACK PRICE</small></span>
-              <span><b>10</b><small>STOCK TOKENS</small></span>
-              <span><b>1 HR</b><small>HOLDER DROP CYCLE</small></span>
+              <span><b>${PACK_PRICE_USD}</b><small>{ACTIVE_PACK.label} PRICE</small></span>
+              <span><b>{STOCK_TOKENS.length}</b><small>VERIFIED STOCK TOKENS</small></span>
+              <span><b>1 HR</b><small>RESTOCK CYCLE · WHEN ENABLED</small></span>
             </div>
           </div>
 
-          <div className={"pack-showcase state-" + machineState.toLowerCase().replace(" ", "-")} id="pack" aria-label={"StonkRips pack. Status: " + machineState}>
+          <div className={"pack-showcase playable-pack state-" + machineState.toLowerCase().replace(" ", "-")} id="pack" aria-label={"StonkRips pack. Status: " + machineState} aria-busy={busy}>
             <div className="pack-glow" aria-hidden="true" />
-            <div className="pack-product">
-              <Image className="premium-pack" src="/stonkrips-pack.png" alt="Premium black StonkRips pack featuring the ten supported Stock Tokens" width={1024} height={1536} priority />
+            <button className="pack-product interactive-pack" type="button" onClick={() => void (!account ? connectWallet() : setPackModalOpen(true))} disabled={busy || (Boolean(account) && !arcadeReady)} aria-label={!account ? "Connect wallet to StonkRips" : `Open ${ACTIVE_PACK.label} for ${PACK_PRICE_USD} USDG`}>
+              <Image className="premium-pack" src="/stonkrips-open-pack-logo.png" alt="StonkRips open black pack with stock cards" width={1254} height={1254} priority />
               <span className="foil-sheen" aria-hidden="true" />
-            </div>
+            </button>
             <div className="pack-readout">
-              <span>STONKRIPS // PACK_01</span>
+              <span>STONKRIPS // {ACTIVE_PACK.id}</span>
               <i>{packStatusLabel}</i>
               <dl>
-                <div><dt>PRICE</dt><dd>{formatUsd(status.packPriceUsd)}</dd></div>
+                <div><dt>PACK PRICE</dt><dd>{PACK_PRICE_USD} USDG</dd></div>
                 <div><dt>FUNDED PACKS</dt><dd>{!status.configured ? "PENDING" : !status.inventoryDataAvailable ? "UNAVAILABLE" : status.inventoryCount}</dd></div>
-                <div><dt>STOCK UNIVERSE</dt><dd>10</dd></div>
+                <div><dt>STOCK UNIVERSE</dt><dd>{STOCK_TOKENS.length}</dd></div>
                 <div><dt>PACK EV</dt><dd>{status.packEvUsd === null ? "UNAVAILABLE" : formatUsd(status.packEvUsd)}</dd></div>
               </dl>
-              <button type="button" onClick={() => setPackModalOpen(true)} disabled={!arcadeReady || busy}>{primaryLabel}</button>
-              <small>Purchases stay disabled unless an onchain funded slot is available.</small>
+              {account && <div className="pack-wallet"><span>{shortAddress(account)}</span><button type="button" disabled={busy} onClick={() => void disconnectWallet()}>Disconnect</button></div>}
+              <button type="button" onClick={() => void (!account ? connectWallet() : !networkReady ? openPack() : setPackModalOpen(true))} disabled={busy || (Boolean(account && networkReady) && !arcadeReady)}>{busy ? "WAITING FOR WALLET / CHAIN…" : !account ? "CONNECT WALLET" : !networkReady ? "SWITCH NETWORK" : arcadeReady ? `RIP PACK — ${PACK_PRICE_USD} USDG` : primaryLabel}</button>
+              <small>ETH covers network gas. The confirmed Stock Token is sent directly to your connected wallet.</small>
+              {notice && <p className="pack-progress" role="status">{notice}</p>}
             </div>
+            {packResult && (
+              <div className={`hero-pack-result reveal-${revealStage}`} aria-live="polite">
+                {revealStage !== "reveal" ? <>
+                  <span>TRANSACTION CONFIRMED · OPENING YOUR PACK</span>
+                  <Image src="/stonkrips-open-pack-512.png" alt="Your confirmed pack is opening" width={300} height={300} />
+                  <button type="button" onClick={() => setRevealStage("reveal")}>SKIP ANIMATION</button>
+                </> : <>
+                  <span>YOU PULLED · DELIVERED TO YOUR WALLET</span>
+                  <StockLogo stock={packResult.stock} />
+                  <h2>{packResult.stock.name}</h2>
+                  <p className="hero-result-amount">{packResult.tokenAmount} {packResult.stock.symbol}</p>
+                  <small>{formatUsd(packResult.valueUsd)} value when loaded · not a current price</small>
+                  <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION</a><button type="button" onClick={() => { setPackResult(null); setTermsAccepted(false); }}>BACK TO PACK</button></div>
+                </>}
+              </div>
+            )}
           </div>
         </div>
         <div className="stock-universe-strip shell" aria-label="Supported Stock Tokens">
@@ -538,14 +562,14 @@ export default function Home() {
       </section>
 
       <section className="arcade-steps shell" aria-label="Pack overview">
-        <article><span>01</span><h2>INSERT</h2><p>Connect your wallet and approve exactly 20 USDG.</p></article>
+        <article><span>01</span><h2>INSERT</h2><p>Connect your wallet and approve exactly {PACK_PRICE_USD} USDG.</p></article>
         <article><span>02</span><h2>GRAB</h2><p>A funded inventory slot is selected by the on-chain pack flow.</p></article>
         <article><span>03</span><h2>RIP</h2><p>Reveal the confirmed result and receive the Stock Token in your wallet.</p></article>
       </section>
 
       <section className="prize-section shell" id="prize-pool">
         <div className="section-heading">
-          <span>THE TEN POSSIBLE PULLS</span>
+          <span>THE VERIFIED POSSIBLE PULLS</span>
           <h2>WHAT&apos;S INSIDE<br/>THE MACHINES.</h2>
           <p>Browse the supported Stock Token universe. Only assets already loaded into the pack contract can be selected.</p>
         </div>
@@ -586,9 +610,9 @@ export default function Home() {
 
       <section className="holder-drops shell" id="holder-drops">
         <div className="section-heading compact">
-          <span>REAL HOLDER REWARDS</span>
+          <span>FUTURE HOLDER REWARDS · DISABLED</span>
           <h2>HOLDER DROPS.</h2>
-          <p>One eligible weighted holder receives the Stock Token purchased by the hourly fee cycle. Each 250 $RIP held at the snapshot block equals one whole ticket.</p>
+          <p>Holder rewards are disabled in pre-CA mode. Eligibility and ticket rules will be confirmed with the Pons v2 integration before activation.</p>
         </div>
         <div className={`holder-draw-machine${holderDrawActive ? " is-selecting" : ""}`} aria-label={`Holder draw engine status: ${holderCountdown}`}>
           <div className="holder-draw-topline"><span>NEXT HOURLY HOLDER DROP</span><b>{holderCountdown}</b></div>
@@ -598,10 +622,10 @@ export default function Home() {
               {Array.from({ length: 14 }, (_, index) => <span key={`holder-ticket-${index}`}><small>WEIGHTED</small><b>TICKET {String(index + 1).padStart(2, "0")}</b></span>)}
             </div>
           </div>
-          <div className="holder-draw-footer"><span>250 $RIP = 1 TICKET</span><span>FUTURE-BLOCK SELECTION</span><span>WINNER SHOWN AFTER CONFIRMATION</span></div>
+          <div className="holder-draw-footer"><span>AWAITING PONS V2</span><span>ELIGIBILITY NOT ACTIVE</span><span>NO REWARDS SCHEDULED</span></div>
         </div>
         <div className="holder-drop-panel">
-          <div><small>STATUS</small><b>{status.automationLive ? automationLabel : "ACTIVATING"}</b></div>
+          <div><small>STATUS</small><b>{status.automationLive ? automationLabel : "PONS NOT CONNECTED"}</b></div>
           <div><small>TOTAL COMPLETED</small><b>{status.completedEpochs === null ? "NOT REPORTED" : status.completedEpochs}</b></div>
           <div><small>LAST WINNER</small><b>{status.lastHolderDrop ? shortAddress(status.lastHolderDrop.winner) : "NO VERIFIED DROP"}</b></div>
           <div><small>ASSET</small><b>{status.lastHolderDrop?.symbol || "NOT REPORTED"}</b></div>
@@ -614,7 +638,7 @@ export default function Home() {
         <div className="section-heading"><span>THE ON-CHAIN PACK FLOW</span><h2>FOUR MOVES.<br/>ONE RECEIPT.</h2><p>The animation never chooses your prize. It starts only after the contract confirms the result.</p></div>
         <div className="technical-steps">
           <article><b>01</b><h3>CONNECT</h3><p>Use an EVM wallet on Robinhood Chain, network 4663. ETH pays network gas.</p></article>
-          <article><b>02</b><h3>APPROVE</h3><p>Approve exactly 20 canonical USDG for the configured StonkRips pack contract.</p></article>
+          <article><b>02</b><h3>APPROVE</h3><p>Approve exactly {PACK_PRICE_USD} canonical USDG for the configured StonkRips pack contract.</p></article>
           <article><b>03</b><h3>SELECT</h3><p>A future Robinhood Chain blockhash selects one funded inventory slot. This transparent method is not oracle VRF.</p></article>
           <article><b>04</b><h3>RECEIVE</h3><p>Settlement sends the selected Stock Token to the buyer and exposes the transaction receipt.</p></article>
         </div>
@@ -622,26 +646,26 @@ export default function Home() {
 
       <section className="restock-engine shell" id="restock">
         <div className="restock-copy">
-          <span>PONS V2 CREATOR FEES</span>
+          <span>FUTURE PONS V2 CREATOR FEES</span>
           <h2>EVERY FEE<br/><em>RELOADS THE ARCADE.</em></h2>
-          <p>Each successful hourly cycle claims Pons v2 creator fees. Any project-token side is converted into canonical SPY, then the resulting budget is routed 50/50. No claimable fees means no fee-funded drop or refill.</p>
-          <p>When receipt reinvestment is enabled, settled $20 USDG pack payments also refill inventory at the next hourly cycle, in varied stock amounts. Sale payments stay separate from the 50/50 creator-fee split.</p>
+          <p>Pre-CA mode runs on treasury funding and settled pack payments only. Creator-fee claiming and holder rewards are disabled; neither requires a creator private key.</p>
+          <p>When enabled, hourly restocking reserves confirmed pack payments once and buys varied, fully funded Stock Token lots. Pending payments are not spendable proceeds. The planned 50/50 creator-fee split is a future, separate integration.</p>
           <i className={status.automationLive ? "is-live" : ""}>{automationLabel}</i>
         </div>
         <div className="restock-machine" aria-label="50 percent holder drop and 50 percent pack inventory split">
-          <div className="fee-inlet"><span>PONS FEES</span><b>↓</b></div>
+          <div className="fee-inlet"><span>FUTURE PONS FEES · DISABLED</span><b>↓</b></div>
           <div className="split-line" aria-hidden="true"><i /><i /></div>
-          <article><b>50%</b><span>HOLDER DROP CHAMBER</span><p>One weighted externally owned holder receives a Stock Token bought from half of the claimed fee budget.</p></article>
-          <article><b>50%</b><span>PACK INVENTORY</span><p>The remaining half buys one approved Stock Token lot and loads it into the pack contract.</p></article>
+          <article><b>50%</b><span>HOLDER DROP CHAMBER</span><p>Planned allocation to holder rewards. Disabled until Pons v2 is integrated and verified.</p></article>
+          <article><b>50%</b><span>PACK INVENTORY</span><p>Planned allocation to future inventory funding. No creator fees are being claimed in pre-CA mode.</p></article>
         </div>
         <div className="flywheel-line" aria-label="Trading to fees to stocks to packs and drops, then repeat"><span>TRADING</span><i>→</i><span>FEES</span><i>→</i><span>STOCKS</span><i>→</i><span>PACKS + DROPS</span><i>↻</i></div>
         <div className="engine-stats">
           <span><b>{status.completedEpochs === null ? "NOT REPORTED" : status.completedEpochs}</b><small>COMPLETED FEE CYCLES</small></span>
           <span><b>{status.inventoryDataAvailable ? status.inventoryCount : "NOT REPORTED"}</b><small>FUNDED PACK LOTS</small></span>
-          <span><b>250</b><small>$RIP PER TICKET</small></span>
+          <span><b>DISABLED</b><small>PRE-CA HOLDER REWARDS</small></span>
         </div>
-        <p className="engine-note">Holder weight is the wallet&apos;s $RIP balance divided by 250, rounded down to whole tickets at the committed snapshot block. Contracts, pools, the automation wallet, and configured exclusions do not participate.</p>
-        <a href={PONS_TOKEN_URL || "https://robinhood.ponslaunchpad.com/"} target="_blank" rel="noreferrer">{PONS_TOKEN_URL ? "OPEN STONKRIPS ON PONS ↗" : "OPEN PONS V2 ↗"}</a>
+        <p className="engine-note">Holder eligibility and ticket rules will be published after the actual Pons v2 launch is integrated and verified. Pack purchases do not depend on a Pons token.</p>
+        {PONS_TOKEN_URL && <a href={PONS_TOKEN_URL} target="_blank" rel="noreferrer">OPEN STONKRIPS ON PONS ↗</a>}
       </section>
 
       <section className="proof-section shell" id="proof">
@@ -666,7 +690,7 @@ export default function Home() {
           </details>
           <details>
             <summary>FEE ROUTING <span>{status.automationLive ? "LIVE" : "SAFE MODE"}</span></summary>
-            <div className="proof-body"><p><b>SOURCE</b><span>Pons v2 creator fees from the configured launch token.</span></p><p><b>NORMALIZE</b><span>Any project-token side is swapped into the canonical SPY fee asset.</span></p><p><b>SPLIT</b><span>50% funds one holder drop and 50% funds one pack inventory lot.</span></p><p><b>LAST CYCLE</b><span>{status.lastEpochStatus ? AUTOMATION_LABELS[status.lastEpochStatus] || status.lastEpochStatus : "NOT REPORTED"}</span></p></div>
+            <div className="proof-body"><p><b>SOURCE</b><span>Future Pons v2 creator fees; no token launch is configured yet.</span></p><p><b>NORMALIZE</b><span>Fee asset and escrow addresses will be verified against the eventual Pons v2 launch. No fee swaps are active.</span></p><p><b>SPLIT</b><span>Planned 50% holder rewards / 50% inventory. Disabled in pre-CA mode.</span></p><p><b>LAST CYCLE</b><span>{status.lastEpochStatus ? AUTOMATION_LABELS[status.lastEpochStatus] || status.lastEpochStatus : "NOT REPORTED"}</span></p></div>
           </details>
           <details>
             <summary>RECEIPTS <span>ONCHAIN + DATABASE</span></summary>
@@ -678,15 +702,15 @@ export default function Home() {
       <section className="docs-section shell" id="docs">
         <div className="section-heading compact"><span>THE OPERATOR MANUAL</span><h2>DOCS.</h2></div>
         <div className="docs-grid">
-          <article><b>01</b><h3>PACK PAYMENT</h3><p>Connect an EVM wallet and approve exactly 20 canonical USDG. A successful open moves that USDG into the pack contract; settlement forwards it to the treasury and delivers one funded Stock Token. ETH is used only for Robinhood Chain gas.</p></article>
-          <article><b>02</b><h3>HOLDER WEIGHT</h3><p>Eligible externally owned wallets receive one whole ticket per 250 $RIP at the committed snapshot block. Configured exclusions and contracts do not participate.</p></article>
-          <article><b>03</b><h3>HOURLY RESTOCK</h3><p>Once per UTC hour, the Railway worker claims the configured Pons v2 creator-fee stream and normalizes it into SPY. Half buys and loads one real funded pack lot; half buys the Stock Token sent in the holder drop. If no fees are available, nothing is invented or loaded.</p></article>
+          <article><b>01</b><h3>PACK PAYMENT</h3><p>Connect an EVM wallet and approve exactly {PACK_PRICE_USD} canonical USDG. A successful open moves that USDG into the pack contract; settlement forwards it to the treasury and delivers one funded Stock Token. ETH is used only for Robinhood Chain gas.</p></article>
+          <article><b>02</b><h3>HOLDER WEIGHT</h3><p>Holder eligibility is not active before the Pons token exists. The final snapshot and ticket rules will be documented after integration verification.</p></article>
+          <article><b>03</b><h3>HOURLY RESTOCK</h3><p>When enabled, the Railway treasury worker reserves the previous hour’s confirmed settlement receipts, buys configured Stock Tokens using those USDG proceeds, and loads the exact amount received. Signed transactions are journaled before broadcast; retries reuse the same transaction. Pons is not required.</p></article>
           <article><b>04</b><h3>SUSTAINABILITY</h3><p>Inventory value, current pack EV, funded pulls, and completed holder drops are measured from real sources. Parameters are reviewed manually and any change should be disclosed before activation.</p></article>
         </div>
       </section>
 
       <section className="next-rooms shell" id="next-rooms">
-        <div className="section-heading"><span>NEXT ROOMS · NOT LIVE</span><h2>MORE MACHINES<br/>BEHIND THE DOOR.</h2><p>Future releases stay visibly separate until each mechanic is funded, tested, and activated.</p></div>
+        <div className="section-heading"><span>NEXT ROOMS · NOT LIVE</span><h2>MORE PACKS<br/>COMING SOON.</h2><p>Future releases stay visibly separate until each mechanic is funded, tested, and activated.</p></div>
         <div className="room-grid">
           <article><em>LOCKED 01</em><h3>CURATED SERIES</h3><p>Distinct inventory-backed rooms for indexes, technology, and community-selected rotations.</p></article>
           <article><em>LOCKED 02</em><h3>TREASURY DESK</h3><p>A receipt-first view of fee claims, purchases, inventory loads, and holder drops.</p></article>
@@ -696,11 +720,11 @@ export default function Home() {
 
       <section className="legal shell">
         <b>IMPORTANT</b>
-        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. Users are responsible for confirming they are legally eligible to use Robinhood Chain Stock Tokens in their jurisdiction. Prize values and probabilities appear only when funded inventory can be read from the configured contract. Holder drops occur only when automation reports live and claimable fees exist. StonkRips is independent and is not endorsed by Robinhood, Pons, or 0x.</p>
+        <p>Robinhood Chain Stock Tokens provide economic exposure to referenced assets; they are not shares and do not provide shareholder rights. Users are responsible for confirming they are legally eligible to use Robinhood Chain Stock Tokens in their jurisdiction. Prize values and probabilities appear only when funded inventory can be read from the configured contract. Holder drops and creator-fee claims are disabled in pre-CA mode. StonkRips is independent and is not endorsed by Robinhood, Pons, or 0x.</p>
       </section>
 
       <footer className="shell">
-        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-pack-logo.png" alt="StonkRips foil stock pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
+        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-open-pack-512.png" alt="StonkRips open stock pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
         <div><a href="#proof">PROOF</a><a href="#docs">DOCS</a><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}</div>
         <span>ROBINHOOD CHAIN · 4663</span>
       </footer>
@@ -709,54 +733,22 @@ export default function Home() {
         <div className="pack-modal" role="dialog" aria-modal="true" aria-labelledby="pack-modal-title">
           <div className="pack-modal-card">
             <button className="modal-close" type="button" onClick={() => setPackModalOpen(false)} aria-label="Close pack window">×</button>
-            <span>STONKRIPS // PACK_01</span>
+            <span>STONKRIPS // {ACTIVE_PACK.id}</span>
             <h2 id="pack-modal-title">READY TO RIP?</h2>
-            <Image className="modal-pack" src="/stonkrips-pack-logo.png" alt="StonkRips foil stock pack" width={256} height={256} />
-            <div className="purchase-summary"><b>$20 USDG</b><small>ONE FUNDED STOCK TOKEN · ETH GAS REQUIRED</small></div>
+            <Image className="modal-pack" src="/stonkrips-open-pack-512.png" alt="StonkRips open stock pack" width={256} height={256} />
+            <div className="purchase-summary"><b>{PACK_PRICE_USD} USDG</b><small>ONE FUNDED STOCK TOKEN · ETH GAS REQUIRED</small></div>
             <div className="payment-rails" aria-label="Pack payment details">
-              <span><small>PACK PAYMENT</small><b>20 USDG</b></span>
+              <span><small>PACK PAYMENT</small><b>{PACK_PRICE_USD} USDG</b></span>
               <span><small>NETWORK GAS</small><b>ETH</b></span>
             </div>
             <label className="eligibility"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /><span>I am 18+ and legally eligible to use Robinhood Chain Stock Tokens in my jurisdiction.</span></label>
             {notice && <p className="notice" role="status">{notice}</p>}
-            <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || (Boolean(account && networkReady) && !termsAccepted)}>{busy ? "PROCESSING…" : modalAction}</button>
-            <small>Approval authorizes exactly 20 USDG. The contract cannot open a pack unless sales are enabled and a funded inventory slot exists.</small>
+            <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || (Boolean(account && networkReady) && (!termsAccepted || !arcadeReady))}>{busy ? "PROCESSING…" : account && networkReady && !arcadeReady ? primaryLabel : modalAction}</button>
+            <small>Approval authorizes exactly {PACK_PRICE_USD} USDG. The contract cannot open a pack unless sales are enabled and a funded inventory slot exists.</small>
           </div>
         </div>
       )}
 
-      {packResult && (
-        <div className={`result-modal reveal-${revealStage}`} role="dialog" aria-modal="true" aria-label="Confirmed pack result">
-          <div className="case-reveal">
-            {revealStage !== "reveal" && <button className="skip-reveal" type="button" onClick={() => setRevealStage("reveal")}>SKIP ANIMATION</button>}
-            <div className="case-reveal-header"><span>STONKRIPS // VERIFIED REVEAL</span><b>{revealStage === "pack" ? "RIPPING PACK…" : revealStage === "spin" ? "SELECTING CONFIRMED RESULT…" : revealStage === "lock" ? "RESULT LOCKED" : "PULL CONFIRMED"}</b></div>
-            <div className="pack-tear-stage" aria-hidden="true"><Image src="/stonkrips-pack.png" alt="" width={270} height={405} /><i /></div>
-            <div className="case-reel-window" aria-hidden="true">
-              <div className="case-reel-marker"><i /><span /></div>
-              <div className="case-reel-track">
-                {revealSequence.map((stock, index) => (
-                  <div className={`case-reel-card${index === REEL_WINNER_INDEX ? " is-winning" : ""}`} key={`${stock.symbol}-reveal-${index}`}>
-                    <StockLogo stock={stock} decorative />
-                    <b>{stock.symbol}</b>
-                    <small>STOCK TOKEN</small>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <p className="case-proof-note">THE REEL DISPLAYS THE RESULT ALREADY CONFIRMED BY THE ROBINHOOD CHAIN TRANSACTION.</p>
-            <div className="confirmed-prize">
-              <button type="button" onClick={() => setPackResult(null)} aria-label="Close result">×</button>
-              <span>YOU PULLED · DELIVERED ONCHAIN</span>
-              <StockLogo stock={packResult.stock}/>
-              <h2>{packResult.stock.name}</h2>
-              <em>{packResult.stock.symbol}</em>
-              <p>{packResult.tokenAmount} {packResult.stock.symbol}</p>
-              <b>{formatUsd(packResult.valueUsd)} VALUE AT LOAD</b>
-              <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION ↗</a><button type="button" onClick={() => { setPackResult(null); setTermsAccepted(false); setPackModalOpen(true); }}>RIP ANOTHER</button></div>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
