@@ -1067,6 +1067,13 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .payment-confirmed-card b { margin-top: 8px; color: var(--off-white); font: 900 clamp(36px, 6vw, 62px)/1 var(--font-geist-sans); }
 .payment-confirmed-card small { margin-top: 12px; color: var(--muted); font: 800 9px var(--font-geist-mono); letter-spacing: .13em; }
 .hero-pack-result { --case-card-width: 112px; --case-card-gap: 10px; }
+.continuous-opening .hero-case-reel { opacity: 1; visibility: visible; }
+.hero-pack-result.continuous-opening .hero-case-reel .case-reel-track { animation: none; }
+.continuous-opening .case-reveal-header { font-size: 12px; letter-spacing: .06em; }
+.continuous-opening .case-reel-card > small { font-size: 10px; }
+.continuous-opening .case-reel-card > b { font-size: 14px; }
+.opening-retry { margin: 18px auto 0; text-align: center; font-size: 14px; }
+.opening-retry button { padding: 10px 16px; background: var(--lime); color: var(--black); border: 0; border-radius: 6px; cursor: pointer; }
 .pull-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pull-actions button { min-height: 36px; padding: 6px 10px; color: var(--lime); border: 1px solid var(--line); border-radius: 5px; background: transparent; font: 750 12px var(--font-geist-mono); cursor: pointer; }
 .pending-reveal-action { position: relative; z-index: 4; min-height: 122px; display: flex; flex-direction: column; align-items: center; justify-content: center; }

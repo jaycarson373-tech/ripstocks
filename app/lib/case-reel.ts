@@ -6,6 +6,16 @@ export type CaseReelItem<TStock, TRarity> = {
 
 export const CASE_REVEAL_TIMING = { introMs: 450, spinMs: 6_500, lockMs: 650 } as const;
 
+// Positions are tile units, not pixels, so resizing cannot change the winner.
+export function planReelLanding(position: number, replay: boolean) {
+  return { index: replay ? 45 : Math.ceil(position) + 4, durationMs: replay ? CASE_REVEAL_TIMING.spinMs : 1_000 };
+}
+
+export function reelPositionAt(start: number, target: number, progress: number) {
+  const p = Math.max(0, Math.min(1, progress));
+  return start + (target - start) * (1 - Math.pow(1 - p, 3));
+}
+
 export function buildCaseReel<TStock extends { symbol: string }, TRarity>(
   stocks: TStock[],
   winner: TStock,
