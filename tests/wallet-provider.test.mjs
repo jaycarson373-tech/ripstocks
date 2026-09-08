@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ensureRobinhoodChain, isPhantomProvider, selectEvmProvider, walletAccount, walletChainId, walletErrorMessage } from "../app/lib/wallet-provider.ts";
+import { discoverEvmWallets, ensureRobinhoodChain, isPhantomProvider, selectEvmProvider, walletAccount, walletChainId, walletErrorMessage } from "../app/lib/wallet-provider.ts";
 
 test("Phantom is never selected for the Robinhood Chain flow", () => {
   const phantom = { isPhantom: true, request: async () => null };
@@ -17,6 +17,19 @@ test("an announced Robinhood provider is preferred over other compatible EVM wal
     { provider: generic, info: { name: "Generic EVM" } },
     { provider: robinhood, info: { name: "Robinhood Wallet", rdns: "com.robinhood.wallet" } },
   ]), robinhood);
+});
+
+test("wallet discovery returns choices instead of automatically requesting an account", async () => {
+  const requested = [];
+  const rabby = { isRabby: true, request: async ({ method }) => { requested.push(method); return []; } };
+  const robinhood = { isRobinhood: true, request: async ({ method }) => { requested.push(method); return []; } };
+  const host = {
+    ethereum: { request: async () => null, providers: [rabby, robinhood] },
+    addEventListener() {}, dispatchEvent() { return true; },
+  };
+  const choices = await discoverEvmWallets(host, 0);
+  assert.deepEqual(choices.map(({ name }) => name), ["Rabby Wallet", "Robinhood Wallet"]);
+  assert.deepEqual(requested, []);
 });
 
 test("an already connected Robinhood wallet needs no network prompt", async () => {

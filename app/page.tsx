@@ -7,7 +7,7 @@ import { buildCaseReel, type CaseReelItem } from "@/app/lib/case-reel";
 import { type StockToken } from "@/app/lib/stock-tokens";
 import { ACTIVE_PACK, PACK_PRICE_USD, PACK_RARITIES, PACK_RARITY_ODDS_PUBLISHED, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
 import { type RarityTier } from "@/app/lib/rarity";
-import { ensureRobinhoodChain, findEvmProvider, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider } from "@/app/lib/wallet-provider";
+import { discoverEvmWallets, ensureRobinhoodChain, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider, type EvmWalletOption } from "@/app/lib/wallet-provider";
 
 type InventoryStock = {
   symbol: string;
@@ -77,7 +77,7 @@ const REQUEST_SELECTOR = "0x81d12c58";
 const REEL_WINNER_INDEX = 45;
 const PACK_CONTRACT = (process.env.NEXT_PUBLIC_STONKRIPS_CONTRACT || "").trim();
 const PONS_TOKEN_URL = (process.env.NEXT_PUBLIC_PONS_TOKEN_URL || "").trim();
-const X_URL = (process.env.NEXT_PUBLIC_X_URL || "").trim();
+const X_URL = (process.env.NEXT_PUBLIC_X_URL || "https://x.com/stonkrips_").trim();
 const PUBLIC_RESERVE_DISPLAY_FLOOR_USD = ACTIVE_PACK.inventoryRequirements.publicAvailabilityFloorUsd;
 
 const EMPTY_STATUS: PackStatus = {
@@ -111,11 +111,6 @@ const AUTOMATION_LABELS: Record<string, string> = {
   inventory_load: "LOADING PACK INVENTORY",
   error: "OPERATOR REVIEW REQUIRED",
 };
-
-function getProvider() {
-  if (typeof window === "undefined") return null;
-  return findEvmProvider(window as Window & { ethereum?: EthereumProvider });
-}
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -197,6 +192,9 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [packModalOpen, setPackModalOpen] = useState(false);
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false);
+  const [walletOptions, setWalletOptions] = useState<EvmWalletOption[]>([]);
+  const [walletProvider, setWalletProvider] = useState<EthereumProvider | null>(null);
   const [packResult, setPackResult] = useState<PackResult | null>(null);
   const [revealStage, setRevealStage] = useState<RevealStage>("pack");
   const [recentPulls, setRecentPulls] = useState<RecentPull[]>([]);
@@ -243,7 +241,7 @@ export default function Home() {
 
   useEffect(() => {
     try { manuallyDisconnected.current = sessionStorage.getItem(WALLET_DISCONNECTED_KEY) === "true"; } catch { /* Storage can be blocked by the browser. */ }
-    const provider = getProvider();
+    const provider = walletProvider;
     if (!provider) return;
     let active = true;
     const syncAccounts = (accounts: unknown) => {
@@ -270,10 +268,10 @@ export default function Home() {
       provider.removeListener?.("chainChanged", syncChain);
       provider.removeListener?.("disconnect", syncDisconnect);
     };
-  }, []);
+  }, [walletProvider]);
 
   useEffect(() => {
-    const provider = getProvider();
+    const provider = walletProvider;
     if (!provider || !account || !networkReady || !status.configured) {
       void Promise.resolve().then(() => setRecoverableRequest(null));
       return;
@@ -285,7 +283,7 @@ export default function Home() {
       })
       .catch(() => { if (active) setRecoverableRequest(null); });
     return () => { active = false; };
-  }, [account, networkReady, status.configured]);
+  }, [account, networkReady, status.configured, walletProvider]);
 
   useEffect(() => {
     const tick = () => setClock(Date.now());
@@ -385,20 +383,32 @@ export default function Home() {
   }
 
   async function connectWallet() {
-    const provider = getProvider();
-    if (!provider) {
+    if (typeof window === "undefined") return;
+    setBusy(true);
+    setNotice("");
+    const options = await discoverEvmWallets(window as Window & { ethereum?: EthereumProvider }).catch(() => []);
+    setBusy(false);
+    if (!options.length) {
       setNotice("StonkRips uses Robinhood Chain, not Phantom. Open the site in a compatible EVM wallet or enable an EVM wallet extension.");
       return;
     }
+    setWalletOptions(options);
+    setWalletPickerOpen(true);
+  }
+
+  async function connectWithWallet(option: EvmWalletOption) {
+    const provider = option.provider;
     setBusy(true);
     setNotice("");
     try {
+      setWalletProvider(provider);
       const nextAccount = walletAccount(await provider.request({ method: "eth_requestAccounts" }));
       if (!nextAccount) throw new Error("NO_WALLET_ACCOUNT");
       manuallyDisconnected.current = false;
       try { sessionStorage.removeItem(WALLET_DISCONNECTED_KEY); } catch { /* The in-memory session still works. */ }
       setAccount(nextAccount);
       await switchNetwork(provider);
+      setWalletPickerOpen(false);
     } catch (error) {
       setNotice(walletErrorMessage(error));
     } finally {
@@ -407,13 +417,14 @@ export default function Home() {
   }
 
   async function disconnectWallet() {
-    const provider = getProvider();
+    const provider = walletProvider;
     manuallyDisconnected.current = true;
     try { sessionStorage.setItem(WALLET_DISCONNECTED_KEY, "true"); } catch { /* The current page still disconnects. */ }
     setAccount("");
     setChainId(null);
     setTermsAccepted(false);
     setPackModalOpen(false);
+    setWalletPickerOpen(false);
     setNotice("Wallet disconnected from StonkRips. No transaction was sent.");
     setBusy(true);
     try {
@@ -422,6 +433,7 @@ export default function Home() {
       // Not every injected wallet implements EIP-2255. Clearing the local
       // session still disconnects this page without sending a transaction.
     } finally {
+      setWalletProvider(null);
       setBusy(false);
     }
   }
@@ -469,8 +481,11 @@ export default function Home() {
 
   async function openPack() {
     if (!account) return connectWallet();
-    const provider = getProvider();
-    if (!provider) return;
+    const provider = walletProvider;
+    if (!provider) {
+      setNotice("Choose the wallet that holds your Robinhood Chain USDG.");
+      return connectWallet();
+    }
     if (!networkReady) {
       setBusy(true);
       try { await switchNetwork(provider); } catch (error) { setNotice(walletErrorMessage(error)); } finally { setBusy(false); }
@@ -577,7 +592,7 @@ export default function Home() {
       <div className="ambient" aria-hidden="true" />
       <nav className="nav shell" aria-label="Primary navigation">
         <a href="#top" className="brand" aria-label="StonkRips home">
-          <Image className="brand-logo" src="/stonkrips-transparent-192.png" alt="StonkRips Stock Token pack logo" width={48} height={48} priority />
+          <Image className="brand-logo" src="/stonkrips-logo.jpg" alt="StonkRips torn pack logo" width={48} height={48} priority />
           <b>STONK<span>RIPS</span></b>
         </a>
         <div className="nav-links">
@@ -873,7 +888,7 @@ export default function Home() {
       </section>
 
       <footer className="shell">
-        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-transparent-192.png" alt="StonkRips Stock Token pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
+        <a href="#top" className="brand" aria-label="StonkRips home"><Image className="brand-logo" src="/stonkrips-logo.jpg" alt="StonkRips torn pack logo" width={48} height={48} /><b>STONK<span>RIPS</span></b></a>
         <div><a href="#proof">PROOF</a><a href="#docs">DOCS</a><a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noreferrer">EXPLORER</a>{X_URL && <a href={X_URL} target="_blank" rel="noreferrer">X</a>}</div>
         <span>ROBINHOOD CHAIN · 4663</span>
       </footer>
@@ -894,6 +909,26 @@ export default function Home() {
             {notice && <p className="notice" role="status">{notice}</p>}
             <button className="modal-action" type="button" onClick={() => void openPack()} disabled={busy || (Boolean(account && networkReady) && (!termsAccepted || (!arcadeReady && !recoverableRequest)))}>{busy ? "PROCESSING…" : recoverableRequest ? "RESUME CONFIRMED PACK" : account && networkReady && !arcadeReady ? primaryLabel : modalAction}</button>
             <small>Approval authorizes exactly {PACK_PRICE_USD} USDG. The contract cannot open a pack unless sales are enabled and a funded inventory slot exists.</small>
+          </div>
+        </div>
+      )}
+
+      {walletPickerOpen && (
+        <div className="pack-modal wallet-picker" role="dialog" aria-modal="true" aria-labelledby="wallet-picker-title">
+          <div className="pack-modal-card wallet-picker-card">
+            <button className="modal-close" type="button" onClick={() => setWalletPickerOpen(false)} aria-label="Close wallet picker">×</button>
+            <span>ROBINHOOD CHAIN · 4663</span>
+            <h2 id="wallet-picker-title">CHOOSE WALLET</h2>
+            <p>Select the EVM wallet you want to use. StonkRips will not open one automatically.</p>
+            <div className="wallet-choice-list">
+              {walletOptions.map((option) => (
+                <button key={option.id} type="button" disabled={busy} onClick={() => void connectWithWallet(option)}>
+                  <b>{option.name}</b><small>CONNECT ON ROBINHOOD CHAIN</small>
+                </button>
+              ))}
+            </div>
+            {notice && <p className="notice" role="status">{notice}</p>}
+            <small>Phantom is excluded because this pack runs on Robinhood Chain.</small>
           </div>
         </div>
       )}

@@ -26,17 +26,16 @@ The separate, opt-in [pack-sale reinvestment path](./pack-reinvestment.md) reser
 NEXT_PUBLIC_SITE_URL=https://YOUR-DOMAIN
 NEXT_PUBLIC_STONKRIPS_CONTRACT=0xYOUR_DEPLOYED_PACK_CONTRACT
 NEXT_PUBLIC_PONS_TOKEN_URL=https://YOUR_OFFICIAL_PONS_TOKEN_PAGE
-NEXT_PUBLIC_X_URL=https://x.com/YOUR_HANDLE
+NEXT_PUBLIC_X_URL=https://x.com/stonkrips_
 PACKS_LIVE=false
-AUTOMATION_PUBLIC_LIVE=false
 ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 ```
 
 ## Railway
 
-The browser talks directly to the pack contract. Railway runs the separate Pons fee worker described in `docs/pons-automation-setup.md`. Do not add the automation private key to Vercel, Sites, or a public web service.
+The browser talks directly to the pack contract. Railway runs the separate treasury and Pons worker described in `docs/pons-automation-setup.md`. Do not add the automation private key, Supabase backend key, or Pons server settings to Vercel, Sites, or a public web service.
 
-After `AUTOMATION_PRIVATE_KEY` and `PONS_TOKEN_ADDRESS` are stored in Railway, the repository command `npm run launch:bootstrap` verifies the current Pons v2 launch, discovers its deployment block, and deploys the disabled pack contract when `STOCKRIPS_PACK_CONTRACT` is still empty. A valid 0x API key with Robinhood RWA access is also required before dry-run or live automation can route fees into Stock Tokens.
+The pack contract and treasury work before Pons exists. After the Pons launch, add the verified v2 token, deployment block, factory, escrow, and USDG pair settings listed in `docs/pons-automation-setup.md`. No Pons/creator private key belongs in Railway; `AUTOMATION_PRIVATE_KEY` is the only signer used by the worker.
 
 ## Safe activation order
 

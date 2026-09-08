@@ -87,10 +87,10 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   white-space: nowrap;
 }
 .brand-logo {
-  width: 38px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
-  border-radius: 0;
+  border-radius: 8px;
   border: 0;
 }
 .brand b {
@@ -740,9 +740,11 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
   backdrop-filter: blur(15px);
 }
 .pack-modal-card {
-  width: min(470px, 100%);
+  width: min(410px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   position: relative;
-  padding: 34px;
+  padding: 26px;
   border: 1px solid rgba(199,255,0,.34);
   border-radius: 16px;
   background: radial-gradient(circle at 50% 0, rgba(199,255,0,.1), transparent 38%), #080b07;
@@ -750,7 +752,7 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 }
 .modal-close { position: absolute; right: 18px; top: 15px; color: #a9b0a7; background: none; border: 0; cursor: pointer; font-size: 28px; }
 .pack-modal-card > span, .confirmed-prize > span { color: var(--lime); font: 800 8px var(--font-geist-mono); letter-spacing: .14em; }
-.pack-modal-card h2 { margin: 25px 0 20px; font-size: 46px; letter-spacing: -.06em; }
+.pack-modal-card h2 { margin: 20px 0 16px; font-size: 39px; letter-spacing: -.06em; }
 .modal-pack { width: 112px; height: auto; margin: -4px auto 14px; display: block; filter: drop-shadow(0 17px 22px rgba(0,0,0,.7)) drop-shadow(0 0 14px rgba(199,255,0,.15)); }
 .purchase-summary { padding: 20px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 9px; background: rgba(0,0,0,.32); }
 .purchase-summary b { color: var(--lime); font: 900 29px var(--font-geist-mono); }
@@ -764,6 +766,14 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .eligibility input { margin-top: 2px; accent-color: var(--lime); }
 .modal-action { width: 100%; min-height: 55px; margin-top: 8px; border-radius: 8px; font: 900 10px var(--font-geist-mono); letter-spacing: .06em; }
 .pack-modal-card > small { display: block; margin-top: 14px; text-align: center; color: #646b63; font: 650 8px var(--font-geist-mono); }
+.wallet-picker-card { width: min(350px, 100%); }
+.wallet-picker-card h2 { margin-bottom: 8px; font-size: 31px; }
+.wallet-picker-card > p { margin: 0 0 18px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.wallet-choice-list { display: grid; gap: 8px; }
+.wallet-choice-list button { min-height: 62px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 5px; padding: 12px 14px; color: var(--off-white); text-align: left; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: #050705; cursor: pointer; }
+.wallet-choice-list button:hover:not(:disabled) { border-color: var(--lime); background: rgba(199,255,0,.06); }
+.wallet-choice-list b { font: 850 12px var(--font-geist-mono); }
+.wallet-choice-list small { color: var(--lime); font: 750 6px var(--font-geist-mono); letter-spacing: .1em; }
 
 .case-reveal {
   --case-card-width: 112px;

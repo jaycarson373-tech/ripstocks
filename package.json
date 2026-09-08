@@ -20,6 +20,7 @@
     "launch:bootstrap": "node worker/bootstrap-launch.mjs",
     "contract:artifact": "forge build && node scripts/prepare-pack-artifact.mjs",
     "inventory:seed": "node worker/seed-inventory.mjs",
+    "inventory:unwind": "node worker/unwind-inventory.mjs",
     "packs:activate": "node worker/activate-packs.mjs",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run vercel-build && npm run worker:test && npm run wallet:test && npm run ui:test && forge test",

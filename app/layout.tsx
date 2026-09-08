@@ -33,11 +33,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/stonkrips-transparent-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/stonkrips-transparent-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/stonkrips-icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/stonkrips-icon-16.png", sizes: "16x16", type: "image/png" },
     ],
-    shortcut: "/stonkrips-transparent-32.png",
-    apple: { url: "/stonkrips-transparent-180.png", sizes: "180x180", type: "image/png" },
+    shortcut: "/stonkrips-icon-32.png",
+    apple: { url: "/stonkrips-icon-180.png", sizes: "180x180", type: "image/png" },
   },
 };
 

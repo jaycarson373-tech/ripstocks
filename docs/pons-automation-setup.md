@@ -1,5 +1,36 @@
-# Pons v2: deferred integration
+# Pons v2 hourly automation
 
-The previous v1 factory/locker instructions are retired. Do not use those addresses for v2. Claiming and holder rewards are disabled; providing a CA does not silently enable either.
+Pons launches last. Until the real launch exists, keep both live gates `false`. A CA alone never enables claims or airdrops.
 
-Use [the treasury-first setup](start-here.md) now. Actual v2 reference: [Pons v2 docs](https://docs.ponsfamily.com/v2). Escrow claimable balances, actual fee assets, recipient authorization and distribution will be verified after the launch exists. No creator private key is accepted.
+The supported first release requires the Pons v2 launch to be paired in canonical USDG and its `creatorFeeRecipient` to be the same automation/treasury wallet used by the pack. No creator private key is accepted by this worker. Pons v2 credits fees to escrow in the launch pair asset; the automation wallet claims its own USDG balance.
+
+The hourly flow is:
+
+1. Reconstruct $RIP ERC-20 balances at a confirmed block and exclude system wallets.
+2. Convert balances into whole tickets using `TOKENS_PER_TICKET`.
+3. Read the automation wallet's claimable USDG from the verified Pons v2 escrow.
+4. Reserve the immutable holder snapshot, fee budget, and a future seed block in Supabase.
+5. Claim the escrowed USDG. Signed bytes are stored before broadcast.
+6. After the seed block is confirmed, commit one weighted winner.
+7. Spend 50% on a routed Stock Token and deliver the exact received amount to that winner.
+8. Spend 50% on another routed Stock Token and load the exact received amount into Pack #01 inventory.
+
+Every transfer is verified from its Robinhood Chain receipt. A retry reuses the same signed transaction and the same winner. Unswept Pons fees are not counted as claimable; Pons may need to sweep them into escrow first under its v2 rules.
+
+After launch, add these Railway-only values:
+
+```bash
+PONS_TOKEN_ADDRESS=0x...
+PONS_TOKEN_START_BLOCK=...
+PONS_V2_FACTORY=0x...
+PONS_FEE_ESCROW=0x...
+PONS_FEE_ASSET_ADDRESS=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
+TOKENS_PER_TICKET=250
+HOLDER_DROP_SHARE_BPS=5000
+PONS_CONFIRMATION_BLOCKS=12
+PONS_HOLDER_EXCLUSIONS=0xSYSTEM_WALLET,0xOTHER_EXCLUSION
+```
+
+Run `supabase/pons-v2-hourly.sql` once in the new project. Then use `AUTOMATION_MODE=dry-run` with both gates still `false` for ordinary treasury checks. To exercise the Pons planner without sending, set both gates `true` while mode remains `dry-run`. Review the reported token, fee recipient, pair asset, claimable amount, snapshot, tickets, and routes. Only after that exact review should `AUTOMATION_MODE=live` be used.
+
+Actual v2 reference: [Pons v2 docs](https://docs.ponsfamily.com/v2).

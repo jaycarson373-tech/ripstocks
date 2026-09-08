@@ -4,6 +4,7 @@ import {
   applyTransfers,
   discoverContractStartBlock,
   deterministicStockOrder,
+  eligibleHolderSnapshot,
   epochKey,
   splitAmount,
   ticketUnit,
@@ -40,6 +41,21 @@ test("transfer replay creates the expected balances", () => {
     { args: { from: a, to: b, value: 30n } },
   ]);
   assert.deepEqual(balances, [{ address: a, balance: 70n }, { address: b, balance: 30n }]);
+});
+
+test("ERC-20 snapshot excludes system wallets and commits exact ticket weights", () => {
+  const zero = "0x0000000000000000000000000000000000000000";
+  const treasury = "0x0000000000000000000000000000000000000001";
+  const holder = "0x0000000000000000000000000000000000000002";
+  const unit = 250n;
+  const snapshot = eligibleHolderSnapshot([
+    { args: { from: zero, to: treasury, value: 1_000n } },
+    { args: { from: zero, to: holder, value: 749n } },
+  ], [treasury], unit);
+  assert.equal(snapshot.holders.length, 1);
+  assert.equal(snapshot.holders[0].tickets, 2n);
+  assert.equal(snapshot.totalTickets, 2n);
+  assert.match(snapshot.snapshotHash, /^0x[0-9a-f]{64}$/);
 });
 
 test("USD value applies the Stock Token multiplier", () => {

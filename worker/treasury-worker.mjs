@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { treasuryConfig, treasuryContext, validateTreasury, recoverTreasuryTransaction, resumeTreasuryPurchase, settlePendingPack, indexSettlements } from "./treasury-runtime.mjs";
 import { runPackReinvestment } from "./pack-reinvestment.mjs";
+import { runPonsHourly } from "./pons-hourly.mjs";
 
 export async function treasuryTick(cfg) {
   if (cfg.mode === "off") return;
@@ -11,9 +12,14 @@ export async function treasuryTick(cfg) {
     await validateTreasury(ctx);
     if (cfg.mode === "live") {
       await recoverTreasuryTransaction(ctx);
+      // Pons uses the same signer. Resume its journaled nonce before pack
+      // settlement or operator purchases are allowed to sign anything else.
+      await runPonsHourly(ctx);
       await settlePendingPack(ctx);
       const purchase = (await ctx.store.rows("treasury_purchases", `scope=eq.${encodeURIComponent(ctx.scope)}&completed_at=is.null&order=created_at.asc&limit=1`))?.[0];
       if (purchase) { await resumeTreasuryPurchase(ctx, purchase); await indexSettlements(ctx); return; }
+    } else {
+      await runPonsHourly(ctx);
     }
     await indexSettlements(ctx);
     await runPackReinvestment(ctx);
@@ -21,7 +27,7 @@ export async function treasuryTick(cfg) {
 }
 export async function main() {
   const cfg = treasuryConfig();
-  console.log(JSON.stringify({ event: "treasury_worker_started", mode: cfg.mode, creatorClaims: "disabled", holderRewards: "disabled" }));
+  console.log(JSON.stringify({ event: "treasury_worker_started", mode: cfg.mode, creatorClaims: cfg.ponsEnabled ? "configured" : "disabled", holderRewards: cfg.ponsEnabled ? "configured" : "disabled" }));
   do {
     try { await treasuryTick(cfg); }
     catch (error) {

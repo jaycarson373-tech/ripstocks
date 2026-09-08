@@ -5,6 +5,9 @@ export type EthereumProvider = {
   providers?: EthereumProvider[];
   isPhantom?: boolean;
   isRobinhood?: boolean;
+  isRabby?: boolean;
+  isMetaMask?: boolean;
+  isCoinbaseWallet?: boolean;
 };
 
 type ProviderInfo = {
@@ -12,9 +15,15 @@ type ProviderInfo = {
   rdns?: string;
 };
 
-type ProviderCandidate = {
+export type ProviderCandidate = {
   provider: EthereumProvider;
   info?: ProviderInfo;
+};
+
+export type EvmWalletOption = {
+  id: string;
+  name: string;
+  provider: EthereumProvider;
 };
 
 type ProviderHost = {
@@ -44,6 +53,19 @@ export function selectEvmProvider(candidates: ProviderCandidate[]): EthereumProv
     ?? null;
 }
 
+function walletName(candidate: ProviderCandidate) {
+  if (candidate.info?.name?.trim()) return candidate.info.name.trim();
+  if (candidate.provider.isRobinhood) return "Robinhood Wallet";
+  if (candidate.provider.isRabby) return "Rabby Wallet";
+  if (candidate.provider.isMetaMask) return "MetaMask";
+  if (candidate.provider.isCoinbaseWallet) return "Coinbase Wallet";
+  return "Browser wallet";
+}
+
+function walletId(candidate: ProviderCandidate, index: number) {
+  return candidate.info?.rdns?.trim() || `${walletName(candidate).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${index}`;
+}
+
 function startProviderDiscovery(host: ProviderHost) {
   if (providerDiscoveryStarted) return;
   providerDiscoveryStarted = true;
@@ -60,6 +82,21 @@ export function findEvmProvider(host: ProviderHost): EthereumProvider | null {
   const legacy = host.ethereum;
   const legacyProviders = legacy?.providers?.map((provider) => ({ provider })) ?? (legacy ? [{ provider: legacy }] : []);
   return selectEvmProvider([...announcedProviders, ...legacyProviders]);
+}
+
+export async function discoverEvmWallets(host: ProviderHost, waitMs = 180): Promise<EvmWalletOption[]> {
+  startProviderDiscovery(host);
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  const legacy = host.ethereum;
+  const legacyProviders = legacy?.providers?.map((provider) => ({ provider })) ?? (legacy ? [{ provider: legacy }] : []);
+  const seen = new Set<EthereumProvider>();
+  return [...announcedProviders, ...legacyProviders]
+    .filter((candidate) => {
+      if (!candidate.provider || isPhantomProvider(candidate) || seen.has(candidate.provider)) return false;
+      seen.add(candidate.provider);
+      return true;
+    })
+    .map((candidate, index) => ({ id: walletId(candidate, index), name: walletName(candidate), provider: candidate.provider }));
 }
 
 export function walletAccount(value: unknown): string {

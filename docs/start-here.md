@@ -38,7 +38,7 @@ No Supabase browser/anon key is needed: website inventory and activity are read 
 
 Supabase Settings → API Keys provides the current Secret key (`sb_secret_...`). Put it in the existing Railway variable `SUPABASE_SERVICE_ROLE_KEY`; the worker supports both key formats. The legacy `service_role` key under Legacy API Keys also works. Do not use `anon`, a publishable key, or the database password. See [Supabase's key documentation](https://supabase.com/docs/guides/getting-started/api-keys).
 
-Remove obsolete `PONS_V2_FACTORY`, `PONS_FEE_LOCKER`, `PONS_QUOTE_TOKEN`, `PONS_TOKEN_START_BLOCK`, `INITIAL_SEED_ASSET`, `ALLOW_NONEMPTY_SEED`, and holder snapshot settings from the active service. The old factory/locker addresses described v1, not v2. `AUTOMATION_PUBLIC_LIVE` is no longer used; the site cannot advertise holder rewards via that flag.
+Remove obsolete `PONS_FEE_LOCKER`, `PONS_QUOTE_TOKEN`, `INITIAL_SEED_ASSET`, `ALLOW_NONEMPTY_SEED`, and any v1 factory address from the active service. The verified v2 factory, escrow, token start block, and snapshot settings are added only after the real launch exists. `AUTOMATION_PUBLIC_LIVE` is no longer used.
 
 ## Your immediate actions
 

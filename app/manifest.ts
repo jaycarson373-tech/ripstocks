@@ -11,8 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#030403",
     theme_color: "#c7ff00",
     icons: [
-      { src: "/stonkrips-transparent-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/stonkrips-transparent-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/stonkrips-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/stonkrips-icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
     ],
   };
 }

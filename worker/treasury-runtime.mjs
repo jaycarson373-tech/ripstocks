@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { createPublicClient, createWalletClient, defineChain, encodeFunctionData, getAddress, http, parseAbi, parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { addressEnv, parseMode, required, usdMicrosForTokenAmount, discoverContractStartBlock } from "./pons-core.mjs";
+import { addressEnv, basisPoints, parseMode, positiveInteger, required, usdMicrosForTokenAmount, discoverContractStartBlock } from "./pons-core.mjs";
+import { CANONICAL_USDG } from "./pons-core.mjs";
 import { packConfig } from "./pack-config.mjs";
 import { supabaseHeaders } from "./supabase-headers.mjs";
 import { ReinvestmentStore, ReinvestmentReverted, durableTransaction, processReinvestmentLot, saleFromReceipt } from "./pack-reinvestment.mjs";
@@ -18,11 +19,10 @@ const packAbi = parseAbi([
 const delivery = parseAbiItem("event PrizeDelivered(uint256 indexed requestId,address indexed buyer,address indexed token,uint256 tokenAmount,uint256 declaredUsdMicros)");
 
 export function treasuryConfig(env = process.env, forceMode) {
-  if (env.CREATOR_FEE_CLAIM_ENABLED === "true" || env.HOLDER_REWARDS_ENABLED === "true") throw new Error("Pons v2 claims and holder rewards are not implemented in this pre-CA release; leave both disabled");
   const mode = parseMode(forceMode || env.AUTOMATION_MODE || "off");
   const pollSeconds = Number(env.WORKER_POLL_SECONDS || 30);
   if (!Number.isSafeInteger(pollSeconds) || pollSeconds < 5 || pollSeconds > 300) throw new Error("WORKER_POLL_SECONDS must be 5–300");
-  if (mode === "off") return { mode, pollSeconds };
+  if (mode === "off") return { mode, pollSeconds, ponsEnabled: false };
   const pack = packConfig(env.PACK_ID);
   let signerKey = required("AUTOMATION_PRIVATE_KEY", env.AUTOMATION_PRIVATE_KEY);
   if (!signerKey.startsWith("0x")) signerKey = `0x${signerKey}`;
@@ -33,7 +33,23 @@ export function treasuryConfig(env = process.env, forceMode) {
   if (!["uniswap-v4", "0x"].includes(swapProvider)) throw new Error("SWAP_PROVIDER must be uniswap-v4 or 0x");
   const slippageBps = Number(env.SWAP_SLIPPAGE_BPS || env.ZEROX_SLIPPAGE_BPS || 100);
   if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps > 500) throw new Error("SWAP_SLIPPAGE_BPS must be 0–500");
-  return { ...pack, mode, pollSeconds, signerKey,
+  const claimsEnabled = env.CREATOR_FEE_CLAIM_ENABLED === "true";
+  const rewardsEnabled = env.HOLDER_REWARDS_ENABLED === "true";
+  if (claimsEnabled !== rewardsEnabled) throw new Error("Creator fee claims and holder rewards must be enabled together after the Pons dry run");
+  const ponsEnabled = claimsEnabled && rewardsEnabled;
+  const pons = ponsEnabled ? {
+    token: addressEnv("PONS_TOKEN_ADDRESS", env.PONS_TOKEN_ADDRESS),
+    tokenStartBlock: BigInt(required("PONS_TOKEN_START_BLOCK", env.PONS_TOKEN_START_BLOCK)),
+    factory: addressEnv("PONS_V2_FACTORY", env.PONS_V2_FACTORY),
+    escrow: addressEnv("PONS_FEE_ESCROW", env.PONS_FEE_ESCROW),
+    feeAsset: addressEnv("PONS_FEE_ASSET_ADDRESS", env.PONS_FEE_ASSET_ADDRESS),
+    tokensPerTicket: required("TOKENS_PER_TICKET", env.TOKENS_PER_TICKET || "250"),
+    holderShareBps: basisPoints("HOLDER_DROP_SHARE_BPS", env.HOLDER_DROP_SHARE_BPS, 5_000),
+    confirmationBlocks: positiveInteger("PONS_CONFIRMATION_BLOCKS", env.PONS_CONFIRMATION_BLOCKS, 12),
+    exclusions: (env.PONS_HOLDER_EXCLUSIONS || "").split(",").map(value => value.trim()).filter(Boolean).map(value => addressEnv("PONS_HOLDER_EXCLUSIONS", value)),
+  } : null;
+  if (pons && pons.feeAsset.toLowerCase() !== CANONICAL_USDG.toLowerCase()) throw new Error("The first verified Pons automation release requires a USDG-paired launch");
+  return { ...pack, mode, pollSeconds, signerKey, ponsEnabled, pons,
     rpcUrl: env.ROBINHOOD_RPC_URL?.trim() || chain.rpcUrls.default.http[0],
     packContract: addressEnv("STOCKRIPS_PACK_CONTRACT", env.STOCKRIPS_PACK_CONTRACT),
     packStartBlock: env.PACK_CONTRACT_START_BLOCK ? BigInt(env.PACK_CONTRACT_START_BLOCK) : null,
@@ -101,7 +117,11 @@ export async function recoverTreasuryTransaction(ctx) {
   const pending = await ctx.store.pendingTransaction(ctx.scope);
   if (!pending) return;
   if (ctx.cfg.mode !== "live") throw new Error("Pending signed treasury transaction requires live reconciliation; dry run sends nothing");
-  if (pending.lot_id.startsWith(`${ctx.scope}:purchase:`)) {
+  if (pending.lot_id.includes(":pons:")) {
+    const epoch = (await ctx.store.rows("pons_hourly_epochs", `id=eq.${encodeURIComponent(pending.lot_id)}&limit=1`))?.[0];
+    const expectedScope = ctx.cfg.ponsEnabled ? `4663:pons:${ctx.cfg.pons.token.toLowerCase()}:${ctx.account.address.toLowerCase()}` : "";
+    if (!ctx.cfg.ponsEnabled || !epoch || epoch.scope !== expectedScope) throw new Error("Signed Pons transaction has no matching enabled epoch");
+  } else if (pending.lot_id.startsWith(`${ctx.scope}:purchase:`)) {
     const purchase = (await ctx.store.rows("treasury_purchases", `id=eq.${encodeURIComponent(pending.lot_id)}&limit=1`))?.[0];
     if (!purchase || purchase.scope !== ctx.scope) throw new Error("Signed purchase has no matching treasury budget");
   } else if (pending.lot_id.startsWith(`${ctx.scope}:settle:`)) {

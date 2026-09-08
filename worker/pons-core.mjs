@@ -123,6 +123,21 @@ export function applyTransfers(logs) {
   return [...balances.entries()].filter(([, balance]) => balance > 0n).map(([address, balance]) => ({ address, balance }));
 }
 
+export function eligibleHolderSnapshot(logs, exclusions, unit) {
+  const excluded = new Set([...exclusions].map((address) => getAddress(address).toLowerCase()));
+  const holders = applyTransfers(logs)
+    .filter(({ address }) => !excluded.has(address.toLowerCase()))
+    .map(({ address, balance }) => ({ address, balance, tickets: balance / BigInt(unit) }))
+    .filter(({ tickets }) => tickets > 0n)
+    .sort((a, b) => a.address.toLowerCase().localeCompare(b.address.toLowerCase()));
+  const canonical = holders.map(({ address, balance, tickets }) => `${address.toLowerCase()}:${balance}:${tickets}`).join("|");
+  return {
+    holders,
+    totalTickets: holders.reduce((sum, holder) => sum + holder.tickets, 0n),
+    snapshotHash: keccak256(stringToHex(canonical || "empty")),
+  };
+}
+
 export function decimalToScaled(value, decimals) {
   const normalized = String(value).trim();
   if (!/^\d+(\.\d+)?$/.test(normalized)) throw new Error(`Invalid decimal: ${value}`);
