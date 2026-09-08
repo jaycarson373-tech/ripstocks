@@ -60,6 +60,7 @@ type RpcReceipt = {
 };
 
 type PackResult = {
+  recipient: string;
   stock: StockToken;
   tokenAmount: string;
   valueUsd: number;
@@ -250,14 +251,10 @@ export default function Home() {
     }, REEL_WINNER_INDEX);
   }, [inventoryBySymbol, packResult]);
   const pendingReelItems = useMemo(() => {
-    const funded = status.inventory.flatMap((inventory) => {
-      const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === inventory.symbol);
-      if (!stock || inventory.fundedPulls < 1) return [];
-      return [{ stock, rarity: rarityForValue(inventory.loadedValueUsd / inventory.fundedPulls) }];
-    });
-    if (!funded.length) return [];
-    return Array.from({ length: 54 }, (_, index) => funded[index % funded.length]);
-  }, [status.inventory]);
+    // Supported-stock preview only; a failed inventory refresh must not erase
+    // a paid pack's animation. These tiles never represent a selected prize.
+    return Array.from({ length: STOCK_TOKENS.length * 3 }, (_, index) => STOCK_TOKENS[index % STOCK_TOKENS.length]);
+  }, []);
   const publicReserveReady = status.inventoryValueUsd !== null && status.inventoryValueUsd >= PUBLIC_RESERVE_DISPLAY_FLOOR_USD;
   const arcadeReady = ACTIVE_PACK.enabled && statusState === "ready" && !status.dataError && status.configured && status.packsLive && status.inventoryCount > 0 && publicReserveReady;
   const automationLabel = status.automationLive
@@ -346,29 +343,36 @@ export default function Home() {
       if (!active) return;
       setPendingRevealReady(true);
       for (let attempt = 0; attempt < 32; attempt += 1) {
-        const response = await fetch(`/api/robinhood/pulls?wallet=${encodeURIComponent(pendingReveal.buyer)}`, { cache: "no-store" });
-        if (response.ok) {
-          const payload = await response.json() as { pulls?: RecentPull[] };
-          const delivered = payload.pulls?.find((pull) => pull.requestId === pendingReveal.requestId.toString());
-          if (delivered) {
-            const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === delivered.symbol);
-            if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
-            setRevealStage("reveal");
-            setPackResult({ stock, tokenAmount: delivered.tokenAmount, valueUsd: delivered.valueUsd, transactionHash: delivered.transactionHash, rarity: rarityForValue(delivered.valueUsd) });
-            setRecoverableRequest(null);
-            setPendingReveal(null);
-            setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
-            setNotice("");
-            return;
+        try {
+          const response = await fetch(`/api/robinhood/pulls?wallet=${encodeURIComponent(pendingReveal.buyer)}`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+          if (!active) return;
+          if (response.ok) {
+            const payload = await response.json() as { pulls?: RecentPull[] };
+            if (!active) return;
+            const delivered = payload.pulls?.find((pull) => pull.requestId === pendingReveal.requestId.toString());
+            if (delivered) {
+              const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === delivered.symbol);
+              if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
+              setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "pack");
+              setPackResult({ recipient: delivered.wallet, stock, tokenAmount: delivered.tokenAmount, valueUsd: delivered.valueUsd, transactionHash: delivered.transactionHash, rarity: rarityForValue(delivered.valueUsd) });
+              setRecoverableRequest(null);
+              setPendingReveal(null);
+              setNotice("");
+              return;
+            }
           }
-        }
+        } catch { /* Transient reads must not cancel a confirmed purchase. */ }
         await delay(1_500);
         if (!active) return;
       }
       if (active) setAutoDeliveryTimedOut(true);
     };
     void armReveal().catch(() => {
-      if (active) setNotice("The reveal block is taking longer than expected. Your paid pack is safe and can be resumed.");
+      if (active) {
+        setPendingRevealReady(true);
+        setAutoDeliveryTimedOut(true);
+        setNotice("Confirmation is taking longer than expected. Your paid pack can be resumed; do not buy another pack to retry.");
+      }
     });
     return () => { active = false; };
   }, [pendingReveal, walletProvider]);
@@ -559,13 +563,12 @@ export default function Home() {
     const valueUsd = Number(BigInt(`0x${data.slice(64, 128)}`)) / 1_000_000;
     const stock = STOCK_TOKENS.find((candidate) => candidate.address.toLowerCase() === tokenAddress);
     if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
-    setRevealStage("reveal");
-    setPackResult({ stock, tokenAmount, valueUsd, transactionHash: settleHash, rarity: rarityForValue(valueUsd) });
+    setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "pack");
+    setPackResult({ recipient: `0x${prizeLog.topics[2].slice(-40)}`, stock, tokenAmount, valueUsd, transactionHash: settleHash, rarity: rarityForValue(valueUsd) });
     setPendingReveal(null);
     setPendingRevealReady(false);
     setRecoverableRequest(null);
     setPackModalOpen(false);
-    setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
     setNotice("");
   }
 
@@ -576,6 +579,18 @@ export default function Home() {
     setAutoDeliveryTimedOut(false);
     setPackModalOpen(false);
     setNotice("");
+    document.getElementById("pack")?.scrollIntoView({ block: "center", behavior: "auto" });
+  }
+
+  function replayPull(pull: RecentPull) {
+    if (busy || pendingReveal) return;
+    const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === pull.symbol);
+    if (!stock) return;
+    setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "pack");
+    setPackResult({ recipient: pull.wallet, stock, tokenAmount: pull.tokenAmount, valueUsd: pull.valueUsd, transactionHash: pull.transactionHash, rarity: rarityForValue(pull.valueUsd) });
+    setPackModalOpen(false);
+    setNotice("Replaying a confirmed result. No payment or transfer is requested.");
+    document.getElementById("pack")?.scrollIntoView({ block: "center", behavior: "auto" });
   }
 
   async function claimAndReveal() {
@@ -813,30 +828,30 @@ export default function Home() {
                   <em>{packResult.stock.symbol} · {packResult.rarity.label}</em>
                   <p>{packResult.tokenAmount} {packResult.stock.symbol}</p>
                   <small>{formatUsd(packResult.valueUsd)} value when loaded · not a current price</small>
-                  <b>DELIVERED · {shortAddress(account)}</b>
+                  <b>DELIVERED · {shortAddress(packResult.recipient)}</b>
                   <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION ↗</a><button type="button" onClick={() => { setPackResult(null); setTermsAccepted(false); }}>RIP ANOTHER →</button></div>
                 </div>
               </div>
             )}
             {pendingReveal && !packResult && (
-              <div className={`pending-pack-reveal${pendingRevealReady ? " is-ready" : ""}`} aria-live="polite">
+              <div className={`pending-pack-reveal${pendingRevealReady ? " is-ready" : ""}`} style={{ "--pending-stock-count": STOCK_TOKENS.length } as CSSProperties} aria-live="polite">
                 <div className="payment-confirmed-card"><span>PAYMENT CONFIRMED</span><b>{PACK_PRICE_USD} USDG</b><small>OPENING {ACTIVE_PACK.label}</small></div>
-                <div className="case-reveal-header"><span>PAYMENT CONFIRMED</span><b>{pendingRevealReady ? "RESULT SEALED" : "SECURING RESULT"}</b></div>
-                <div className="case-reel-window" aria-label="Funded Stock Token reel">
+                <div className="case-reveal-header"><span>PAYMENT CONFIRMED</span><b>AWAITING ONCHAIN RESULT</b></div>
+                <div className="case-reel-window" aria-label="Supported stock preview, not the selected prize">
                   <div className="case-reel-marker" aria-hidden="true"><i /><span /></div>
                   <div className="case-reel-track pending-reel-track">
-                    {pendingReelItems.map((item, index) => (
-                      <div className="case-reel-card" style={{ "--rarity-color": item.rarity.color } as CSSProperties} key={`${item.stock.symbol}-pending-${index}`}>
-                        <StockLogo stock={item.stock} />
-                        <b>{item.stock.symbol}</b>
-                        <small>{item.rarity.label}</small>
+                    {pendingReelItems.map((stock, index) => (
+                      <div className="case-reel-card" key={`${stock.symbol}-pending-${index}`}>
+                        <StockLogo stock={stock} />
+                        <b>{stock.symbol}</b>
+                        <small>STOCK PREVIEW</small>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div className="pending-reveal-action">
-                  <h2>{!pendingRevealReady ? "LOCKING YOUR PACK…" : autoDeliveryTimedOut ? "DELIVERY NEEDS A RETRY." : "SENDING TO YOUR WALLET…"}</h2>
-                  <p>{!pendingRevealReady ? "Waiting for the future Robinhood Chain block. Do not refresh." : autoDeliveryTimedOut ? "Your paid pack is safe. Retry the onchain delivery from this wallet." : "No second confirmation needed. The operator is settling and delivering your Stock Token."}</p>
+                  <h2>{!pendingRevealReady ? "OPENING YOUR PACK…" : autoDeliveryTimedOut ? "CHECKING YOUR DELIVERY." : "CONFIRMING YOUR STOCK…"}</h2>
+                  {autoDeliveryTimedOut && <p>Taking longer than expected. Your payment is confirmed.</p>}
                   {autoDeliveryTimedOut
                     ? <button type="button" onClick={() => void claimAndReveal()} disabled={busy}>{busy ? "RETRYING DELIVERY…" : "RETRY DELIVERY"}</button>
                     : <span className="reveal-loader" aria-hidden="true" />}
@@ -893,7 +908,7 @@ export default function Home() {
           {pullsState === "ready" && recentPulls.length === 0 && <p className="leaderboard-empty">THE FIRST RIP IS WAITING.</p>}
           {pullsState === "ready" && recentPulls.map((pull) => (
             <div className="leaderboard-row" key={pull.transactionHash}>
-              <span>{shortAddress(pull.wallet)}</span><b>{pull.symbol}</b><span>{pull.tokenAmount}</span><span>{formatUsd(pull.valueUsd)}</span><time dateTime={pull.timestamp ? new Date(pull.timestamp).toISOString() : undefined}>{pull.timestamp ? new Date(pull.timestamp).toLocaleString() : "UNAVAILABLE"}</time><a href={`https://robinhoodchain.blockscout.com/tx/${pull.transactionHash}`} target="_blank" rel="noreferrer">VIEW ↗</a>
+              <span>{shortAddress(pull.wallet)}</span><b>{pull.symbol}</b><span>{pull.tokenAmount}</span><span>{formatUsd(pull.valueUsd)}</span><time dateTime={pull.timestamp ? new Date(pull.timestamp).toISOString() : undefined}>{pull.timestamp ? new Date(pull.timestamp).toLocaleString() : "UNAVAILABLE"}</time><span className="pull-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${pull.transactionHash}`} target="_blank" rel="noreferrer">VIEW ↗</a><button type="button" disabled={busy || Boolean(pendingReveal)} onClick={() => replayPull(pull)} aria-label={`Replay confirmed ${pull.symbol} rip ${pull.requestId || ""}`}>REPLAY</button></span>
             </div>
           ))}
         </div>
