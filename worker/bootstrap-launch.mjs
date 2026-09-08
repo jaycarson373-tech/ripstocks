@@ -101,13 +101,25 @@ async function main() {
   }
 
   const state = await validatePack(publicClient, packContract, account);
+  const latestBlock = await publicClient.getBlockNumber();
+  const configuredStartBlock = process.env.PACK_CONTRACT_START_BLOCK?.trim();
+  let packContractStartBlock;
+  if (configuredStartBlock) {
+    if (!/^[1-9][0-9]*$/.test(configuredStartBlock)) throw new Error("PACK_CONTRACT_START_BLOCK must be a positive block number");
+    packContractStartBlock = BigInt(configuredStartBlock);
+    if (packContractStartBlock > latestBlock) throw new Error("PACK_CONTRACT_START_BLOCK cannot be in the future");
+    const deploymentLogs = await publicClient.getLogs({ address: packContract, fromBlock: packContractStartBlock, toBlock: packContractStartBlock });
+    if (!deploymentLogs.length) throw new Error("PACK_CONTRACT_START_BLOCK has no pack-contract deployment logs");
+  } else {
+    packContractStartBlock = await discoverContractStartBlock(latestBlock, blockNumber => publicClient.getBytecode({ address: packContract, blockNumber }));
+  }
   output("launch_bootstrap_complete", {
     chainId,
     automationWallet: account.address,
     packId: pack.id,
     packPriceUsdgAtoms: pack.priceUsdgAtoms,
     settlementToken: CANONICAL_USDG,
-    packContractStartBlock: (await discoverContractStartBlock(await publicClient.getBlockNumber(), blockNumber => publicClient.getBytecode({ address: packContract, blockNumber }))).toString(),
+    packContractStartBlock: packContractStartBlock.toString(),
     packContract,
     packContractDeployed: deployed,
     deploymentTransaction,
