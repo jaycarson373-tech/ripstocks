@@ -1,4 +1,5 @@
-export const OPENING_WAIT_MS = 8_000;
+// A slow network gets a small notice, never a replacement for the reel.
+export const OPENING_WAIT_MS = 30_000;
 
 export function deliveryPause(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise(resolve => {

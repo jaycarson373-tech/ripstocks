@@ -5,10 +5,13 @@ export type CaseReelItem<TStock, TRarity> = {
 };
 
 export const CASE_REVEAL_TIMING = { introMs: 450, spinMs: 6_500, lockMs: 650 } as const;
+export const PACK_OPENING_INTRO_MS = 2_000;
+export const MIN_PAID_SPIN_MS = 4_500;
 
 // Positions are tile units, not pixels, so resizing cannot change the winner.
-export function planReelLanding(position: number, replay: boolean) {
-  return { index: replay ? 45 : Math.ceil(position) + 4, durationMs: replay ? CASE_REVEAL_TIMING.spinMs : 1_000 };
+export function planReelLanding(position: number, replay: boolean, elapsedSpinMs = MIN_PAID_SPIN_MS) {
+  const durationMs = replay ? CASE_REVEAL_TIMING.spinMs : Math.max(1_000, MIN_PAID_SPIN_MS - elapsedSpinMs);
+  return { index: replay ? 45 : Math.ceil(position) + Math.max(4, Math.ceil(durationMs / 1_000 * 6)), durationMs };
 }
 
 export function reelPositionAt(start: number, target: number, progress: number) {
