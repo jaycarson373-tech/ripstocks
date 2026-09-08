@@ -105,3 +105,10 @@ test("pack intro and reel timing are fixed, even when delivery is already known"
   const lastStep = CASE_WINNER_INDEX - fixedReelPosition(9000);
   assert.ok(firstStep > lastStep * 10);
 });
+
+test("the pre-delivery reel outcome comes from the contract settlement simulation only", () => {
+  const delivery = readFileSync(new URL("../app/api/robinhood/delivery/route.ts", import.meta.url), "utf8");
+  assert.match(delivery, /function settlePack/);
+  assert.match(delivery, /eth_call/);
+  assert.doesNotMatch(delivery, /encodePacked|prizeAt/);
+});
