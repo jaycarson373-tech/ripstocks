@@ -8,12 +8,12 @@ import { planReelLanding, reelPositionAt } from "@/app/lib/case-reel";
 type Tile = { stock: StockToken; rarity: RarityTier | null };
 type Outcome = { stock: StockToken; rarity: RarityTier; transactionHash: string };
 
-export function PackOpening({ preview, result, renderLogo, children, retry }: {
+export function PackOpening({ preview, result, renderLogo, children, delayed = false }: {
   preview: Tile[];
   result: Outcome | null;
   renderLogo: (stock: StockToken) => ReactNode;
   children: ReactNode;
-  retry?: ReactNode;
+  delayed?: boolean;
 }) {
   // Hold the purchase-time preview steady through inventory refreshes.
   const [tiles] = useState(() => Array.from({ length: 64 }, (_, i) => preview[i % preview.length]));
@@ -25,6 +25,7 @@ export function PackOpening({ preview, result, renderLogo, children, retry }: {
   const replay = useRef(Boolean(result));
   const reduced = useRef(false);
   const skipped = useRef(false);
+  const waiting = delayed && !result;
 
   useEffect(() => {
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -49,6 +50,7 @@ export function PackOpening({ preview, result, renderLogo, children, retry }: {
     let started: number | null = null;
     let previous: number | null = null;
     let landed = false;
+    if (waiting) return;
     const paint = (now: number) => {
       const element = track.current;
       const card = element?.firstElementChild as HTMLElement | null;
@@ -77,13 +79,13 @@ export function PackOpening({ preview, result, renderLogo, children, retry }: {
     };
     frame = requestAnimationFrame(paint);
     return () => cancelAnimationFrame(frame);
-  }, [landing, cycle]);
+  }, [landing, cycle, waiting]);
 
   return <div className={`hero-pack-result continuous-opening reveal-${phase === "revealed" ? "reveal" : phase === "landed" ? "lock" : "spin"}`} style={{ "--winning-rarity": result?.rarity.color || "var(--lime)" } as CSSProperties} aria-live="polite">
     {result && phase !== "revealed" && <button type="button" className="skip-reveal" onClick={() => { skipped.current = true; }}>SKIP ANIMATION</button>}
     <div className="hero-case-reel">
-      <div className="case-reveal-header"><span>OPENING PACK…</span><b>{result ? "RESULT CONFIRMED" : "PAYMENT CONFIRMED"}</b></div>
-      <div className="case-reel-window">
+      <div className="case-reveal-header"><span>{waiting ? "DELIVERY PENDING" : "OPENING PACK…"}</span><b>{result ? "RESULT CONFIRMED" : "PAYMENT CONFIRMED"}</b></div>
+      <div className="case-reel-window" hidden={waiting}>
         <div className="case-reel-marker" aria-hidden="true"><i/><span/></div>
         <div className="case-reel-track" ref={track}>
           {tiles.map((tile, index) => {
@@ -95,7 +97,7 @@ export function PackOpening({ preview, result, renderLogo, children, retry }: {
           })}
         </div>
       </div>
-      {!result && retry && <div className="opening-retry">{retry}</div>}
+      {waiting && <div className="opening-retry" role="status"><h2>TAKING A LITTLE LONGER.</h2><p>Your payment is confirmed. We’re still checking delivery.</p><p>No need to pay again. Your result will appear here automatically.</p></div>}
     </div>
     {phase === "revealed" && children}
   </div>;

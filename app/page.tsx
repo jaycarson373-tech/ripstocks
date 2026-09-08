@@ -4,6 +4,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PackOpening } from "@/app/components/pack-opening";
+import { OPENING_WAIT_MS, pollDelivery } from "@/app/lib/delivery-polling";
 import { type StockToken } from "@/app/lib/stock-tokens";
 import { ACTIVE_PACK, HOLDER_TOKENS_PER_TICKET, PACK_PRICE_USD, PACK_RARITIES, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
 import { type RarityTier } from "@/app/lib/rarity";
@@ -78,7 +79,6 @@ type PendingReveal = {
 const WALLET_DISCONNECTED_KEY = "stonkrips.wallet-disconnected";
 const CANONICAL_USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const PACK_REQUESTED_TOPIC = "0x72ce6acbcd0dcdfc48c244249d669a4a6cfd9f429795cdcc5c430ad27273f383";
-const PRIZE_DELIVERED_TOPIC = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
 const ACTIVE_REQUEST_SELECTOR = "0xb57e51c4";
 const REQUEST_SELECTOR = "0x81d12c58";
 const PACK_CONTRACT = (process.env.NEXT_PUBLIC_STONKRIPS_CONTRACT || "").trim();
@@ -129,12 +129,6 @@ function hexWord(value: string | bigint) {
   return raw.padStart(64, "0");
 }
 
-function formatTokenUnits(value: bigint, decimals = 18) {
-  const padded = value.toString().padStart(decimals + 1, "0");
-  const whole = padded.slice(0, -decimals);
-  const fraction = padded.slice(-decimals).replace(/0+$/, "");
-  return fraction ? `${whole}.${fraction}` : whole;
-}
 
 function formatUsd(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "UNAVAILABLE";
@@ -232,7 +226,6 @@ export default function Home() {
   const [clock, setClock] = useState<number | null>(null);
   const [recoverableRequest, setRecoverableRequest] = useState<PendingReveal | null>(null);
   const [pendingReveal, setPendingReveal] = useState<PendingReveal | null>(null);
-  const [pendingRevealReady, setPendingRevealReady] = useState(false);
   const [autoDeliveryTimedOut, setAutoDeliveryTimedOut] = useState(false);
   const manuallyDisconnected = useRef(false);
 
@@ -306,7 +299,6 @@ export default function Home() {
         const ownedRequest = request?.buyer === account.toLowerCase() ? request : null;
         setRecoverableRequest(ownedRequest);
         if (ownedRequest && !packResult) {
-          setPendingRevealReady(false);
           setAutoDeliveryTimedOut(false);
           setPendingReveal(ownedRequest);
         }
@@ -316,51 +308,32 @@ export default function Home() {
   }, [account, networkReady, packResult, status.configured, walletProvider]);
 
   useEffect(() => {
-    if (!pendingReveal || !walletProvider) return;
-    let active = true;
-    const armReveal = async () => {
-      for (let attempt = 0; attempt < 80; attempt += 1) {
-        const blockHex = await walletProvider.request({ method: "eth_blockNumber" }) as string;
-        if (BigInt(blockHex) > pendingReveal.entropyBlock) break;
-        await delay(1_000);
-        if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
-      }
-      if (!active) return;
-      setPendingRevealReady(true);
-      for (let attempt = 0; attempt < 32; attempt += 1) {
-        try {
+    if (!pendingReveal) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => setAutoDeliveryTimedOut(true), OPENING_WAIT_MS);
+    void pollDelivery<RecentPull>({
+      signal: controller.signal,
+      read: async signal => {
           const fromBlock = pendingReveal.entropyBlock > BigInt(3) ? pendingReveal.entropyBlock - BigInt(3) : BigInt(0);
-          const response = await fetch(`/api/robinhood/delivery?requestId=${pendingReveal.requestId}&buyer=${encodeURIComponent(pendingReveal.buyer)}&fromBlock=${fromBlock}`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-          if (!active) return;
+          const response = await fetch(`/api/robinhood/delivery?requestId=${pendingReveal.requestId}&buyer=${encodeURIComponent(pendingReveal.buyer)}&fromBlock=${fromBlock}`, { cache: "no-store", signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]) });
           if (response.ok) {
             const payload = await response.json() as { delivered?: RecentPull | null };
-            if (!active) return;
             const delivered = payload.delivered?.requestId === pendingReveal.requestId.toString() ? payload.delivered : null;
-            if (delivered) {
-              const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === delivered.symbol);
-              if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
-              setPackResult({ recipient: delivered.wallet, stock, tokenAmount: delivered.tokenAmount, valueUsd: delivered.valueUsd, transactionHash: delivered.transactionHash, rarity: rarityForValue(delivered.valueUsd) });
-              setRecoverableRequest(null);
-              setPendingReveal(null);
-              setNotice("");
-              return;
-            }
+            return delivered && STOCK_TOKENS.some(stock => stock.symbol === delivered.symbol) ? delivered : null;
           }
-        } catch { /* Transient reads must not cancel a confirmed purchase. */ }
-        await delay(1_000);
-        if (!active) return;
-      }
-      if (active) setAutoDeliveryTimedOut(true);
-    };
-    void armReveal().catch(() => {
-      if (active) {
-        setPendingRevealReady(true);
-        setAutoDeliveryTimedOut(true);
-        setNotice("Confirmation is taking longer than expected. Your paid pack can be resumed; do not buy another pack to retry.");
-      }
+          return null;
+      },
+      onDelivered: delivered => {
+        const stock = STOCK_TOKENS.find(candidate => candidate.symbol === delivered.symbol)!;
+        setPackResult({ recipient: delivered.wallet, stock, tokenAmount: delivered.tokenAmount, valueUsd: delivered.valueUsd, transactionHash: delivered.transactionHash, rarity: rarityForValue(delivered.valueUsd) });
+        setRecoverableRequest(null);
+        setPendingReveal(null);
+        setAutoDeliveryTimedOut(false);
+        setNotice("");
+      },
     });
-    return () => { active = false; };
-  }, [pendingReveal, walletProvider]);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [pendingReveal]);
 
   useEffect(() => {
     const tick = () => setClock(Date.now());
@@ -497,51 +470,10 @@ export default function Home() {
     }
   }
 
-  async function settleAndReveal(provider: EthereumProvider, requestId: bigint, entropyBlock: bigint) {
-    setNotice("Preparing direct Stock Token delivery…");
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      const blockHex = await provider.request({ method: "eth_blockNumber" }) as string;
-      if (BigInt(blockHex) > entropyBlock) break;
-      await delay(1_500);
-      if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
-    }
-
-    setNotice("Confirm CLAIM & REVEAL. This transaction sends the Stock Token directly to your wallet.");
-    let settleHash: string;
-    let settleReceipt: RpcReceipt;
-    try {
-      settleHash = await provider.request({
-        method: "eth_sendTransaction",
-        params: [{ from: account, to: PACK_CONTRACT, data: `0x8533498d${hexWord(requestId)}`, value: "0x0" }],
-      }) as string;
-      settleReceipt = await waitForReceipt(provider, settleHash);
-    } catch (error) {
-      const requestBlock = entropyBlock > BigInt(2) ? entropyBlock - BigInt(2) : BigInt(0);
-      const logs = await provider.request({ method: "eth_getLogs", params: [{ address: PACK_CONTRACT, fromBlock: `0x${requestBlock.toString(16)}`, toBlock: "latest", topics: [PRIZE_DELIVERED_TOPIC, `0x${hexWord(requestId)}`] }] }) as Array<{ transactionHash: string }>;
-      if (logs.length !== 1) throw error;
-      settleHash = logs[0].transactionHash;
-      settleReceipt = await waitForReceipt(provider, settleHash);
-    }
-    const prizeLog = settleReceipt.logs.find((log) => log.address.toLowerCase() === PACK_CONTRACT.toLowerCase() && log.topics[0]?.toLowerCase() === PRIZE_DELIVERED_TOPIC);
-    if (!prizeLog?.topics[3]) throw new Error("PRIZE_EVENT_MISSING");
-    const tokenAddress = `0x${prizeLog.topics[3].slice(-40)}`.toLowerCase();
-    const data = prizeLog.data.replace(/^0x/, "");
-    const tokenAmount = formatTokenUnits(BigInt(`0x${data.slice(0, 64)}`));
-    const valueUsd = Number(BigInt(`0x${data.slice(64, 128)}`)) / 1_000_000;
-    const stock = STOCK_TOKENS.find((candidate) => candidate.address.toLowerCase() === tokenAddress);
-    if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
-    setPackResult({ recipient: `0x${prizeLog.topics[2].slice(-40)}`, stock, tokenAmount, valueUsd, transactionHash: settleHash, rarity: rarityForValue(valueUsd) });
-    setPendingReveal(null);
-    setPendingRevealReady(false);
-    setRecoverableRequest(null);
-    setPackModalOpen(false);
-    setNotice("");
-  }
 
   function stagePaidPack(request: PendingReveal) {
     setRecoverableRequest(request);
     setPendingReveal(request);
-    setPendingRevealReady(false);
     setAutoDeliveryTimedOut(false);
     setPackModalOpen(false);
     setNotice("");
@@ -559,19 +491,6 @@ export default function Home() {
     document.getElementById("pack")?.scrollIntoView({ block: "center", behavior: "auto" });
   }
 
-  async function claimAndReveal() {
-    const provider = walletProvider;
-    if (!provider || !pendingReveal || !pendingRevealReady || busy) return;
-    setBusy(true);
-    try {
-      await settleAndReveal(provider, pendingReveal.requestId, pendingReveal.entropyBlock);
-    } catch (error) {
-      const code = (error as { code?: number })?.code;
-      setNotice(code === 4001 ? "Reveal cancelled. Your paid pack is safe—press CLAIM & REVEAL whenever you are ready." : "The reveal did not complete. Your paid pack is safe and can be retried.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function openPack() {
     if (!account) return connectWallet();
@@ -765,7 +684,7 @@ export default function Home() {
               {notice && <p className="pack-progress" role="status">{notice}</p>}
             </div>
             {(pendingReveal || packResult) && (
-              <PackOpening key={openingRun} preview={openingPreview} result={packResult} renderLogo={stock => <StockLogo stock={stock} />} retry={autoDeliveryTimedOut ? <><p>Taking longer than expected. Payment confirmed.</p><button type="button" onClick={() => void claimAndReveal()} disabled={busy}>{busy ? "RETRYING DELIVERY…" : "RETRY DELIVERY"}</button></> : undefined}>
+              <PackOpening key={openingRun} preview={openingPreview} result={packResult} delayed={autoDeliveryTimedOut} renderLogo={stock => <StockLogo stock={stock} />}>
                 {packResult && <div className="confirmed-prize" style={{ "--rarity-color": packResult.rarity.color } as CSSProperties}>
                   <span>YOU PULLED</span>
                   <StockLogo stock={packResult.stock} />

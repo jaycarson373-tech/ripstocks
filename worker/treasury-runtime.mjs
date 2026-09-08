@@ -34,7 +34,9 @@ export function treasuryConfig(env = process.env, forceMode) {
   const mode = parseMode(forceMode || env.AUTOMATION_MODE || "off");
   const pollSeconds = Number(env.WORKER_POLL_SECONDS || 30);
   if (!Number.isSafeInteger(pollSeconds) || pollSeconds < 5 || pollSeconds > 300) throw new Error("WORKER_POLL_SECONDS must be 5–300");
-  const settlementDelaySeconds = positiveInteger("PACK_SETTLEMENT_DELAY_SECONDS", env.PACK_SETTLEMENT_DELAY_SECONDS, 12);
+  // Presentation must not add twelve seconds to a paid on-chain delivery.
+  // settlePendingPack still enforces the contract's future-block readiness.
+  const settlementDelaySeconds = positiveInteger("PACK_SETTLEMENT_DELAY_SECONDS", env.PACK_SETTLEMENT_DELAY_SECONDS, 1);
   if (settlementDelaySeconds > 60) throw new Error("PACK_SETTLEMENT_DELAY_SECONDS must be 60 or less");
   if (mode === "off") return { mode, pollSeconds, ponsEnabled: false };
   const pack = packConfig(env.PACK_ID);

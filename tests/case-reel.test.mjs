@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { buildCaseReel, CASE_REVEAL_TIMING, planReelLanding, reelPositionAt } from "../app/lib/case-reel.ts";
+import { pollDelivery, deliveryPause, OPENING_WAIT_MS } from "../app/lib/delivery-polling.ts";
 
 test("the contained reel lands exactly once on the committed result", () => {
   const stocks = ["SPY", "NVDA", "TSLA", "META"].map(symbol => ({ symbol }));
@@ -59,4 +60,38 @@ test("payment and delivery use one mounted reel with no separate loading screen"
   assert.match(component, /prefers-reduced-motion/);
   assert.match(component, /OPENING PACK/);
   assert.doesNotMatch(page, /No second confirmation needed\. The operator/);
+});
+
+test("a delayed delivery is recovered beyond the old 32-attempt cutoff, exactly once", async () => {
+  let reads = 0;
+  const delivered = [];
+  const result = { requestId: "test-only", symbol: "PLTR" };
+  await pollDelivery({ signal: new AbortController().signal, pause: async () => {},
+    read: async () => { if (++reads < 40) throw new Error("Transient RPC failure"); return result; },
+    onDelivered: value => delivered.push(value),
+  });
+  assert.equal(reads, 40);
+  assert.deepEqual(delivered, [result]);
+});
+
+test("closing a receipt lookup cancels future reads and ignores a late response", async () => {
+  const controller = new AbortController();
+  let reads = 0;
+  await pollDelivery({ signal: controller.signal,
+    read: async () => { reads++; controller.abort(); return { transactionHash: "test-only" }; },
+    onDelivered: () => assert.fail("Unmounted lookup must not update the UI"),
+  });
+  assert.equal(reads, 1);
+  await deliveryPause(60_000, controller.signal);
+});
+
+test("a slow opening pauses visually without inventing a winner or sending a retry", () => {
+  assert.equal(OPENING_WAIT_MS, 8_000);
+  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const component = readFileSync(new URL("../app/components/pack-opening.tsx", import.meta.url), "utf8");
+  assert.match(component, /if \(waiting\) return/);
+  assert.match(component, /hidden=\{waiting\}/);
+  assert.match(component, /DELIVERY PENDING/);
+  assert.match(page, /delayed=\{autoDeliveryTimedOut\}/);
+  assert.doesNotMatch(page, /attempt < 32|RETRY DELIVERY/);
 });

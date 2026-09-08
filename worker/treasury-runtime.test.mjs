@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { packConfig } from "./pack-config.mjs";
-import { treasuryConfig, validateTreasury, recoverTreasuryTransaction, resumeTreasuryPurchase, indexSettlements } from "./treasury-runtime.mjs";
+import { treasuryConfig, validateTreasury, recoverTreasuryTransaction, resumeTreasuryPurchase, indexSettlements, settlePendingPack } from "./treasury-runtime.mjs";
 import { ponsClaimRequest, ponsSweepRequest, ponsV2Adapter, validatePonsLaunch } from "./pons-v2-adapter.mjs";
 import { planLots } from "./pack-reinvestment.mjs";
 import { readFileSync } from "node:fs";
@@ -35,9 +35,27 @@ test("treasury works without creator key or Pons CA; defaults off", () => {
   assert.equal(cfg.ponsToken, undefined);
   assert.equal(cfg.creatorPrivateKey, undefined);
   assert.equal(cfg.reinvestEnabled, false);
-  assert.equal(cfg.settlementDelaySeconds, 12);
+  assert.equal(cfg.settlementDelaySeconds, 1);
   assert.throws(() => treasuryConfig({ ...env, PACK_SETTLEMENT_DELAY_SECONDS: "61" }), /60 or less/);
   assert.equal(treasuryConfig({}).mode, "off");
+});
+test("faster settlement still refuses to deliver before the future block is available", async () => {
+  let requestReads = 0;
+  const ctx = {
+    scope: "future-block-test", cfg: { packContract: env.STOCKRIPS_PACK_CONTRACT, settlementDelaySeconds: 0 },
+    publicClient: {
+      readContract: async ({ functionName }) => {
+        if (functionName === "activeRequestId") return 1n;
+        requestReads++;
+        return ["buyer", "commitment", "seed", 100n, false];
+      },
+      getBlockNumber: async () => 100n,
+    },
+    store: { transaction: () => assert.fail("Must not create a delivery transaction before entropy is ready") },
+  };
+  await settlePendingPack(ctx);
+  await settlePendingPack(ctx);
+  assert.equal(requestReads, 1);
 });
 test("Pons remains disabled by default and both live gates must move together", async () => {
   assert.equal(treasuryConfig({ ...env, PONS_TOKEN_ADDRESS: "legacy", PONS_V2_FACTORY: "legacy" }).mode, "dry-run");
