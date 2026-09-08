@@ -79,6 +79,9 @@ export async function GET(request: Request) {
     const rpcUrl = process.env.ROBINHOOD_RPC_URL || DEFAULT_RPC;
     const walletParam = new URL(request.url).searchParams.get("wallet")?.trim() || "";
     const wallet = ADDRESS_PATTERN.test(walletParam) ? walletParam.toLowerCase() : null;
+    const launchRequestId = /^\d+$/.test(process.env.PUBLIC_LAUNCH_REQUEST_ID || "")
+      ? BigInt(process.env.PUBLIC_LAUNCH_REQUEST_ID as string)
+      : BigInt(1);
     const resultLimit = wallet ? 100 : 12;
     const topics = wallet ? [PRIZE_DELIVERED_TOPIC, null, `0x${wallet.slice(2).padStart(64, "0")}`] : [PRIZE_DELIVERED_TOPIC];
     const latest = BigInt(await rpc<string>(rpcUrl, "eth_blockNumber", []));
@@ -96,6 +99,7 @@ export async function GET(request: Request) {
     const decoded = logs
       .map(decodePull)
       .filter((pull): pull is NonNullable<typeof pull> => Boolean(pull))
+      .filter((pull) => BigInt(pull.requestId) >= launchRequestId)
       .sort((a, b) => (BigInt(a.blockNumber) > BigInt(b.blockNumber) ? -1 : 1))
       .slice(0, resultLimit);
     const blockNumbers = [...new Set(decoded.map((pull) => pull.blockNumber))];

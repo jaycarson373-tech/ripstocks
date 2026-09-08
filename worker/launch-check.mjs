@@ -15,6 +15,14 @@ export function inspectLaunchInputs(env) {
     try { wallet = privateKeyToAccount(key.startsWith("0x") ? key : `0x${key}`).address; }
     catch { problems.push("AUTOMATION_PRIVATE_KEY must be a valid 32-byte EVM key"); }
   }
+  let ponsWallet = null;
+  const ponsKey = env.PONS_PRIVATE_KEY?.trim();
+  if (ponsKey) {
+    try { ponsWallet = privateKeyToAccount(ponsKey.startsWith("0x") ? ponsKey : `0x${ponsKey}`).address; }
+    catch { problems.push("PONS_PRIVATE_KEY must be a valid 32-byte EVM key"); }
+  } else if (env.CREATOR_FEE_CLAIM_ENABLED === "true" || env.HOLDER_REWARDS_ENABLED === "true") {
+    problems.push("PONS_PRIVATE_KEY is required when Pons automation is enabled");
+  }
   const swapProvider = (env.SWAP_PROVIDER || "uniswap-v4").trim();
   if (!["uniswap-v4", "0x"].includes(swapProvider)) problems.push("SWAP_PROVIDER must be uniswap-v4 or 0x");
   if (swapProvider === "0x" && !env.ZEROX_API_KEY?.trim()) problems.push("ZEROX_API_KEY is required only when SWAP_PROVIDER=0x");
@@ -28,7 +36,7 @@ export function inspectLaunchInputs(env) {
   } catch { problems.push("SUPABASE_URL must be the project HTTPS URL from Supabase Connect"); }
   const contract = env.STOCKRIPS_PACK_CONTRACT?.trim() || null;
   if (contract && !isAddress(contract)) problems.push("STOCKRIPS_PACK_CONTRACT is not a valid EVM address");
-  return { wallet, databaseUrl, contract, problems };
+  return { wallet, ponsWallet, databaseUrl, contract, problems };
 }
 
 export async function checkLaunch(env = process.env) {

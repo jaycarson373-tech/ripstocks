@@ -38,8 +38,8 @@ export class PonsHourlyStore {
   }
 }
 
-export function ponsScope(cfg, account) {
-  return `${ROBINHOOD_CHAIN_ID}:pons:${cfg.pons.token.toLowerCase()}:${account.toLowerCase()}`;
+export function ponsScope(cfg, account, ponsAccount) {
+  return `${ROBINHOOD_CHAIN_ID}:pons:${cfg.pons.token.toLowerCase()}:${account.toLowerCase()}:${ponsAccount.toLowerCase()}`;
 }
 
 export async function buildErc20HolderSnapshot(ctx, snapshotBlock) {
@@ -51,7 +51,7 @@ export async function buildErc20HolderSnapshot(ctx, snapshotBlock) {
     await ctx.lease();
     logs.push(...await ctx.publicClient.getLogs({ address: token, event: transferEvent, fromBlock: from, toBlock: from + 1_999n > snapshotBlock ? snapshotBlock : from + 1_999n }));
   }
-  const systemWallets = [ctx.account.address, ctx.cfg.packContract, ctx.cfg.pons.escrow, ctx.cfg.pons.factory, ...exclusions];
+  const systemWallets = [ctx.account.address, ctx.ponsAccount?.address, ctx.cfg.packContract, ctx.cfg.pons.escrow, ctx.cfg.pons.factory, ...exclusions].filter(Boolean);
   return eligibleHolderSnapshot(logs, systemWallets, ticketUnit(tokensPerTicket, decimals));
 }
 
@@ -135,8 +135,10 @@ async function loadInventory(ctx, epoch, stock, amount) {
 
 export async function runPonsHourly(baseCtx, now = new Date()) {
   if (!baseCtx.cfg.ponsEnabled || baseCtx.cfg.mode === "off") return;
+  if (!baseCtx.ponsAccount || !baseCtx.ponsWalletClient) throw new Error("Pons fee wallet is not configured");
   const ctx = { ...baseCtx, store: new PonsHourlyStore(baseCtx.audit) };
-  const scope = ponsScope(ctx.cfg, ctx.account.address);
+  const ponsCtx = { ...ctx, account: ctx.ponsAccount, walletClient: ctx.ponsWalletClient };
+  const scope = ponsScope(ctx.cfg, ctx.account.address, ctx.ponsAccount.address);
   const key = epochKey(now);
   let epoch = await ctx.store.epoch(scope, key);
   const adapter = ponsV2Adapter(ctx.cfg.pons);
@@ -148,8 +150,8 @@ export async function runPonsHourly(baseCtx, now = new Date()) {
     const snapshotHeader = await ctx.publicClient.getBlock({ blockNumber: snapshotBlock });
     const snapshot = await buildErc20HolderSnapshot(ctx, snapshotBlock);
     if ((await ctx.publicClient.getBlock({ blockNumber: snapshotBlock })).hash !== snapshotHeader.hash) throw new Error("Holder snapshot block reorganized during construction");
-    const launch = await adapter.validate(ctx.publicClient, ctx.account.address);
-    const claimable = await adapter.claimable(ctx.publicClient, ctx.account.address);
+    const launch = await adapter.validate(ctx.publicClient, ctx.ponsAccount.address);
+    const claimable = await adapter.claimable(ctx.publicClient, ctx.ponsAccount.address);
     const [holderBudget, inventoryBudget] = splitAmount(claimable, ctx.cfg.pons.holderShareBps);
     const status = snapshot.totalTickets === 0n ? "no_holders" : "created";
     const id = `${scope}:${key}`;
@@ -170,14 +172,14 @@ export async function runPonsHourly(baseCtx, now = new Date()) {
   }
   if (["complete", "no_fees", "no_holders"].includes(epoch.status) || ctx.cfg.mode !== "live") return;
   if (epoch.status === "created") {
-    const launch = await adapter.validate(ctx.publicClient, ctx.account.address);
+    const launch = await adapter.validate(ctx.publicClient, ctx.ponsAccount.address);
     if (!same(launch.curve, epoch.pons_curve_address) || Number(launch.phase) !== Number(epoch.pons_phase)) throw new Error("Pons launch phase changed during the reserved epoch");
     const sweepRequest = adapter.sweepRequest(launch);
     if (sweepRequest && !epoch.sweep_tx) {
-      const sweepReceipt = await durableTransaction(ctx, epoch, "pons_sweep", () => sweepRequest);
+      const sweepReceipt = await durableTransaction(ponsCtx, epoch, "pons_sweep", () => sweepRequest);
       epoch = await ctx.store.patch("pons_hourly_epochs", epoch.id, { sweep_tx: sweepReceipt.transactionHash });
     }
-    const claimable = await adapter.claimable(ctx.publicClient, ctx.account.address);
+    const claimable = await adapter.claimable(ctx.publicClient, ctx.ponsAccount.address);
     if (claimable < 2n) {
       await ctx.store.patch("pons_hourly_epochs", epoch.id, { claimable_atoms: claimable.toString(), holder_budget_atoms: "0", inventory_budget_atoms: "0", status: "no_fees", completed_at: new Date().toISOString() });
       return;
@@ -186,9 +188,20 @@ export async function runPonsHourly(baseCtx, now = new Date()) {
     epoch = await ctx.store.patch("pons_hourly_epochs", epoch.id, { claimable_atoms: claimable.toString(), holder_budget_atoms: holderBudget.toString(), inventory_budget_atoms: inventoryBudget.toString(), status: "claim_ready" });
   }
   if (epoch.status === "claim_ready") {
-    const receipt = await durableTransaction(ctx, epoch, "pons_claim", () => adapter.claimRequest());
-    const claimed = receivedStockAtoms(receipt, ctx.cfg.pons.feeAsset, ctx.account.address);
+    const receipt = await durableTransaction(ponsCtx, epoch, "pons_claim", () => adapter.claimRequest());
+    const claimed = receivedStockAtoms(receipt, ctx.cfg.pons.feeAsset, ctx.ponsAccount.address);
     if (claimed < 2n) throw new Error("Confirmed Pons claim did not deliver the recorded fee asset");
+    if (!same(ctx.ponsAccount.address, ctx.account.address)) {
+      const forwarded = await durableTransaction(ponsCtx, epoch, "pons_fee_forward", () => ({
+        to: ctx.cfg.pons.feeAsset,
+        data: encodeFunctionData({ abi: erc20, functionName: "transfer", args: [ctx.account.address, claimed] }),
+        value: 0n,
+      }));
+      if (receivedStockAtoms(forwarded, ctx.cfg.pons.feeAsset, ctx.account.address) !== claimed
+        || receivedStockAtoms(forwarded, ctx.cfg.pons.feeAsset, ctx.ponsAccount.address) !== -claimed) {
+        throw new Error("Confirmed Pons fee forwarding transaction does not reconcile");
+      }
+    }
     const [holderBudget, inventoryBudget] = splitAmount(claimed, ctx.cfg.pons.holderShareBps);
     const seedBlock = await ctx.publicClient.getBlockNumber() + BigInt(ctx.cfg.pons.confirmationBlocks);
     epoch = await ctx.store.patch("pons_hourly_epochs", epoch.id, { claim_tx: receipt.transactionHash, claimed_atoms: claimed.toString(), holder_budget_atoms: holderBudget.toString(), inventory_budget_atoms: inventoryBudget.toString(), seed_block: seedBlock.toString(), status: "awaiting_seed" });

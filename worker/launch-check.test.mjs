@@ -6,8 +6,15 @@ test("launch inputs report all missing fields without inventing a wallet", () =>
   const result = inspectLaunchInputs({});
   assert.equal(result.problems.length, 3);
   assert.equal(result.wallet, null);
+  assert.equal(result.ponsWallet, null);
   assert.equal(result.databaseUrl, null);
   assert.equal(result.contract, null);
+});
+
+test("a separate Pons signer is required only when Pons automation is enabled", () => {
+  assert.equal(inspectLaunchInputs({}).problems.filter((item) => item.includes("PONS_PRIVATE_KEY")).length, 0);
+  assert.equal(inspectLaunchInputs({ CREATOR_FEE_CLAIM_ENABLED: "true" }).problems.filter((item) => item.includes("PONS_PRIVATE_KEY")).length, 1);
+  assert.match(inspectLaunchInputs({ PONS_PRIVATE_KEY: "02".repeat(32) }).ponsWallet, /^0x[0-9A-Fa-f]{40}$/);
 });
 
 test("launch checks never echo private keys, API keys, or invalid input values", () => {

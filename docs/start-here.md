@@ -4,7 +4,7 @@ No Pons CA is required to deploy Pack #01, buy Stock Tokens, fund inventory, pur
 
 ## Wallets
 
-- Creator wallet: retains control of the eventual Pons launch. Never supply its private key to this application.
+- Pons fee wallet: receives the eventual Pons creator-fee entitlement. Its key belongs **only in Railway**, as `PONS_PRIVATE_KEY`; the hourly worker forwards claimed USDG to the treasury.
 - Treasury/operator wallet: owns the pack contract, holds USDG/ETH, buys Stock Tokens, loads inventory, receives settled payments. Its key belongs **only in Railway**, as `AUTOMATION_PRIVATE_KEY`.
 - A test buyer uses their own connected wallet. Stock Tokens go to that buyer, not to the creator.
 
@@ -28,6 +28,7 @@ No Pons CA is required to deploy Pack #01, buy Stock Tokens, fund inventory, pur
 | `CREATOR_FEE_CLAIM_ENABLED` | No | Server | `false` |
 | `HOLDER_REWARDS_ENABLED` | No | Server | `false` |
 | `AUTOMATION_PRIVATE_KEY` | **Never** | **Secret** | Treasury EVM private key |
+| `PONS_PRIVATE_KEY` | **Never** | **Secret** | Separate Pons creator-fee recipient/claimer key |
 | `SWAP_PROVIDER=uniswap-v4` | **Never** | Server | Direct Robinhood Chain pools; no API account required |
 | `SWAP_SLIPPAGE_BPS=100` | **Never** | Server | Maximum 1% route slippage |
 | `ZEROX_API_KEY` | **Never** | **Secret** | Only required if `SWAP_PROVIDER=0x` |

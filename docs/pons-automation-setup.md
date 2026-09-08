@@ -2,15 +2,15 @@
 
 Pons launches last. Until the real launch exists, keep both live gates `false`. A CA alone never enables claims or airdrops.
 
-The supported first release requires the Pons v2 launch to be paired in canonical USDG and its `creatorFeeRecipient` to be the same automation/treasury wallet used by the pack. No creator private key is accepted by this worker. Pons v2 credits fees to escrow in the launch pair asset; the automation wallet claims its own USDG balance.
+The supported first release requires the Pons v2 launch to be paired in canonical USDG. Its `creatorFeeRecipient` is a separate Pons fee wallet whose key is stored only in Railway as `PONS_PRIVATE_KEY`. Pons v2 credits fees to that wallet in escrow; the hourly worker claims the exact USDG and forwards it to the automation/treasury wallet before allocating it.
 
 The hourly flow is:
 
 1. Reconstruct $RIP ERC-20 balances at a confirmed block and exclude system wallets.
 2. Convert balances into whole tickets using `TOKENS_PER_TICKET`.
-3. Read the automation wallet's claimable USDG from the verified Pons v2 escrow.
+3. Read the Pons fee wallet's claimable USDG from the verified Pons v2 escrow.
 4. Reserve the immutable holder snapshot, fee budget, and a future seed block in Supabase.
-5. While the launch is on its curve, request its creator-safe fee sweep; otherwise claim whatever the Pons operator has already swept. Then claim the escrowed USDG. Signed bytes are stored before broadcast.
+5. While the launch is on its curve, request its creator-safe fee sweep; otherwise claim whatever the Pons operator has already swept. Then claim the escrowed USDG with the Pons fee wallet and forward the exact amount to the automation wallet. Every signed transaction is stored before broadcast.
 6. After the seed block is confirmed, commit one weighted winner.
 7. Spend 50% on a routed Stock Token and deliver the exact received amount to that winner.
 8. Spend 50% on another routed Stock Token and load the exact received amount into Pack #01 inventory.

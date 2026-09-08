@@ -35,7 +35,7 @@ ROBINHOOD_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 
 The browser talks directly to the pack contract. Railway runs the separate treasury and Pons worker described in `docs/pons-automation-setup.md`. Do not add the automation private key, Supabase backend key, or Pons server settings to Vercel, Sites, or a public web service.
 
-The pack contract and treasury work before Pons exists. After the Pons launch, add the verified v2 token, deployment block, factory, escrow, and USDG pair settings listed in `docs/pons-automation-setup.md`. No Pons/creator private key belongs in Railway; `AUTOMATION_PRIVATE_KEY` is the only signer used by the worker.
+The pack contract and treasury work before Pons exists. After the Pons launch, add the verified v2 token, deployment block, factory, escrow, and USDG pair settings listed in `docs/pons-automation-setup.md`. `PONS_PRIVATE_KEY` is the separate creator-fee recipient/claimer signer and `AUTOMATION_PRIVATE_KEY` remains the pack treasury signer; both belong only in Railway.
 
 ## Safe activation order
 

@@ -43,6 +43,9 @@ export function treasuryConfig(env = process.env, forceMode) {
   let signerKey = required("AUTOMATION_PRIVATE_KEY", env.AUTOMATION_PRIVATE_KEY);
   if (!signerKey.startsWith("0x")) signerKey = `0x${signerKey}`;
   if (!/^0x[0-9a-fA-F]{64}$/.test(signerKey)) throw new Error("AUTOMATION_PRIVATE_KEY must be a 32-byte EVM key");
+  let ponsSignerKey = env.PONS_PRIVATE_KEY?.trim() || null;
+  if (ponsSignerKey && !ponsSignerKey.startsWith("0x")) ponsSignerKey = `0x${ponsSignerKey}`;
+  if (ponsSignerKey && !/^0x[0-9a-fA-F]{64}$/.test(ponsSignerKey)) throw new Error("PONS_PRIVATE_KEY must be a 32-byte EVM key");
   const database = new URL(required("SUPABASE_URL", env.SUPABASE_URL));
   if (database.protocol !== "https:" || !/^[a-z0-9-]+\.supabase\.co$/.test(database.hostname) || database.username || database.password || database.port || database.search || database.hash || !["", "/"].includes(database.pathname)) throw new Error("Invalid Supabase project URL");
   const swapProvider = (env.SWAP_PROVIDER || "uniswap-v4").trim();
@@ -53,6 +56,7 @@ export function treasuryConfig(env = process.env, forceMode) {
   const rewardsEnabled = env.HOLDER_REWARDS_ENABLED === "true";
   if (claimsEnabled !== rewardsEnabled) throw new Error("Creator fee claims and holder rewards must be enabled together after the Pons dry run");
   const ponsEnabled = claimsEnabled && rewardsEnabled;
+  if (ponsEnabled && !ponsSignerKey) throw new Error("PONS_PRIVATE_KEY is required when Pons fee claims are enabled");
   const pons = ponsEnabled ? {
     token: addressEnv("PONS_TOKEN_ADDRESS", env.PONS_TOKEN_ADDRESS),
     tokenStartBlock: BigInt(required("PONS_TOKEN_START_BLOCK", env.PONS_TOKEN_START_BLOCK)),
@@ -65,7 +69,7 @@ export function treasuryConfig(env = process.env, forceMode) {
     exclusions: (env.PONS_HOLDER_EXCLUSIONS || "").split(",").map(value => value.trim()).filter(Boolean).map(value => addressEnv("PONS_HOLDER_EXCLUSIONS", value)),
   } : null;
   if (pons && pons.feeAsset.toLowerCase() !== CANONICAL_USDG.toLowerCase()) throw new Error("The first verified Pons automation release requires a USDG-paired launch");
-  return { ...pack, mode, pollSeconds, settlementDelaySeconds, signerKey, ponsEnabled, pons,
+  return { ...pack, mode, pollSeconds, settlementDelaySeconds, signerKey, ponsSignerKey, ponsEnabled, pons,
     rpcUrl: env.ROBINHOOD_RPC_URL?.trim() || chain.rpcUrls.default.http[0],
     packContract: addressEnv("STOCKRIPS_PACK_CONTRACT", env.STOCKRIPS_PACK_CONTRACT),
     packStartBlock: env.PACK_CONTRACT_START_BLOCK ? BigInt(env.PACK_CONTRACT_START_BLOCK) : null,
@@ -88,11 +92,13 @@ export class TreasuryAudit {
 }
 export function treasuryContext(cfg) {
   const account = privateKeyToAccount(cfg.signerKey);
+  const ponsAccount = cfg.ponsSignerKey ? privateKeyToAccount(cfg.ponsSignerKey) : null;
   const transport = http(cfg.rpcUrl, { retryCount: 2, timeout: 20000 });
   const audit = new TreasuryAudit(cfg);
   const holder = `${account.address}:${randomUUID()}`;
-  return { cfg, account, audit, holder, scope: `4663:${cfg.packContract.toLowerCase()}:${account.address.toLowerCase()}`,
+  return { cfg, account, ponsAccount, audit, holder, scope: `4663:${cfg.packContract.toLowerCase()}:${account.address.toLowerCase()}`,
     publicClient: createPublicClient({ chain, transport }), walletClient: createWalletClient({ account, chain, transport }),
+    ponsWalletClient: ponsAccount ? createWalletClient({ account: ponsAccount, chain, transport }) : null,
     store: new ReinvestmentStore(audit),
     lease: async () => { if (!await audit.acquire(holder)) throw new Error("Another treasury operation holds the lease"); },
     log: (event, fields = {}) => console.log(JSON.stringify({ event, ...fields })),

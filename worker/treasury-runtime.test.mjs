@@ -63,21 +63,22 @@ test("Pons remains disabled by default and both live gates must move together", 
   assert.throws(() => treasuryConfig({ ...env, HOLDER_REWARDS_ENABLED: "true" }), /enabled together/);
   assert.equal(ponsV2Adapter().enabled, false);
 });
-test("Pons v2 validation binds the token, USDG pair, and fee recipient", async () => {
+test("Pons v2 validation binds the token, USDG pair, and separate fee recipient", async () => {
   const token = "0x" + "22".repeat(20);
   const recipient = "0x" + "33".repeat(20);
   const feeAsset = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
   const launch = { token, creatorFeeRecipient: recipient, pairToken: feeAsset, exists: true };
   const publicClient = { readContract: async () => launch };
   assert.equal((await validatePonsLaunch({ publicClient, factory: "0x" + "44".repeat(20), token, recipient, feeAsset })).exists, true);
-  await assert.rejects(validatePonsLaunch({ publicClient, factory: "0x" + "44".repeat(20), token, recipient: "0x" + "55".repeat(20), feeAsset }), /automation wallet/);
+  await assert.rejects(validatePonsLaunch({ publicClient, factory: "0x" + "44".repeat(20), token, recipient: "0x" + "55".repeat(20), feeAsset }), /configured Pons fee wallet/);
   assert.match(ponsClaimRequest("0x" + "66".repeat(20), feeAsset).data, /^0x[0-9a-f]+$/);
   assert.equal(ponsSweepRequest({ ...launch, curve: "0x" + "77".repeat(20), phase: 2 }), null);
   assert.match(ponsSweepRequest({ ...launch, curve: "0x" + "77".repeat(20), phase: 0 }).data, /^0x[0-9a-f]+$/);
 });
-test("Pons hourly configuration needs no creator private key and requires a USDG pair", () => {
+test("Pons hourly configuration requires a separate Pons fee key and a USDG pair", () => {
   const enabled = {
     ...env,
+    PONS_PRIVATE_KEY: "02".repeat(32),
     CREATOR_FEE_CLAIM_ENABLED: "true",
     HOLDER_REWARDS_ENABLED: "true",
     PONS_TOKEN_ADDRESS: "0x" + "22".repeat(20),
@@ -88,8 +89,9 @@ test("Pons hourly configuration needs no creator private key and requires a USDG
   };
   const cfg = treasuryConfig(enabled);
   assert.equal(cfg.ponsEnabled, true);
+  assert.match(cfg.ponsSignerKey, /^0x[0-9a-f]{64}$/i);
   assert.equal(cfg.pons.tokensPerTicket, "10000");
-  assert.equal(cfg.creatorPrivateKey, undefined);
+  assert.throws(() => treasuryConfig({ ...enabled, PONS_PRIVATE_KEY: "" }), /PONS_PRIVATE_KEY is required/);
   assert.throws(() => treasuryConfig({ ...enabled, PONS_FEE_ASSET_ADDRESS: "0x" + "77".repeat(20) }), /USDG-paired/);
 });
 test("future prices preserve every atom without assuming twenty-dollar sales", () => {

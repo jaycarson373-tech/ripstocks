@@ -17,7 +17,7 @@ export const ponsV2CurveAbi = parseAbi(["function sweepFees(uint256 minBuybackTo
 export async function validatePonsLaunch({ publicClient, factory, token, recipient, feeAsset }) {
   const launch = await publicClient.readContract({ address: factory, abi: ponsV2FactoryAbi, functionName: "getLaunchedToken", args: [token] });
   if (!launch.exists || getAddress(launch.token) !== getAddress(token)) throw new Error("Pons v2 factory does not recognize the configured token");
-  if (getAddress(launch.creatorFeeRecipient) !== getAddress(recipient)) throw new Error("Pons creator fees must point directly to the automation wallet");
+  if (getAddress(launch.creatorFeeRecipient) !== getAddress(recipient)) throw new Error("Pons creator fees must point to the configured Pons fee wallet");
   if (getAddress(launch.pairToken) !== getAddress(feeAsset)) throw new Error("Configured Pons fee asset differs from the launch pair token");
   return launch;
 }

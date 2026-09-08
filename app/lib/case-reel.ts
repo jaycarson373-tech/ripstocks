@@ -4,7 +4,7 @@ export type CaseReelItem<TStock, TRarity> = {
   winning: boolean;
 };
 
-export const CASE_REVEAL_TIMING = { introMs: 850, spinMs: 10_000, lockMs: 650 } as const;
+export const CASE_REVEAL_TIMING = { introMs: 700, spinMs: 8_000, lockMs: 500 } as const;
 export const PACK_OPENING_INTRO_MS = CASE_REVEAL_TIMING.introMs;
 export const CASE_WINNER_INDEX = 82;
 

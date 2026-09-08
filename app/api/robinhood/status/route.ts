@@ -174,6 +174,11 @@ export async function GET() {
     });
     const maxPrizeUsd = decoded.reduce((max, prize) => prize.loadedValueMicros > max ? prize.loadedValueMicros : max, BigInt(0));
     const operatorEnabled = publicGateEnabled && onchainEnabled !== BigInt(0);
+    const launchRequestId = /^\d+$/.test(process.env.PUBLIC_LAUNCH_REQUEST_ID || "")
+      ? BigInt(process.env.PUBLIC_LAUNCH_REQUEST_ID as string)
+      : BigInt(1);
+    const completedAbsolute = nextRequestId - BigInt(1) - (activeRequestId === BigInt(0) ? BigInt(0) : BigInt(1));
+    const completedSinceLaunch = completedAbsolute >= launchRequestId ? completedAbsolute - launchRequestId + BigInt(1) : BigInt(0);
     return NextResponse.json({
       configured: true,
       packsLive: operatorEnabled && inventoryCount > 0,
@@ -182,7 +187,7 @@ export async function GET() {
       inventoryValueUsd: Number(inventoryValue) / 1_000_000,
       maxPrizeUsd: Number(maxPrizeUsd) / 1_000_000,
       packPriceUsd: Number(packPrice) / 1_000_000,
-      totalPacksOpened: Math.max(0, Number(nextRequestId - BigInt(1) - (activeRequestId === BigInt(0) ? BigInt(0) : BigInt(1)))),
+      totalPacksOpened: Number(completedSinceLaunch),
       inventory,
       inventoryDataAvailable: true,
       ...automation,

@@ -24,12 +24,12 @@ test("presentation tiles are deterministic and never change the winner", () => {
   assert.deepEqual(first, second);
 });
 
-test("every reel takes ten seconds and decelerates continuously without a speed-up", () => {
-  assert.equal(CASE_REVEAL_TIMING.spinMs, 10000);
+test("every reel takes eight seconds and decelerates continuously without a speed-up", () => {
+  assert.equal(CASE_REVEAL_TIMING.spinMs, 8000);
   assert.equal(fixedReelPosition(0), 4);
   let previous = 4;
   let previousStep = Infinity;
-  for (let ms = 50; ms <= 10000; ms += 50) {
+  for (let ms = 50; ms <= 8000; ms += 50) {
     const next = fixedReelPosition(ms);
     const step = next - previous;
     assert.ok(step >= 0 && step <= previousStep + 1e-10);
@@ -37,7 +37,7 @@ test("every reel takes ten seconds and decelerates continuously without a speed-
     previous = next;
     previousStep = step;
   }
-  assert.equal(fixedReelPosition(10000), CASE_WINNER_INDEX);
+  assert.equal(fixedReelPosition(8000), CASE_WINNER_INDEX);
   assert.equal(fixedReelPosition(60000), CASE_WINNER_INDEX);
 });
 
@@ -100,9 +100,9 @@ test("late delivery cannot restart the reel or produce an invented stock", () =>
 });
 
 test("pack intro and reel timing are fixed, even when delivery is already known", () => {
-  assert.equal(PACK_OPENING_INTRO_MS, 850);
+  assert.equal(PACK_OPENING_INTRO_MS, 700);
   const firstStep = fixedReelPosition(1000) - 4;
-  const lastStep = CASE_WINNER_INDEX - fixedReelPosition(9000);
+  const lastStep = CASE_WINNER_INDEX - fixedReelPosition(7000);
   assert.ok(firstStep > lastStep * 10);
 });
 
@@ -111,4 +111,12 @@ test("the pre-delivery reel outcome comes from the contract settlement simulatio
   assert.match(delivery, /function settlePack/);
   assert.match(delivery, /eth_call/);
   assert.doesNotMatch(delivery, /encodePacked|prizeAt/);
+});
+
+test("public launch activity can start after private test requests without deleting audit history", () => {
+  const pulls = readFileSync(new URL("../app/api/robinhood/pulls/route.ts", import.meta.url), "utf8");
+  const status = readFileSync(new URL("../app/api/robinhood/status/route.ts", import.meta.url), "utf8");
+  assert.match(pulls, /PUBLIC_LAUNCH_REQUEST_ID/);
+  assert.match(pulls, /BigInt\(pull\.requestId\) >= launchRequestId/);
+  assert.match(status, /completedSinceLaunch/);
 });
