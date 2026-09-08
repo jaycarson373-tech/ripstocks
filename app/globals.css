@@ -1069,7 +1069,8 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .hero-pack-result { --case-card-width: 112px; --case-card-gap: 10px; }
 .continuous-opening .hero-case-reel { opacity: 1; visibility: visible; }
 .continuous-opening.reveal-pack .hero-case-reel { opacity: 0; visibility: hidden; }
-.continuous-opening.reveal-pack .pack-opening-intro > .opening-pack-art { animation: paidPackIntro 2s ease-in-out both; }
+.continuous-opening.reveal-pack .pack-opening-intro > .opening-pack-art { animation: packAnticipation .65s ease-in-out infinite; }
+.continuous-opening.reveal-pack .pack-opening-intro.result-ready > .opening-pack-art { animation: paidPackIntro .85s ease-in-out both; }
 @keyframes paidPackIntro {
   0% { transform: translateY(14px) scale(.9); opacity: 0; }
   15%, 40% { transform: translateY(0) scale(1); opacity: 1; }
@@ -1110,7 +1111,8 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .hero-pack-result.reveal-spin .case-reel-track { animation: heroCaseSpin var(--reel-spin-duration, 6.5s) cubic-bezier(.08,.72,.16,1) forwards; }
 .hero-pack-result.reveal-lock .case-reel-track { transform: translate3d(var(--reel-stop),0,0); }
 .hero-pack-result.reveal-lock .case-reel-card:not(.is-winning) { opacity: .32; filter: saturate(.45); transition: opacity .35s ease, filter .35s ease; }
-.hero-pack-result.reveal-lock .case-reel-card.is-sealed { opacity: 1; filter: none; border-color: var(--lime); }
+.case-sound-toggle { position: absolute; z-index: 14; left: 18px; top: 18px; border: 1px solid rgba(199,255,0,.28); border-radius: 4px; background: rgba(3,4,3,.84); color: var(--muted); padding: 7px 9px; font: 800 9px var(--font-geist-mono); letter-spacing: .08em; cursor: pointer; }
+.case-sound-toggle:hover, .case-sound-toggle:focus-visible { color: var(--lime); border-color: var(--lime); }
 .hero-pack-result.reveal-lock .case-reel-card.is-winning { border-color: var(--winning-rarity); border-bottom-color: var(--winning-rarity); box-shadow: inset 0 0 28px color-mix(in srgb, var(--winning-rarity) 18%, transparent), 0 0 34px color-mix(in srgb, var(--winning-rarity) 40%, transparent); animation: winnerPulse .55s ease-in-out infinite alternate; }
 .hero-pack-result .confirmed-prize { background: radial-gradient(circle, color-mix(in srgb, var(--rarity-color) 20%, transparent), transparent 55%), rgba(3,4,3,.97); }
 .hero-pack-result .confirmed-prize::before { background: radial-gradient(circle, color-mix(in srgb, var(--rarity-color) 22%, transparent), transparent 64%); }

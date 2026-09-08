@@ -24,12 +24,12 @@ test("presentation tiles are deterministic and never change the winner", () => {
   assert.deepEqual(first, second);
 });
 
-test("every reel takes six seconds and decelerates continuously without a speed-up", () => {
-  assert.equal(CASE_REVEAL_TIMING.spinMs, 6000);
-  assert.equal(fixedReelPosition(0), 10);
-  let previous = 10;
+test("every reel takes ten seconds and decelerates continuously without a speed-up", () => {
+  assert.equal(CASE_REVEAL_TIMING.spinMs, 10000);
+  assert.equal(fixedReelPosition(0), 4);
+  let previous = 4;
   let previousStep = Infinity;
-  for (let ms = 50; ms <= 6000; ms += 50) {
+  for (let ms = 50; ms <= 10000; ms += 50) {
     const next = fixedReelPosition(ms);
     const step = next - previous;
     assert.ok(step >= 0 && step <= previousStep + 1e-10);
@@ -37,7 +37,7 @@ test("every reel takes six seconds and decelerates continuously without a speed-
     previous = next;
     previousStep = step;
   }
-  assert.equal(fixedReelPosition(6000), CASE_WINNER_INDEX);
+  assert.equal(fixedReelPosition(10000), CASE_WINNER_INDEX);
   assert.equal(fixedReelPosition(60000), CASE_WINNER_INDEX);
 });
 
@@ -52,10 +52,10 @@ test("inline reels declare their own desktop and mobile tile dimensions", () => 
 test("payment and delivery use one mounted reel with no separate loading screen", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const component = readFileSync(new URL("../app/components/pack-opening.tsx", import.meta.url), "utf8");
-  assert.match(page, /\(pendingReveal \|\| packResult\) &&/);
+  assert.match(page, /\(pendingReveal \|\| packOutcome \|\| packResult\) &&/);
   assert.equal((page.match(/<PackOpening /g) || []).length, 1);
   assert.doesNotMatch(page, /CONFIRMING YOUR STOCK|className="pending-pack-reveal"|setRevealStage/);
-  assert.match(component, /if \(!introDone\) return/);
+  assert.match(component, /if \(!spinStarted \|\| !result\) return/);
   assert.match(component, /prefers-reduced-motion/);
   assert.match(component, /OPENING PACK/);
   assert.doesNotMatch(page, /No second confirmation needed\. The operator/);
@@ -89,18 +89,18 @@ test("late delivery cannot restart the reel or produce an invented stock", () =>
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const component = readFileSync(new URL("../app/components/pack-opening.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(component, /if \(waiting\) return|hidden=\{waiting\}|TAKING A LITTLE LONGER|DELIVERY PENDING/);
-  assert.match(component, /\}, \[introDone\]\)/);
-  assert.doesNotMatch(component, /planReelLanding|Math\.exp|% cycle|\[result/);
-  assert.match(component, /sealed = !result && index === CASE_WINNER_INDEX/);
-  assert.match(component, /phase === "revealed" && result && children/);
-  assert.match(component, /waiting && <p className="opening-retry"/);
-  assert.match(page, /delayed=\{autoDeliveryTimedOut\}/);
+  assert.match(component, /\}, \[spinStarted, result\?\.stock\.symbol\]\)/);
+  assert.doesNotMatch(component, /planReelLanding|Math\.exp|% cycle|\}, \[result\]\)/);
+  assert.doesNotMatch(component, /SEALED|RESULT PENDING/);
+  assert.match(component, /revealDelivered && children/);
+  assert.match(component, /DELIVERING TO WALLET/);
+  assert.match(page, /delivered=\{Boolean\(packResult\)\}/);
   assert.doesNotMatch(page, /attempt < 32|RETRY DELIVERY/);
 });
 
 test("pack intro and reel timing are fixed, even when delivery is already known", () => {
-  assert.equal(PACK_OPENING_INTRO_MS, 2000);
-  const firstStep = fixedReelPosition(600) - 10;
-  const lastStep = CASE_WINNER_INDEX - fixedReelPosition(5400);
+  assert.equal(PACK_OPENING_INTRO_MS, 850);
+  const firstStep = fixedReelPosition(1000) - 4;
+  const lastStep = CASE_WINNER_INDEX - fixedReelPosition(9000);
   assert.ok(firstStep > lastStep * 10);
 });

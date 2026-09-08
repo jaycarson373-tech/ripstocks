@@ -4,9 +4,9 @@ export type CaseReelItem<TStock, TRarity> = {
   winning: boolean;
 };
 
-export const CASE_REVEAL_TIMING = { introMs: 2_000, spinMs: 6_000, lockMs: 200 } as const;
+export const CASE_REVEAL_TIMING = { introMs: 850, spinMs: 10_000, lockMs: 650 } as const;
 export const PACK_OPENING_INTRO_MS = CASE_REVEAL_TIMING.introMs;
-export const CASE_WINNER_INDEX = 45;
+export const CASE_WINNER_INDEX = 82;
 
 export function reelPositionAt(start: number, target: number, progress: number) {
   const p = Math.max(0, Math.min(1, progress));
@@ -15,7 +15,7 @@ export function reelPositionAt(start: number, target: number, progress: number) 
 
 // Transaction timing cannot alter this curve or start another animation.
 export function fixedReelPosition(elapsedMs: number) {
-  return reelPositionAt(10, CASE_WINNER_INDEX, elapsedMs / CASE_REVEAL_TIMING.spinMs);
+  return reelPositionAt(4, CASE_WINNER_INDEX, elapsedMs / CASE_REVEAL_TIMING.spinMs);
 }
 
 export function buildCaseReel<TStock extends { symbol: string }, TRarity>(

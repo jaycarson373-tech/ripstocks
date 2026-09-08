@@ -4,7 +4,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PackOpening } from "@/app/components/pack-opening";
-import { OPENING_WAIT_MS, pollDelivery } from "@/app/lib/delivery-polling";
+import { pollDelivery } from "@/app/lib/delivery-polling";
+import { primeCaseAudio } from "@/app/lib/case-audio";
 import { type StockToken } from "@/app/lib/stock-tokens";
 import { ACTIVE_PACK, HOLDER_TOKENS_PER_TICKET, PACK_PRICE_USD, PACK_RARITIES, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
 import { type RarityTier } from "@/app/lib/rarity";
@@ -217,6 +218,7 @@ export default function Home() {
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [walletOptions, setWalletOptions] = useState<EvmWalletOption[]>([]);
   const [walletProvider, setWalletProvider] = useState<EthereumProvider | null>(null);
+  const [packOutcome, setPackOutcome] = useState<PackResult | null>(null);
   const [packResult, setPackResult] = useState<PackResult | null>(null);
   const [openingRun, setOpeningRun] = useState(0);
   const [recentPulls, setRecentPulls] = useState<RecentPull[]>([]);
@@ -226,7 +228,6 @@ export default function Home() {
   const [clock, setClock] = useState<number | null>(null);
   const [recoverableRequest, setRecoverableRequest] = useState<PendingReveal | null>(null);
   const [pendingReveal, setPendingReveal] = useState<PendingReveal | null>(null);
-  const [autoDeliveryTimedOut, setAutoDeliveryTimedOut] = useState(false);
   const manuallyDisconnected = useRef(false);
 
   const networkReady = chainId === ROBINHOOD_CHAIN_ID;
@@ -299,7 +300,6 @@ export default function Home() {
         const ownedRequest = request?.buyer === account.toLowerCase() ? request : null;
         setRecoverableRequest(ownedRequest);
         if (ownedRequest && !packResult) {
-          setAutoDeliveryTimedOut(false);
           setPendingReveal(ownedRequest);
         }
       })
@@ -310,14 +310,18 @@ export default function Home() {
   useEffect(() => {
     if (!pendingReveal) return;
     const controller = new AbortController();
-    const timer = setTimeout(() => setAutoDeliveryTimedOut(true), OPENING_WAIT_MS);
     void pollDelivery<RecentPull>({
       signal: controller.signal,
       read: async signal => {
           const fromBlock = pendingReveal.entropyBlock > BigInt(3) ? pendingReveal.entropyBlock - BigInt(3) : BigInt(0);
           const response = await fetch(`/api/robinhood/delivery?requestId=${pendingReveal.requestId}&buyer=${encodeURIComponent(pendingReveal.buyer)}&fromBlock=${fromBlock}`, { cache: "no-store", signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]) });
           if (response.ok) {
-            const payload = await response.json() as { delivered?: RecentPull | null };
+            const payload = await response.json() as { outcome?: RecentPull | null; delivered?: RecentPull | null };
+            const outcome = payload.outcome?.requestId === pendingReveal.requestId.toString() ? payload.outcome : null;
+            if (outcome && STOCK_TOKENS.some(stock => stock.symbol === outcome.symbol) && !signal.aborted) {
+              const stock = STOCK_TOKENS.find(candidate => candidate.symbol === outcome.symbol)!;
+              setPackOutcome({ recipient: outcome.wallet, stock, tokenAmount: outcome.tokenAmount, valueUsd: outcome.valueUsd, transactionHash: outcome.transactionHash || "", rarity: rarityForValue(outcome.valueUsd) });
+            }
             const delivered = payload.delivered?.requestId === pendingReveal.requestId.toString() ? payload.delivered : null;
             return delivered && STOCK_TOKENS.some(stock => stock.symbol === delivered.symbol) ? delivered : null;
           }
@@ -325,14 +329,15 @@ export default function Home() {
       },
       onDelivered: delivered => {
         const stock = STOCK_TOKENS.find(candidate => candidate.symbol === delivered.symbol)!;
-        setPackResult({ recipient: delivered.wallet, stock, tokenAmount: delivered.tokenAmount, valueUsd: delivered.valueUsd, transactionHash: delivered.transactionHash, rarity: rarityForValue(delivered.valueUsd) });
+        const result = { recipient: delivered.wallet, stock, tokenAmount: delivered.tokenAmount, valueUsd: delivered.valueUsd, transactionHash: delivered.transactionHash, rarity: rarityForValue(delivered.valueUsd) };
+        setPackOutcome(result);
+        setPackResult(result);
         setRecoverableRequest(null);
         setPendingReveal(null);
-        setAutoDeliveryTimedOut(false);
         setNotice("");
       },
     });
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => { controller.abort(); };
   }, [pendingReveal]);
 
   useEffect(() => {
@@ -472,9 +477,11 @@ export default function Home() {
 
 
   function stagePaidPack(request: PendingReveal) {
+    setOpeningRun(current => current + 1);
+    setPackOutcome(null);
+    setPackResult(null);
     setRecoverableRequest(request);
     setPendingReveal(request);
-    setAutoDeliveryTimedOut(false);
     setPackModalOpen(false);
     setNotice("");
     document.getElementById("pack")?.scrollIntoView({ block: "center", behavior: "auto" });
@@ -484,8 +491,11 @@ export default function Home() {
     if (busy || pendingReveal) return;
     const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === pull.symbol);
     if (!stock) return;
+    primeCaseAudio();
     setOpeningRun(current => current + 1);
-    setPackResult({ recipient: pull.wallet, stock, tokenAmount: pull.tokenAmount, valueUsd: pull.valueUsd, transactionHash: pull.transactionHash, rarity: rarityForValue(pull.valueUsd) });
+    const result = { recipient: pull.wallet, stock, tokenAmount: pull.tokenAmount, valueUsd: pull.valueUsd, transactionHash: pull.transactionHash, rarity: rarityForValue(pull.valueUsd) };
+    setPackOutcome(result);
+    setPackResult(result);
     setPackModalOpen(false);
     setNotice("Replaying a confirmed result. No payment or transfer is requested.");
     document.getElementById("pack")?.scrollIntoView({ block: "center", behavior: "auto" });
@@ -493,6 +503,7 @@ export default function Home() {
 
 
   async function openPack() {
+    primeCaseAudio();
     if (!account) return connectWallet();
     const provider = walletProvider;
     if (!provider) {
@@ -683,8 +694,8 @@ export default function Home() {
               <button type="button" onClick={() => void (!account ? connectWallet() : !networkReady ? openPack() : setPackModalOpen(true))} disabled={busy || (Boolean(account && networkReady) && !arcadeReady && !recoverableRequest)}>{busy ? "WAITING FOR WALLET / CHAIN…" : !account ? "CONNECT WALLET" : !networkReady ? "SWITCH NETWORK" : recoverableRequest ? "RESUME PACK" : arcadeReady ? "RIP PACK" : primaryLabel}</button>
               {notice && <p className="pack-progress" role="status">{notice}</p>}
             </div>
-            {(pendingReveal || packResult) && (
-              <PackOpening key={openingRun} preview={openingPreview} result={packResult} delayed={autoDeliveryTimedOut} renderLogo={stock => <StockLogo stock={stock} />}>
+            {(pendingReveal || packOutcome || packResult) && (
+              <PackOpening key={openingRun} preview={openingPreview} result={packOutcome || packResult} delivered={Boolean(packResult)} renderLogo={stock => <StockLogo stock={stock} />}>
                 {packResult && <div className="confirmed-prize" style={{ "--rarity-color": packResult.rarity.color } as CSSProperties}>
                   <span>YOU PULLED</span>
                   <StockLogo stock={packResult.stock} />
@@ -693,7 +704,7 @@ export default function Home() {
                   <p>{packResult.tokenAmount} {packResult.stock.symbol}</p>
                   <small>{formatUsd(packResult.valueUsd)} value when loaded · not a current price</small>
                   <b>DELIVERED · {shortAddress(packResult.recipient)}</b>
-                  <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION ↗</a><button type="button" onClick={() => { setPackResult(null); setTermsAccepted(false); }}>RIP ANOTHER →</button></div>
+                  <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION ↗</a><button type="button" onClick={() => { setPackOutcome(null); setPackResult(null); setTermsAccepted(false); }}>RIP ANOTHER →</button></div>
                 </div>}
               </PackOpening>
             )}
