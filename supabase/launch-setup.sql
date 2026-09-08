@@ -183,16 +183,18 @@ create table if not exists public.pons_hourly_epochs (
   scope text not null,
   epoch_key timestamptz not null,
   status text not null check (status in (
-    'created','awaiting_seed','winner_committed','holder_sent','complete',
+    'created','claim_ready','awaiting_seed','winner_committed','holder_sent','complete',
     'no_fees','no_holders','error'
   )),
   automation_mode text not null check (automation_mode in ('dry-run','live')),
   pons_token_address text not null,
   fee_asset_address text not null,
+  pons_curve_address text not null,
+  pons_phase integer not null check (pons_phase between 0 and 3),
   snapshot_block bigint not null,
   snapshot_block_hash text not null,
   snapshot_hash text not null,
-  seed_block bigint not null,
+  seed_block bigint,
   seed_block_hash text,
   claimable_atoms text not null check (claimable_atoms ~ '^[0-9]+$'),
   claimed_atoms text check (claimed_atoms ~ '^[1-9][0-9]*$'),
@@ -201,6 +203,7 @@ create table if not exists public.pons_hourly_epochs (
   total_tickets text not null check (total_tickets ~ '^[0-9]+$'),
   winning_ticket text check (winning_ticket ~ '^[0-9]+$'),
   winner_address text,
+  sweep_tx text,
   claim_tx text,
   holder_stock_symbol text,
   holder_stock_address text,
@@ -254,7 +257,7 @@ begin
     insert into public.pons_hourly_audit(epoch_id,previous_status,next_status,details)
     values (new.id,null,new.status,
       jsonb_strip_nulls(jsonb_build_object(
-        'claim_tx',new.claim_tx,'holder_swap_tx',new.holder_swap_tx,
+        'sweep_tx',new.sweep_tx,'claim_tx',new.claim_tx,'holder_swap_tx',new.holder_swap_tx,
         'holder_drop_tx',new.holder_drop_tx,'inventory_swap_tx',new.inventory_swap_tx,
         'inventory_load_tx',new.inventory_load_tx,'error',new.error
       )));
@@ -262,7 +265,7 @@ begin
     insert into public.pons_hourly_audit(epoch_id,previous_status,next_status,details)
     values (new.id,old.status,new.status,
       jsonb_strip_nulls(jsonb_build_object(
-        'claim_tx',new.claim_tx,'holder_swap_tx',new.holder_swap_tx,
+        'sweep_tx',new.sweep_tx,'claim_tx',new.claim_tx,'holder_swap_tx',new.holder_swap_tx,
         'holder_drop_tx',new.holder_drop_tx,'inventory_swap_tx',new.inventory_swap_tx,
         'inventory_load_tx',new.inventory_load_tx,'error',new.error
       )));
@@ -286,16 +289,15 @@ begin
   if jsonb_array_length(p_holders)>50000 then raise exception 'Holder snapshot is too large'; end if;
   select coalesce(sum((value->>'tickets')::numeric),0) into ticket_total from jsonb_array_elements(p_holders);
   if ticket_total::text <> p_epoch->>'total_tickets' then raise exception 'Snapshot tickets do not reconcile'; end if;
-  if (p_epoch->>'seed_block')::bigint <= (p_epoch->>'snapshot_block')::bigint then raise exception 'Seed block must follow snapshot'; end if;
-  if (p_epoch->>'status'='created' and (ticket_total<=0 or (p_epoch->>'claimable_atoms')::numeric<2)) then raise exception 'Active epoch is not funded and eligible'; end if;
+  if p_epoch->>'status'='created' and ticket_total<=0 then raise exception 'Active epoch has no eligible tickets'; end if;
   insert into public.pons_hourly_epochs (
-    id,scope,epoch_key,status,automation_mode,pons_token_address,fee_asset_address,
+    id,scope,epoch_key,status,automation_mode,pons_token_address,fee_asset_address,pons_curve_address,pons_phase,
     snapshot_block,snapshot_block_hash,snapshot_hash,seed_block,claimable_atoms,
     holder_budget_atoms,inventory_budget_atoms,total_tickets
   ) values (
     p_epoch->>'id',p_epoch->>'scope',(p_epoch->>'epoch_key')::timestamptz,p_epoch->>'status',p_epoch->>'automation_mode',
-    p_epoch->>'pons_token_address',p_epoch->>'fee_asset_address',(p_epoch->>'snapshot_block')::bigint,
-    p_epoch->>'snapshot_block_hash',p_epoch->>'snapshot_hash',(p_epoch->>'seed_block')::bigint,
+    p_epoch->>'pons_token_address',p_epoch->>'fee_asset_address',p_epoch->>'pons_curve_address',(p_epoch->>'pons_phase')::integer,(p_epoch->>'snapshot_block')::bigint,
+    p_epoch->>'snapshot_block_hash',p_epoch->>'snapshot_hash',nullif(p_epoch->>'seed_block','')::bigint,
     p_epoch->>'claimable_atoms',p_epoch->>'holder_budget_atoms',p_epoch->>'inventory_budget_atoms',p_epoch->>'total_tickets'
   ) returning * into result;
   insert into public.pons_holder_snapshots(epoch_id,holder_address,balance_atoms,tickets)

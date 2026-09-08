@@ -142,22 +142,23 @@ export async function runPonsHourly(baseCtx, now = new Date()) {
   const adapter = ponsV2Adapter(ctx.cfg.pons);
   if (!epoch) {
     if (await ctx.publicClient.getChainId() !== ROBINHOOD_CHAIN_ID) throw new Error("Pons automation requires Robinhood Chain 4663");
-    await adapter.validate(ctx.publicClient, ctx.account.address);
     const latest = await ctx.publicClient.getBlockNumber();
     if (latest <= BigInt(ctx.cfg.pons.confirmationBlocks)) return;
     const snapshotBlock = latest - BigInt(ctx.cfg.pons.confirmationBlocks);
     const snapshotHeader = await ctx.publicClient.getBlock({ blockNumber: snapshotBlock });
     const snapshot = await buildErc20HolderSnapshot(ctx, snapshotBlock);
     if ((await ctx.publicClient.getBlock({ blockNumber: snapshotBlock })).hash !== snapshotHeader.hash) throw new Error("Holder snapshot block reorganized during construction");
+    const launch = await adapter.validate(ctx.publicClient, ctx.account.address);
     const claimable = await adapter.claimable(ctx.publicClient, ctx.account.address);
     const [holderBudget, inventoryBudget] = splitAmount(claimable, ctx.cfg.pons.holderShareBps);
-    const status = snapshot.totalTickets === 0n ? "no_holders" : claimable < 2n ? "no_fees" : "created";
+    const status = snapshot.totalTickets === 0n ? "no_holders" : "created";
     const id = `${scope}:${key}`;
     const row = {
       id, scope, epoch_key: key, status, automation_mode: ctx.cfg.mode,
       pons_token_address: ctx.cfg.pons.token.toLowerCase(), fee_asset_address: ctx.cfg.pons.feeAsset.toLowerCase(),
+      pons_curve_address: launch.curve.toLowerCase(), pons_phase: Number(launch.phase),
       snapshot_block: snapshotBlock.toString(), snapshot_block_hash: snapshotHeader.hash,
-      snapshot_hash: snapshot.snapshotHash, seed_block: (latest + BigInt(ctx.cfg.pons.confirmationBlocks)).toString(),
+      snapshot_hash: snapshot.snapshotHash,
       claimable_atoms: claimable.toString(), holder_budget_atoms: holderBudget.toString(), inventory_budget_atoms: inventoryBudget.toString(),
       total_tickets: snapshot.totalTickets.toString(),
     };
@@ -169,11 +170,28 @@ export async function runPonsHourly(baseCtx, now = new Date()) {
   }
   if (["complete", "no_fees", "no_holders"].includes(epoch.status) || ctx.cfg.mode !== "live") return;
   if (epoch.status === "created") {
+    const launch = await adapter.validate(ctx.publicClient, ctx.account.address);
+    if (!same(launch.curve, epoch.pons_curve_address) || Number(launch.phase) !== Number(epoch.pons_phase)) throw new Error("Pons launch phase changed during the reserved epoch");
+    const sweepRequest = adapter.sweepRequest(launch);
+    if (sweepRequest && !epoch.sweep_tx) {
+      const sweepReceipt = await durableTransaction(ctx, epoch, "pons_sweep", () => sweepRequest);
+      epoch = await ctx.store.patch("pons_hourly_epochs", epoch.id, { sweep_tx: sweepReceipt.transactionHash });
+    }
+    const claimable = await adapter.claimable(ctx.publicClient, ctx.account.address);
+    if (claimable < 2n) {
+      await ctx.store.patch("pons_hourly_epochs", epoch.id, { claimable_atoms: claimable.toString(), holder_budget_atoms: "0", inventory_budget_atoms: "0", status: "no_fees", completed_at: new Date().toISOString() });
+      return;
+    }
+    const [holderBudget, inventoryBudget] = splitAmount(claimable, ctx.cfg.pons.holderShareBps);
+    epoch = await ctx.store.patch("pons_hourly_epochs", epoch.id, { claimable_atoms: claimable.toString(), holder_budget_atoms: holderBudget.toString(), inventory_budget_atoms: inventoryBudget.toString(), status: "claim_ready" });
+  }
+  if (epoch.status === "claim_ready") {
     const receipt = await durableTransaction(ctx, epoch, "pons_claim", () => adapter.claimRequest());
     const claimed = receivedStockAtoms(receipt, ctx.cfg.pons.feeAsset, ctx.account.address);
     if (claimed < 2n) throw new Error("Confirmed Pons claim did not deliver the recorded fee asset");
     const [holderBudget, inventoryBudget] = splitAmount(claimed, ctx.cfg.pons.holderShareBps);
-    epoch = await ctx.store.patch("pons_hourly_epochs", epoch.id, { claim_tx: receipt.transactionHash, claimed_atoms: claimed.toString(), holder_budget_atoms: holderBudget.toString(), inventory_budget_atoms: inventoryBudget.toString(), status: "awaiting_seed" });
+    const seedBlock = await ctx.publicClient.getBlockNumber() + BigInt(ctx.cfg.pons.confirmationBlocks);
+    epoch = await ctx.store.patch("pons_hourly_epochs", epoch.id, { claim_tx: receipt.transactionHash, claimed_atoms: claimed.toString(), holder_budget_atoms: holderBudget.toString(), inventory_budget_atoms: inventoryBudget.toString(), seed_block: seedBlock.toString(), status: "awaiting_seed" });
   }
   const seedBlock = BigInt(epoch.seed_block);
   if (await ctx.publicClient.getBlockNumber() < seedBlock + BigInt(ctx.cfg.pons.confirmationBlocks)) return;

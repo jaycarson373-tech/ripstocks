@@ -10,12 +10,12 @@ The hourly flow is:
 2. Convert balances into whole tickets using `TOKENS_PER_TICKET`.
 3. Read the automation wallet's claimable USDG from the verified Pons v2 escrow.
 4. Reserve the immutable holder snapshot, fee budget, and a future seed block in Supabase.
-5. Claim the escrowed USDG. Signed bytes are stored before broadcast.
+5. While the launch is on its curve, request its creator-safe fee sweep; otherwise claim whatever the Pons operator has already swept. Then claim the escrowed USDG. Signed bytes are stored before broadcast.
 6. After the seed block is confirmed, commit one weighted winner.
 7. Spend 50% on a routed Stock Token and deliver the exact received amount to that winner.
 8. Spend 50% on another routed Stock Token and load the exact received amount into Pack #01 inventory.
 
-Every transfer is verified from its Robinhood Chain receipt. A retry reuses the same signed transaction and the same winner. Unswept Pons fees are not counted as claimable; Pons may need to sweep them into escrow first under its v2 rules.
+Every transfer is verified from its Robinhood Chain receipt. A retry reuses the same signed transaction and the same winner. After graduation, any pool-fee conversion that requires Pons' trusted operator must be swept by that operator before the balance becomes claimable.
 
 After launch, add these Railway-only values:
 

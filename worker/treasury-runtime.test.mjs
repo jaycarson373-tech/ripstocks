@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { packConfig } from "./pack-config.mjs";
 import { treasuryConfig, validateTreasury, recoverTreasuryTransaction, resumeTreasuryPurchase, indexSettlements } from "./treasury-runtime.mjs";
-import { ponsClaimRequest, ponsV2Adapter, validatePonsLaunch } from "./pons-v2-adapter.mjs";
+import { ponsClaimRequest, ponsSweepRequest, ponsV2Adapter, validatePonsLaunch } from "./pons-v2-adapter.mjs";
 import { planLots } from "./pack-reinvestment.mjs";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -52,6 +52,8 @@ test("Pons v2 validation binds the token, USDG pair, and fee recipient", async (
   assert.equal((await validatePonsLaunch({ publicClient, factory: "0x" + "44".repeat(20), token, recipient, feeAsset })).exists, true);
   await assert.rejects(validatePonsLaunch({ publicClient, factory: "0x" + "44".repeat(20), token, recipient: "0x" + "55".repeat(20), feeAsset }), /automation wallet/);
   assert.match(ponsClaimRequest("0x" + "66".repeat(20), feeAsset).data, /^0x[0-9a-f]+$/);
+  assert.equal(ponsSweepRequest({ ...launch, curve: "0x" + "77".repeat(20), phase: 2 }), null);
+  assert.match(ponsSweepRequest({ ...launch, curve: "0x" + "77".repeat(20), phase: 0 }).data, /^0x[0-9a-f]+$/);
 });
 test("Pons hourly configuration needs no creator private key and requires a USDG pair", () => {
   const enabled = {
