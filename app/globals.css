@@ -1062,12 +1062,16 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .pack-progress { font: 400 14px/1.5 var(--font-geist-sans); color: var(--off-white); overflow-wrap: anywhere; }
 .hero-pack-result { position: absolute; inset: 0; z-index: 15; overflow: hidden; text-align: center; background: radial-gradient(ellipse at center, #151d06, #030403 74%); }
 .pending-pack-reveal { position: absolute; inset: 0; z-index: 16; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 26px; text-align: center; background: radial-gradient(ellipse at center, #151d06, #030403 74%); }
-.pending-pack-reveal .case-reveal-header { position: relative; z-index: 3; }
-.pending-pack-reveal .case-reel-window { width: calc(100% - 20px); }
+.payment-confirmed-card { position: absolute; inset: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(199,255,0,.13), transparent 48%); animation: confirmedCardExit .45s ease 1.25s both; pointer-events: none; }
+.payment-confirmed-card span { color: var(--lime); font: 900 11px var(--font-geist-mono); letter-spacing: .15em; }
+.payment-confirmed-card b { margin-top: 8px; color: var(--off-white); font: 900 clamp(36px, 6vw, 62px)/1 var(--font-geist-sans); }
+.payment-confirmed-card small { margin-top: 12px; color: var(--muted); font: 800 9px var(--font-geist-mono); letter-spacing: .13em; }
+.pending-pack-reveal .case-reveal-header { position: relative; z-index: 3; opacity: 0; animation: pendingReelAppear .3s ease 1.35s both; }
+.pending-pack-reveal .case-reel-window { width: calc(100% - 20px); opacity: 0; animation: pendingReelAppear .3s ease 1.35s both; }
 .pending-pack-reveal .case-reel-track { left: 50%; }
 .pending-pack-reveal .case-reel-card { border-bottom-color: var(--rarity-color); }
 .pending-pack-reveal .case-reel-card small { color: var(--rarity-color); }
-.pending-reel-track { animation: pendingCaseSpin 4.8s cubic-bezier(.11,.69,.14,1) both; }
+.pending-reel-track { animation: pendingCaseSpin 5.7s cubic-bezier(.11,.69,.14,1) 1.35s both; }
 .pending-pack-reveal.is-ready .case-reel-window { opacity: .32; filter: blur(1.5px) saturate(.6); transition: opacity .3s ease, filter .3s ease; }
 .pending-reveal-action { position: relative; z-index: 4; min-height: 122px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .pending-reveal-action h2 { margin: 0; color: var(--off-white); font-size: clamp(22px, 3vw, 34px); }
@@ -1104,6 +1108,8 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 @keyframes heroPackFloat { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(1deg); } }
 @keyframes heroPackOpen { 0% { transform: scale(1); opacity: 1; } 55% { transform: scale(1.1) rotate(3deg); filter: brightness(1.8); opacity: 1; } 100% { transform: translateY(-28px) scale(1.14); opacity: 0; } }
 @keyframes heroCaseSpin { 0% { transform: translate3d(310px,0,0); } 70% { transform: translate3d(calc(var(--reel-stop) + 160px),0,0); } 88% { transform: translate3d(calc(var(--reel-stop) - 16px),0,0); } 100% { transform: translate3d(var(--reel-stop),0,0); } }
+@keyframes confirmedCardExit { 0%,78% { opacity: 1; visibility: visible; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes pendingReelAppear { to { opacity: 1; } }
 @keyframes pendingCaseSpin { 0% { transform: translate3d(280px,0,0); } 72% { transform: translate3d(-4550px,0,0); } 90% { transform: translate3d(-4860px,0,0); } 100% { transform: translate3d(-4920px,0,0); } }
 @keyframes revealLoader { to { transform: rotate(360deg); } }
 

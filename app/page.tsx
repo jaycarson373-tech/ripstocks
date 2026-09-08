@@ -339,7 +339,9 @@ export default function Home() {
         await delay(1_000);
         if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
       }
-      const remainingAnimation = 4_800 - (Date.now() - startedAt);
+      // Keep the confirmed-payment and reel sequence visible long enough for
+      // the wallet overlay to close before automatic delivery can replace it.
+      const remainingAnimation = 7_200 - (Date.now() - startedAt);
       if (remainingAnimation > 0) await delay(remainingAnimation);
       if (!active) return;
       setPendingRevealReady(true);
@@ -818,6 +820,7 @@ export default function Home() {
             )}
             {pendingReveal && !packResult && (
               <div className={`pending-pack-reveal${pendingRevealReady ? " is-ready" : ""}`} aria-live="polite">
+                <div className="payment-confirmed-card"><span>PAYMENT CONFIRMED</span><b>{PACK_PRICE_USD} USDG</b><small>OPENING {ACTIVE_PACK.label}</small></div>
                 <div className="case-reveal-header"><span>PAYMENT CONFIRMED</span><b>{pendingRevealReady ? "RESULT SEALED" : "SECURING RESULT"}</b></div>
                 <div className="case-reel-window" aria-label="Funded Stock Token reel">
                   <div className="case-reel-marker" aria-hidden="true"><i /><span /></div>

@@ -9,6 +9,18 @@ import { ReinvestmentStore, ReinvestmentReverted, durableTransaction, processRei
 import { quoteDirectV4 } from "./uniswap-v4.mjs";
 
 export const chain = defineChain({ id: 4663, name: "Robinhood Chain", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.mainnet.chain.robinhood.com"] } } });
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+const pendingPackSeenAt = new Map();
+
+async function fetchLiveJson(url) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (response.ok) return response.json();
+    if (response.status !== 429 && response.status < 500) throw new Error("Live stock valuation unavailable");
+    if (attempt < 3) await wait(750 * (2 ** attempt));
+  }
+  throw new Error("Live stock valuation unavailable");
+}
 const packAbi = parseAbi([
   "function owner() view returns (address)", "function treasury() view returns (address)",
   "function packPrice() view returns (uint256)", "function approvedStock(address) view returns (bool)",
@@ -22,6 +34,8 @@ export function treasuryConfig(env = process.env, forceMode) {
   const mode = parseMode(forceMode || env.AUTOMATION_MODE || "off");
   const pollSeconds = Number(env.WORKER_POLL_SECONDS || 30);
   if (!Number.isSafeInteger(pollSeconds) || pollSeconds < 5 || pollSeconds > 300) throw new Error("WORKER_POLL_SECONDS must be 5–300");
+  const settlementDelaySeconds = positiveInteger("PACK_SETTLEMENT_DELAY_SECONDS", env.PACK_SETTLEMENT_DELAY_SECONDS, 12);
+  if (settlementDelaySeconds > 60) throw new Error("PACK_SETTLEMENT_DELAY_SECONDS must be 60 or less");
   if (mode === "off") return { mode, pollSeconds, ponsEnabled: false };
   const pack = packConfig(env.PACK_ID);
   let signerKey = required("AUTOMATION_PRIVATE_KEY", env.AUTOMATION_PRIVATE_KEY);
@@ -49,7 +63,7 @@ export function treasuryConfig(env = process.env, forceMode) {
     exclusions: (env.PONS_HOLDER_EXCLUSIONS || "").split(",").map(value => value.trim()).filter(Boolean).map(value => addressEnv("PONS_HOLDER_EXCLUSIONS", value)),
   } : null;
   if (pons && pons.feeAsset.toLowerCase() !== CANONICAL_USDG.toLowerCase()) throw new Error("The first verified Pons automation release requires a USDG-paired launch");
-  return { ...pack, mode, pollSeconds, signerKey, ponsEnabled, pons,
+  return { ...pack, mode, pollSeconds, settlementDelaySeconds, signerKey, ponsEnabled, pons,
     rpcUrl: env.ROBINHOOD_RPC_URL?.trim() || chain.rpcUrls.default.http[0],
     packContract: addressEnv("STOCKRIPS_PACK_CONTRACT", env.STOCKRIPS_PACK_CONTRACT),
     packStartBlock: env.PACK_CONTRACT_START_BLOCK ? BigInt(env.PACK_CONTRACT_START_BLOCK) : null,
@@ -91,9 +105,10 @@ export function treasuryContext(cfg) {
       return { ...quote, spender: getAddress(spender), transaction: { ...quote.transaction, to: getAddress(quote.transaction.to) } };
     },
     stockValue: async (stock, amount) => {
-      const responses = await Promise.all([fetch(`https://api.robinhood.com/rhj/prices/${stock.symbol}`, { signal: AbortSignal.timeout(15000) }), fetch("https://api.robinhood.com/rhj/assets", { signal: AbortSignal.timeout(15000) })]);
-      if (responses.some(response => !response.ok)) throw new Error("Live stock valuation unavailable");
-      const [prices, assets] = await Promise.all(responses.map(response => response.json()));
+      const [prices, assets] = await Promise.all([
+        fetchLiveJson(`https://api.robinhood.com/rhj/prices/${stock.symbol}`),
+        fetchLiveJson("https://api.robinhood.com/rhj/assets"),
+      ]);
       const quote = prices.quotes?.find(item => item.tokenSymbol === stock.symbol);
       const asset = assets.assets?.find(item => item.tokenSymbol === stock.symbol);
       if (!quote?.bid || !asset?.currentMultiplier || quote.isTradingHalt) throw new Error("Stock has no usable current valuation");
@@ -144,7 +159,11 @@ export async function resumeTreasuryPurchase(ctx, purchase) {
 
 export async function settlePendingPack(ctx) {
   const id = await ctx.publicClient.readContract({ address: ctx.cfg.packContract, abi: packAbi, functionName: "activeRequestId" });
-  if (!id) return;
+  if (!id) { pendingPackSeenAt.clear(); return; }
+  const pendingKey = `${ctx.scope}:${id}`;
+  const firstSeenAt = pendingPackSeenAt.get(pendingKey);
+  if (!firstSeenAt) { pendingPackSeenAt.set(pendingKey, Date.now()); return; }
+  if (Date.now() - firstSeenAt < ctx.cfg.settlementDelaySeconds * 1000) return;
   const request = await ctx.publicClient.readContract({ address: ctx.cfg.packContract, abi: packAbi, functionName: "requests", args: [id] });
   // The operator settles as soon as the future-block outcome is available so
   // buyers never need a second wallet transaction to receive their prize.
@@ -154,7 +173,11 @@ export async function settlePendingPack(ctx) {
       await ctx.publicClient.simulateContract({ account: ctx.account, address: ctx.cfg.packContract, abi: packAbi, functionName: "settlePack", args: [id] });
       return { to: ctx.cfg.packContract, data: encodeFunctionData({ abi: packAbi, functionName: "settlePack", args: [id] }), value: 0n };
     });
-  } catch (error) { if (!(error instanceof ReinvestmentReverted)) throw error; }
+    pendingPackSeenAt.delete(pendingKey);
+  } catch (error) {
+    if ((error.shortMessage || error.message || "").includes("ENTROPY_NOT_READY")) return;
+    if (!(error instanceof ReinvestmentReverted)) throw error;
+  }
 }
 
 export async function indexSettlements(ctx) {

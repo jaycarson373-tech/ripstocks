@@ -35,6 +35,8 @@ test("treasury works without creator key or Pons CA; defaults off", () => {
   assert.equal(cfg.ponsToken, undefined);
   assert.equal(cfg.creatorPrivateKey, undefined);
   assert.equal(cfg.reinvestEnabled, false);
+  assert.equal(cfg.settlementDelaySeconds, 12);
+  assert.throws(() => treasuryConfig({ ...env, PACK_SETTLEMENT_DELAY_SECONDS: "61" }), /60 or less/);
   assert.equal(treasuryConfig({}).mode, "off");
 });
 test("Pons remains disabled by default and both live gates must move together", async () => {
