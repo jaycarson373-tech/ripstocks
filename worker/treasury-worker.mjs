@@ -17,12 +17,18 @@ export async function treasuryTick(cfg) {
       await runPonsHourly(ctx);
       await settlePendingPack(ctx);
       const purchase = (await ctx.store.rows("treasury_purchases", `scope=eq.${encodeURIComponent(ctx.scope)}&completed_at=is.null&order=created_at.asc&limit=1`))?.[0];
-      if (purchase) { await resumeTreasuryPurchase(ctx, purchase); await indexSettlements(ctx); return; }
+      if (purchase) {
+        await resumeTreasuryPurchase(ctx, purchase);
+        if (cfg.reinvestEnabled) await indexSettlements(ctx);
+        return;
+      }
     } else {
       await runPonsHourly(ctx);
     }
-    await indexSettlements(ctx);
-    await runPackReinvestment(ctx);
+    if (cfg.reinvestEnabled) {
+      await indexSettlements(ctx);
+      await runPackReinvestment(ctx);
+    }
   } finally { await ctx.audit.release(ctx.holder); }
 }
 export async function main() {
