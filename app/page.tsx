@@ -43,6 +43,7 @@ type PackStatus = {
 };
 
 type RecentPull = {
+  requestId?: string;
   wallet: string;
   symbol: string;
   name: string;
@@ -66,6 +67,12 @@ type PackResult = {
   rarity: RarityTier;
 };
 
+type PendingReveal = {
+  requestId: bigint;
+  buyer: string;
+  entropyBlock: bigint;
+};
+
 type RevealStage = "pack" | "spin" | "lock" | "reveal";
 
 const WALLET_DISCONNECTED_KEY = "stonkrips.wallet-disconnected";
@@ -80,6 +87,7 @@ const PONS_TOKEN_URL = (process.env.NEXT_PUBLIC_PONS_TOKEN_URL || "").trim();
 const X_URL = (process.env.NEXT_PUBLIC_X_URL || "https://x.com/stonkrips_").trim();
 const PUBLIC_RESERVE_DISPLAY_FLOOR_USD = ACTIVE_PACK.inventoryRequirements.publicAvailabilityFloorUsd;
 const HOLDER_TICKET_LABEL = Number(HOLDER_TOKENS_PER_TICKET).toLocaleString("en-US");
+const MAX_PLAYER_GAS_USD = 0.20;
 
 const EMPTY_STATUS: PackStatus = {
   configured: Boolean(PACK_CONTRACT),
@@ -149,6 +157,26 @@ function delay(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+async function assertAffordableGas(provider: EthereumProvider, transaction: { from: string; to: string; data: string; value: string }, fallbackGas: bigint) {
+  const [gasPriceHex, priceResponse] = await Promise.all([
+    provider.request({ method: "eth_gasPrice" }) as Promise<string>,
+    fetch("/api/robinhood/eth-price", { cache: "no-store" }),
+  ]);
+  if (!priceResponse.ok) throw new Error("GAS_CHECK_UNAVAILABLE");
+  const { ethUsd } = await priceResponse.json() as { ethUsd?: number };
+  if (!Number.isFinite(ethUsd) || !ethUsd) throw new Error("GAS_CHECK_UNAVAILABLE");
+  let gas = fallbackGas;
+  try {
+    gas = BigInt(await provider.request({ method: "eth_estimateGas", params: [transaction] }) as string);
+  } catch {
+    // A conservative fallback is used when a dependent transaction (such as
+    // approval) has not confirmed yet and the wallet cannot simulate the call.
+  }
+  const estimatedUsd = Number(gas * BigInt(gasPriceHex)) / 1e18 * ethUsd;
+  if (!Number.isFinite(estimatedUsd)) throw new Error("GAS_CHECK_UNAVAILABLE");
+  if (estimatedUsd > MAX_PLAYER_GAS_USD) throw new Error("GAS_ABOVE_CAP");
+}
+
 async function waitForReceipt(provider: EthereumProvider, transactionHash: string) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     const receipt = await provider.request({ method: "eth_getTransactionReceipt", params: [transactionHash] }) as RpcReceipt | null;
@@ -204,7 +232,10 @@ export default function Home() {
   const [myRipsState, setMyRipsState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [clock, setClock] = useState<number | null>(null);
   const [reelStop, setReelStop] = useState("-5800px");
-  const [recoverableRequest, setRecoverableRequest] = useState<{ requestId: bigint; buyer: string; entropyBlock: bigint } | null>(null);
+  const [recoverableRequest, setRecoverableRequest] = useState<PendingReveal | null>(null);
+  const [pendingReveal, setPendingReveal] = useState<PendingReveal | null>(null);
+  const [pendingRevealReady, setPendingRevealReady] = useState(false);
+  const [autoDeliveryTimedOut, setAutoDeliveryTimedOut] = useState(false);
   const manuallyDisconnected = useRef(false);
   const revealTrackRef = useRef<HTMLDivElement>(null);
 
@@ -218,6 +249,15 @@ export default function Home() {
       return rarityForValue(averageLoadedValue);
     }, REEL_WINNER_INDEX);
   }, [inventoryBySymbol, packResult]);
+  const pendingReelItems = useMemo(() => {
+    const funded = status.inventory.flatMap((inventory) => {
+      const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === inventory.symbol);
+      if (!stock || inventory.fundedPulls < 1) return [];
+      return [{ stock, rarity: rarityForValue(inventory.loadedValueUsd / inventory.fundedPulls) }];
+    });
+    if (!funded.length) return [];
+    return Array.from({ length: 54 }, (_, index) => funded[index % funded.length]);
+  }, [status.inventory]);
   const publicReserveReady = status.inventoryValueUsd !== null && status.inventoryValueUsd >= PUBLIC_RESERVE_DISPLAY_FLOOR_USD;
   const arcadeReady = ACTIVE_PACK.enabled && statusState === "ready" && !status.dataError && status.configured && status.packsLive && status.inventoryCount > 0 && publicReserveReady;
   const automationLabel = status.automationLive
@@ -275,11 +315,61 @@ export default function Home() {
     let active = true;
     void readActivePackRequest(provider)
       .then((request) => {
-        if (active) setRecoverableRequest(request?.buyer === account.toLowerCase() ? request : null);
+        if (!active) return;
+        const ownedRequest = request?.buyer === account.toLowerCase() ? request : null;
+        setRecoverableRequest(ownedRequest);
+        if (ownedRequest && !packResult) {
+          setPendingRevealReady(false);
+          setAutoDeliveryTimedOut(false);
+          setPendingReveal(ownedRequest);
+        }
       })
       .catch(() => { if (active) setRecoverableRequest(null); });
     return () => { active = false; };
-  }, [account, networkReady, status.configured, walletProvider]);
+  }, [account, networkReady, packResult, status.configured, walletProvider]);
+
+  useEffect(() => {
+    if (!pendingReveal || !walletProvider) return;
+    let active = true;
+    const startedAt = Date.now();
+    const armReveal = async () => {
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        const blockHex = await walletProvider.request({ method: "eth_blockNumber" }) as string;
+        if (BigInt(blockHex) > pendingReveal.entropyBlock) break;
+        await delay(1_000);
+        if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
+      }
+      const remainingAnimation = 4_800 - (Date.now() - startedAt);
+      if (remainingAnimation > 0) await delay(remainingAnimation);
+      if (!active) return;
+      setPendingRevealReady(true);
+      for (let attempt = 0; attempt < 32; attempt += 1) {
+        const response = await fetch(`/api/robinhood/pulls?wallet=${encodeURIComponent(pendingReveal.buyer)}`, { cache: "no-store" });
+        if (response.ok) {
+          const payload = await response.json() as { pulls?: RecentPull[] };
+          const delivered = payload.pulls?.find((pull) => pull.requestId === pendingReveal.requestId.toString());
+          if (delivered) {
+            const stock = STOCK_TOKENS.find((candidate) => candidate.symbol === delivered.symbol);
+            if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
+            setRevealStage("reveal");
+            setPackResult({ stock, tokenAmount: delivered.tokenAmount, valueUsd: delivered.valueUsd, transactionHash: delivered.transactionHash, rarity: rarityForValue(delivered.valueUsd) });
+            setRecoverableRequest(null);
+            setPendingReveal(null);
+            setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
+            setNotice("");
+            return;
+          }
+        }
+        await delay(1_500);
+        if (!active) return;
+      }
+      if (active) setAutoDeliveryTimedOut(true);
+    };
+    void armReveal().catch(() => {
+      if (active) setNotice("The reveal block is taking longer than expected. Your paid pack is safe and can be resumed.");
+    });
+    return () => { active = false; };
+  }, [pendingReveal, walletProvider]);
 
   useEffect(() => {
     const tick = () => setClock(Date.now());
@@ -435,7 +525,7 @@ export default function Home() {
   }
 
   async function settleAndReveal(provider: EthereumProvider, requestId: bigint, entropyBlock: bigint) {
-    setNotice("Pack locked. Waiting for the future Robinhood Chain block…");
+    setNotice("Preparing direct Stock Token delivery…");
     for (let attempt = 0; attempt < 80; attempt += 1) {
       const blockHex = await provider.request({ method: "eth_blockNumber" }) as string;
       if (BigInt(blockHex) > entropyBlock) break;
@@ -443,7 +533,7 @@ export default function Home() {
       if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
     }
 
-    setNotice("Outcome ready. Confirm the final onchain settlement.");
+    setNotice("Confirm CLAIM & REVEAL. This transaction sends the Stock Token directly to your wallet.");
     let settleHash: string;
     let settleReceipt: RpcReceipt;
     try {
@@ -467,12 +557,37 @@ export default function Home() {
     const valueUsd = Number(BigInt(`0x${data.slice(64, 128)}`)) / 1_000_000;
     const stock = STOCK_TOKENS.find((candidate) => candidate.address.toLowerCase() === tokenAddress);
     if (!stock) throw new Error("UNSUPPORTED_PRIZE_TOKEN");
-    setRevealStage(window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "reveal" : "pack");
+    setRevealStage("reveal");
     setPackResult({ stock, tokenAmount, valueUsd, transactionHash: settleHash, rarity: rarityForValue(valueUsd) });
+    setPendingReveal(null);
+    setPendingRevealReady(false);
     setRecoverableRequest(null);
     setPackModalOpen(false);
     setStatus((current) => ({ ...current, inventoryCount: Math.max(0, current.inventoryCount - 1) }));
     setNotice("");
+  }
+
+  function stagePaidPack(request: PendingReveal) {
+    setRecoverableRequest(request);
+    setPendingReveal(request);
+    setPendingRevealReady(false);
+    setAutoDeliveryTimedOut(false);
+    setPackModalOpen(false);
+    setNotice("");
+  }
+
+  async function claimAndReveal() {
+    const provider = walletProvider;
+    if (!provider || !pendingReveal || !pendingRevealReady || busy) return;
+    setBusy(true);
+    try {
+      await settleAndReveal(provider, pendingReveal.requestId, pendingReveal.entropyBlock);
+    } catch (error) {
+      const code = (error as { code?: number })?.code;
+      setNotice(code === 4001 ? "Reveal cancelled. Your paid pack is safe—press CLAIM & REVEAL whenever you are ready." : "The reveal did not complete. Your paid pack is safe and can be retried.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openPack() {
@@ -502,7 +617,7 @@ export default function Home() {
           setBusy(false);
           return;
         }
-        await settleAndReveal(provider, activeRequest.requestId, activeRequest.entropyBlock);
+        stagePaidPack(activeRequest);
         setBusy(false);
         return;
       }
@@ -534,7 +649,9 @@ export default function Home() {
       }
       const allowanceData = `0xdd62ed3e${hexWord(account)}${hexWord(PACK_CONTRACT)}`;
       const allowanceHex = await provider.request({ method: "eth_call", params: [{ from: account, to: CANONICAL_USDG, data: allowanceData }, "latest"] }) as string;
+      const commitment = randomCommitment();
       if (BigInt(allowanceHex) < priceAtoms) {
+        await assertAffordableGas(provider, { from: account, to: CANONICAL_USDG, data: `0x095ea7b3${hexWord(PACK_CONTRACT)}${hexWord(priceAtoms)}`, value: "0x0" }, BigInt(70_000));
         setNotice(`Approve exactly ${PACK_PRICE_USD} USDG in your wallet.`);
         const approvalHash = await provider.request({
           method: "eth_sendTransaction",
@@ -543,8 +660,8 @@ export default function Home() {
         await waitForReceipt(provider, approvalHash);
       }
 
+      await assertAffordableGas(provider, { from: account, to: PACK_CONTRACT, data: `0x15437c79${hexWord(commitment)}`, value: "0x0" }, BigInt(230_000));
       setNotice(`Confirm the $${PACK_PRICE_USD} ${ACTIVE_PACK.label} rip in your wallet.`);
-      const commitment = randomCommitment();
       const openHash = await provider.request({
         method: "eth_sendTransaction",
         params: [{ from: account, to: PACK_CONTRACT, data: `0x15437c79${hexWord(commitment)}`, value: "0x0" }],
@@ -554,10 +671,17 @@ export default function Home() {
       if (!requestLog?.topics[1]) throw new Error("REQUEST_EVENT_MISSING");
       const requestId = BigInt(requestLog.topics[1]);
       const entropyBlock = BigInt(requestLog.data);
-      await settleAndReveal(provider, requestId, entropyBlock);
+      stagePaidPack({ requestId, buyer: account.toLowerCase(), entropyBlock });
     } catch (error) {
       const code = (error as { code?: number })?.code;
-      setNotice(code === 4001 ? "Transaction cancelled. No new transaction was sent." : "The pack could not complete. Check wallet activity before retrying.");
+      const message = error instanceof Error ? error.message : "";
+      setNotice(code === 4001
+        ? "Transaction cancelled. No new transaction was sent."
+        : message === "GAS_ABOVE_CAP"
+          ? "Robinhood Chain is too congested right now. Estimated player gas is above $0.20—try again when fees drop."
+          : message === "GAS_CHECK_UNAVAILABLE"
+            ? "Network fee safety check is unavailable. No payment was requested; try again shortly."
+            : "The pack could not complete. Check wallet activity before retrying.");
     } finally {
       setBusy(false);
     }
@@ -689,6 +813,30 @@ export default function Home() {
                   <small>{formatUsd(packResult.valueUsd)} value when loaded · not a current price</small>
                   <b>DELIVERED · {shortAddress(account)}</b>
                   <div className="result-actions"><a href={`https://robinhoodchain.blockscout.com/tx/${packResult.transactionHash}`} target="_blank" rel="noreferrer">VIEW TRANSACTION ↗</a><button type="button" onClick={() => { setPackResult(null); setTermsAccepted(false); }}>RIP ANOTHER →</button></div>
+                </div>
+              </div>
+            )}
+            {pendingReveal && !packResult && (
+              <div className={`pending-pack-reveal${pendingRevealReady ? " is-ready" : ""}`} aria-live="polite">
+                <div className="case-reveal-header"><span>PAYMENT CONFIRMED</span><b>{pendingRevealReady ? "RESULT SEALED" : "SECURING RESULT"}</b></div>
+                <div className="case-reel-window" aria-label="Funded Stock Token reel">
+                  <div className="case-reel-marker" aria-hidden="true"><i /><span /></div>
+                  <div className="case-reel-track pending-reel-track">
+                    {pendingReelItems.map((item, index) => (
+                      <div className="case-reel-card" style={{ "--rarity-color": item.rarity.color } as CSSProperties} key={`${item.stock.symbol}-pending-${index}`}>
+                        <StockLogo stock={item.stock} />
+                        <b>{item.stock.symbol}</b>
+                        <small>{item.rarity.label}</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="pending-reveal-action">
+                  <h2>{!pendingRevealReady ? "LOCKING YOUR PACK…" : autoDeliveryTimedOut ? "DELIVERY NEEDS A RETRY." : "SENDING TO YOUR WALLET…"}</h2>
+                  <p>{!pendingRevealReady ? "Waiting for the future Robinhood Chain block. Do not refresh." : autoDeliveryTimedOut ? "Your paid pack is safe. Retry the onchain delivery from this wallet." : "No second confirmation needed. The operator is settling and delivering your Stock Token."}</p>
+                  {autoDeliveryTimedOut
+                    ? <button type="button" onClick={() => void claimAndReveal()} disabled={busy}>{busy ? "RETRYING DELIVERY…" : "RETRY DELIVERY"}</button>
+                    : <span className="reveal-loader" aria-hidden="true" />}
                 </div>
               </div>
             )}

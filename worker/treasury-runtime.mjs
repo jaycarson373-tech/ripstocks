@@ -146,9 +146,9 @@ export async function settlePendingPack(ctx) {
   const id = await ctx.publicClient.readContract({ address: ctx.cfg.packContract, abi: packAbi, functionName: "activeRequestId" });
   if (!id) return;
   const request = await ctx.publicClient.readContract({ address: ctx.cfg.packContract, abi: packAbi, functionName: "requests", args: [id] });
-  // Give the connected buyer time to settle through the existing wallet UI.
-  // The keeper is recovery, not a competing immediate settlement transaction.
-  if (request[4] || await ctx.publicClient.getBlockNumber() <= request[3] + 90n) return;
+  // The operator settles as soon as the future-block outcome is available so
+  // buyers never need a second wallet transaction to receive their prize.
+  if (request[4] || await ctx.publicClient.getBlockNumber() <= request[3]) return;
   try {
     await durableTransaction(ctx, { id: `${ctx.scope}:settle:${id}`, scope: ctx.scope }, "settle", async () => {
       await ctx.publicClient.simulateContract({ account: ctx.account, address: ctx.cfg.packContract, abi: packAbi, functionName: "settlePack", args: [id] });

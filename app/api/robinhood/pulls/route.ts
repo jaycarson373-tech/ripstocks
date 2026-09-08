@@ -51,6 +51,7 @@ function decodePull(log: RpcLog) {
   const stock = STOCK_TOKEN_BY_ADDRESS.get(stockAddress);
   if (!stock) return null;
   return {
+    requestId: BigInt(log.topics[1]).toString(),
     wallet: `0x${log.topics[2].slice(-40)}`,
     symbol: stock.symbol,
     name: stock.name,
@@ -103,6 +104,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       configured: true,
       pulls: decoded.map((pull) => ({
+        requestId: pull.requestId,
         wallet: pull.wallet,
         symbol: pull.symbol,
         name: pull.name,
