@@ -86,8 +86,9 @@ export function PackOpening({ preview, result, delivered, renderLogo, children }
         <div className="case-reel-track" ref={track}>
           {tiles.map((tile, index) => {
             const winning = Boolean(result && index === CASE_WINNER_INDEX);
+            const highlightWinner = winning && phase !== "spinning";
             const item = winning && result ? result : tile;
-            return <div key={index} data-winning={winning ? "true" : undefined} className={`case-reel-card${winning ? " is-winning" : ""}`} style={{ "--rarity-color": item.rarity?.color || "var(--muted)" } as CSSProperties}>
+            return <div key={index} data-winning={highlightWinner ? "true" : undefined} className={`case-reel-card${highlightWinner ? " is-winning" : ""}`} style={{ "--rarity-color": item.rarity?.color || "var(--muted)" } as CSSProperties}>
               {renderLogo(item.stock)}<b>{item.stock.symbol}</b><small>{item.rarity?.label || "STOCK TOKEN"}</small>
             </div>;
           })}

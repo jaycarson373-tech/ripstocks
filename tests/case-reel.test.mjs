@@ -94,6 +94,7 @@ test("late delivery cannot restart the reel or produce an invented stock", () =>
   assert.doesNotMatch(component, /SEALED|RESULT PENDING/);
   assert.match(component, /revealDelivered && children/);
   assert.match(component, /DELIVERING TO WALLET/);
+  assert.match(component, /highlightWinner = winning && phase !== "spinning"/);
   assert.match(page, /delivered=\{Boolean\(packResult\)\}/);
   assert.doesNotMatch(page, /attempt < 32|RETRY DELIVERY/);
 });

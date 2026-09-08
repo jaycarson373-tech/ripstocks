@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { decodeFunctionResult, encodeFunctionData, parseAbi } from "viem";
+import { decodeFunctionResult, encodeFunctionData, encodePacked, keccak256, parseAbi } from "viem";
 import { STOCK_TOKEN_BY_ADDRESS } from "@/app/lib/stock-tokens";
 
 const DELIVERED = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
@@ -7,7 +7,8 @@ const addressPattern = /^0x[0-9a-fA-F]{40}$/;
 type Log = { topics: string[]; data: string; transactionHash: string; removed?: boolean };
 const packAbi = parseAbi([
   "function requests(uint256) view returns (address,bytes32,bytes32,uint256,bool)",
-  "function settlePack(uint256) returns (address,uint256,uint256)",
+  "function inventoryCount() view returns (uint256)",
+  "function prizeAt(uint256) view returns (address,uint256,uint256)",
 ]);
 
 function tokenAmountFromAtoms(amount: bigint) {
@@ -41,17 +42,31 @@ export async function GET(request: Request) {
     const latest = BigInt(await rpc<string>("eth_blockNumber", []));
     const requestData = encodeFunctionData({ abi: packAbi, functionName: "requests", args: [BigInt(id)] });
     const requestResult = await rpc<string>("eth_call", [{ to: contract, data: requestData }, "latest"]);
-    const [requestBuyer, , , entropyBlock, settled] = decodeFunctionResult({ abi: packAbi, functionName: "requests", data: requestResult as `0x${string}` });
+    const [requestBuyer, commitment, fallbackSeed, entropyBlock, settled] = decodeFunctionResult({ abi: packAbi, functionName: "requests", data: requestResult as `0x${string}` });
     if (requestBuyer.toLowerCase() !== buyer.toLowerCase()) return NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400, headers });
 
-    // The inventory is locked for the lifetime of an active request. Once its
-    // future block exists, eth_call can reveal the exact committed result
-    // without broadcasting settlement or transferring anything. The client
-    // animates this result; it never chooses or rerolls it.
+    // The inventory is locked for the lifetime of an active request. Reproduce
+    // the contract's exact index from its committed future block, then read the
+    // locked prize. This is read-only, starts the reel before delivery, and can
+    // neither choose nor reroll the result.
     if (!settled && latest > entropyBlock) {
-      const settleData = encodeFunctionData({ abi: packAbi, functionName: "settlePack", args: [BigInt(id)] });
-      const simulated = await rpc<string>("eth_call", [{ to: contract, data: settleData }, "latest"]);
-      const [token, tokenAtoms, declaredUsdMicros] = decodeFunctionResult({ abi: packAbi, functionName: "settlePack", data: simulated as `0x${string}` });
+      let entropy = fallbackSeed;
+      if (latest <= entropyBlock + BigInt(256)) {
+        const entropySource = await rpc<{ hash?: `0x${string}` }>("eth_getBlockByNumber", [`0x${entropyBlock.toString(16)}`, false]);
+        if (!entropySource.hash) throw new Error("ENTROPY_UNAVAILABLE");
+        entropy = entropySource.hash;
+      }
+      const countData = encodeFunctionData({ abi: packAbi, functionName: "inventoryCount" });
+      const countResult = await rpc<string>("eth_call", [{ to: contract, data: countData }, "latest"]);
+      const inventoryCount = decodeFunctionResult({ abi: packAbi, functionName: "inventoryCount", data: countResult as `0x${string}` });
+      if (inventoryCount <= BigInt(0)) throw new Error("INVENTORY_UNAVAILABLE");
+      const index = BigInt(keccak256(encodePacked(
+        ["bytes32", "bytes32", "address", "uint256", "address"],
+        [commitment, entropy, requestBuyer, BigInt(id), contract as `0x${string}`],
+      ))) % inventoryCount;
+      const prizeData = encodeFunctionData({ abi: packAbi, functionName: "prizeAt", args: [index] });
+      const prizeResult = await rpc<string>("eth_call", [{ to: contract, data: prizeData }, "latest"]);
+      const [token, tokenAtoms, declaredUsdMicros] = decodeFunctionResult({ abi: packAbi, functionName: "prizeAt", data: prizeResult as `0x${string}` });
       const stock = STOCK_TOKEN_BY_ADDRESS.get(token.toLowerCase());
       if (!stock) throw new Error("UNKNOWN_STOCK");
       return NextResponse.json({ outcome: {
