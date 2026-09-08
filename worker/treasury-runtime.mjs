@@ -3,7 +3,7 @@ import { createPublicClient, createWalletClient, defineChain, encodeFunctionData
 import { privateKeyToAccount } from "viem/accounts";
 import { addressEnv, basisPoints, parseMode, positiveInteger, required, usdMicrosForTokenAmount, discoverContractStartBlock } from "./pons-core.mjs";
 import { CANONICAL_USDG } from "./pons-core.mjs";
-import { packConfig } from "./pack-config.mjs";
+import { holderRewardsConfig, packConfig } from "./pack-config.mjs";
 import { supabaseHeaders } from "./supabase-headers.mjs";
 import { ReinvestmentStore, ReinvestmentReverted, durableTransaction, processReinvestmentLot, saleFromReceipt } from "./pack-reinvestment.mjs";
 import { quoteDirectV4 } from "./uniswap-v4.mjs";
@@ -43,7 +43,7 @@ export function treasuryConfig(env = process.env, forceMode) {
     factory: addressEnv("PONS_V2_FACTORY", env.PONS_V2_FACTORY),
     escrow: addressEnv("PONS_FEE_ESCROW", env.PONS_FEE_ESCROW),
     feeAsset: addressEnv("PONS_FEE_ASSET_ADDRESS", env.PONS_FEE_ASSET_ADDRESS),
-    tokensPerTicket: required("TOKENS_PER_TICKET", env.TOKENS_PER_TICKET || "250"),
+    tokensPerTicket: required("TOKENS_PER_TICKET", env.TOKENS_PER_TICKET || holderRewardsConfig().tokensPerTicket),
     holderShareBps: basisPoints("HOLDER_DROP_SHARE_BPS", env.HOLDER_DROP_SHARE_BPS, 5_000),
     confirmationBlocks: positiveInteger("PONS_CONFIRMATION_BLOCKS", env.PONS_CONFIRMATION_BLOCKS, 12),
     exclusions: (env.PONS_HOLDER_EXCLUSIONS || "").split(",").map(value => value.trim()).filter(Boolean).map(value => addressEnv("PONS_HOLDER_EXCLUSIONS", value)),

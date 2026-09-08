@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { STOCK_TOKENS } from "./pons-core.mjs";
 
 const catalog = JSON.parse(readFileSync(new URL("../config/packs.json", import.meta.url), "utf8"));
+export function holderRewardsConfig() {
+  const tokensPerTicket = String(catalog.holderRewards?.tokensPerTicket || "");
+  if (!/^[1-9][0-9]*$/.test(tokensPerTicket)) throw new Error("Invalid holder ticket configuration");
+  return { tokensPerTicket };
+}
 export function packConfig(id = catalog.activePackId) {
   const pack = catalog.packs.find(item => item.id === id);
   if (!pack || !/^[1-9][0-9]*$/.test(pack.priceUsdgAtoms)) throw new Error("Unknown pack or invalid USDG price");

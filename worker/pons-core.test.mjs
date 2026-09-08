@@ -22,7 +22,7 @@ test("50/50 split preserves every atom", () => {
 });
 
 test("weighted tickets exclude dust and select deterministically", () => {
-  const unit = ticketUnit("250", 18);
+  const unit = ticketUnit("10000", 18);
   const candidates = [
     { address: "0x0000000000000000000000000000000000000001", balance: unit - 1n },
     { address: "0x0000000000000000000000000000000000000002", balance: unit },
@@ -47,10 +47,10 @@ test("ERC-20 snapshot excludes system wallets and commits exact ticket weights",
   const zero = "0x0000000000000000000000000000000000000000";
   const treasury = "0x0000000000000000000000000000000000000001";
   const holder = "0x0000000000000000000000000000000000000002";
-  const unit = 250n;
+  const unit = 10_000n;
   const snapshot = eligibleHolderSnapshot([
-    { args: { from: zero, to: treasury, value: 1_000n } },
-    { args: { from: zero, to: holder, value: 749n } },
+    { args: { from: zero, to: treasury, value: 40_000n } },
+    { args: { from: zero, to: holder, value: 29_999n } },
   ], [treasury], unit);
   assert.equal(snapshot.holders.length, 1);
   assert.equal(snapshot.holders[0].tickets, 2n);

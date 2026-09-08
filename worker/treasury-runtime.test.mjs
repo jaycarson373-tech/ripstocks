@@ -68,7 +68,7 @@ test("Pons hourly configuration needs no creator private key and requires a USDG
   };
   const cfg = treasuryConfig(enabled);
   assert.equal(cfg.ponsEnabled, true);
-  assert.equal(cfg.pons.tokensPerTicket, "250");
+  assert.equal(cfg.pons.tokensPerTicket, "10000");
   assert.equal(cfg.creatorPrivateKey, undefined);
   assert.throws(() => treasuryConfig({ ...enabled, PONS_FEE_ASSET_ADDRESS: "0x" + "77".repeat(20) }), /USDG-paired/);
 });

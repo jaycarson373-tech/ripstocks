@@ -1,5 +1,8 @@
 {
   "activePackId": "PACK_01",
+  "holderRewards": {
+    "tokensPerTicket": "10000"
+  },
   "packs": [{
     "id": "PACK_01",
     "label": "PACK #01",

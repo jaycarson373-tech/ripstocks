@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { buildCaseReel, type CaseReelItem } from "@/app/lib/case-reel";
 import { type StockToken } from "@/app/lib/stock-tokens";
-import { ACTIVE_PACK, PACK_PRICE_USD, PACK_RARITIES, PACK_RARITY_ODDS_PUBLISHED, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
+import { ACTIVE_PACK, HOLDER_TOKENS_PER_TICKET, PACK_PRICE_USD, PACK_RARITIES, PACK_RARITY_ODDS_PUBLISHED, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
 import { type RarityTier } from "@/app/lib/rarity";
 import { discoverEvmWallets, ensureRobinhoodChain, ROBINHOOD_CHAIN_ID, walletAccount, walletChainId, walletErrorMessage, type EthereumProvider, type EvmWalletOption } from "@/app/lib/wallet-provider";
 
@@ -79,6 +79,7 @@ const PACK_CONTRACT = (process.env.NEXT_PUBLIC_STONKRIPS_CONTRACT || "").trim();
 const PONS_TOKEN_URL = (process.env.NEXT_PUBLIC_PONS_TOKEN_URL || "").trim();
 const X_URL = (process.env.NEXT_PUBLIC_X_URL || "https://x.com/stonkrips_").trim();
 const PUBLIC_RESERVE_DISPLAY_FLOOR_USD = ACTIVE_PACK.inventoryRequirements.publicAvailabilityFloorUsd;
+const HOLDER_TICKET_LABEL = Number(HOLDER_TOKENS_PER_TICKET).toLocaleString("en-US");
 
 const EMPTY_STATUS: PackStatus = {
   configured: Boolean(PACK_CONTRACT),
@@ -776,7 +777,7 @@ export default function Home() {
         <div className="section-heading compact">
           <span>FUTURE HOLDER REWARDS · DISABLED</span>
           <h2>HOLDER DROPS.</h2>
-          <p>Holder rewards are disabled in pre-CA mode. Eligibility and ticket rules will be confirmed with the Pons v2 integration before activation.</p>
+          <p>Holder rewards are disabled in pre-CA mode. When activated, each whole {HOLDER_TICKET_LABEL} $RIP held at the confirmed snapshot block equals one weighted ticket.</p>
         </div>
         <div className={`holder-draw-machine${holderDrawActive ? " is-selecting" : ""}`} aria-label={`Holder draw engine status: ${holderCountdown}`}>
           <div className="holder-draw-topline"><span>NEXT HOURLY HOLDER DROP</span><b>{holderCountdown}</b></div>
@@ -828,7 +829,7 @@ export default function Home() {
           <span><b>{status.inventoryDataAvailable ? status.inventoryCount : "NOT REPORTED"}</b><small>FUNDED PACK LOTS</small></span>
           <span><b>DISABLED</b><small>PRE-CA HOLDER REWARDS</small></span>
         </div>
-        <p className="engine-note">Holder eligibility and ticket rules will be published after the actual Pons v2 launch is integrated and verified. Pack purchases do not depend on a Pons token.</p>
+        <p className="engine-note">Configured holder weight: {HOLDER_TICKET_LABEL} $RIP per whole ticket at the confirmed snapshot block. Holder rewards remain disabled until the actual Pons v2 launch is integrated and verified. Pack purchases do not depend on a Pons token.</p>
         {PONS_TOKEN_URL && <a href={PONS_TOKEN_URL} target="_blank" rel="noreferrer">OPEN STONKRIPS ON PONS ↗</a>}
       </section>
 
@@ -867,7 +868,7 @@ export default function Home() {
         <div className="section-heading compact"><span>THE OPERATOR MANUAL</span><h2>DOCS.</h2></div>
         <div className="docs-grid">
           <article><b>01</b><h3>PACK PAYMENT</h3><p>Connect an EVM wallet and approve exactly {PACK_PRICE_USD} canonical USDG. A successful open moves that USDG into the pack contract; settlement forwards it to the treasury and delivers one funded Stock Token. ETH is used only for Robinhood Chain gas.</p></article>
-          <article><b>02</b><h3>HOLDER WEIGHT</h3><p>Holder eligibility is not active before the Pons token exists. The final snapshot and ticket rules will be documented after integration verification.</p></article>
+          <article><b>02</b><h3>HOLDER WEIGHT</h3><p>When holder rewards are activated, each whole {HOLDER_TICKET_LABEL} $RIP at the confirmed snapshot block equals one ticket. Partial tickets are excluded, and system wallets are excluded from eligibility.</p></article>
           <article><b>03</b><h3>HOURLY RESTOCK</h3><p>When enabled, the Railway treasury worker reserves the previous hour’s confirmed settlement receipts, buys configured Stock Tokens using those USDG proceeds, and loads the exact amount received. Signed transactions are journaled before broadcast; retries reuse the same transaction. Pons is not required.</p></article>
           <article><b>04</b><h3>SUSTAINABILITY</h3><p>Inventory value, funded pulls, and completed holder drops are measured from real sources. Parameters are reviewed manually and any change should be disclosed before activation.</p></article>
         </div>
