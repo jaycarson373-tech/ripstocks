@@ -3,7 +3,7 @@ import test from "node:test";
 import { buildCaseReel } from "../app/lib/case-reel.ts";
 
 test("the contained reel lands exactly once on the committed result", () => {
-  const stocks = ["SPY", "NVDA", "TSLA", "MRVL"].map(symbol => ({ symbol }));
+  const stocks = ["SPY", "NVDA", "TSLA", "META"].map(symbol => ({ symbol }));
   const winner = stocks[1];
   const items = buildCaseReel(stocks, winner, "RARE", () => "STANDARD");
   const winningItems = items.map((item, index) => ({ ...item, index })).filter(item => item.winning);

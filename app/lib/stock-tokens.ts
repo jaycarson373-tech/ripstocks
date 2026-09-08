@@ -15,10 +15,10 @@ export const STOCK_TOKENS: StockToken[] = [
   { symbol: "GME", name: "GameStop", address: "0x1b0E319c6A659F002271B69dB8A7df2F911c153E", logoUrl: "/stock-logos/gme.svg", color: "#e51b23" },
   { symbol: "PLTR", name: "Palantir Technologies", address: "0x894E1EC2D74FFE5AEF8Dc8A9e84686acCB964F2A", logoUrl: "/stock-logos/pltr.svg", color: "#f4f7ee" },
   { symbol: "COIN", name: "Coinbase", address: "0x6330D8C3178a418788dF01a47479c0ce7CCF450b", logoUrl: "/stock-logos/coin.png", color: "#1652f0" },
-  { symbol: "RKLB", name: "Rocket Lab", address: "0x3b14C39E89D60D627b42a1A4CA45b5bb45Fc12e2", logoUrl: "/stock-logos/rklb.svg", color: "#f4f7ee" },
+  { symbol: "MSFT", name: "Microsoft", address: "0xe93237C50D904957Cf27E7B1133b510C669c2e74", logoUrl: "/stock-logos/msft.png", color: "#00a4ef" },
   { symbol: "SPCX", name: "SpaceX Class A", address: "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa", logoUrl: "/stock-logos/spcx.svg", color: "#f4f7ee" },
   { symbol: "AAPL", name: "Apple", address: "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9", logoUrl: "/stock-logos/aapl.png", color: "#f4f7ee" },
-  { symbol: "MRVL", name: "Marvell Technology", address: "0x62fd0668e10D8B72339BE2DCF7643001688ff13B", logoUrl: "/stock-logos/mrvl.svg", color: "#d71920" },
+  { symbol: "META", name: "Meta Platforms", address: "0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35", logoUrl: "/stock-logos/meta.png", color: "#0866ff" },
 ];
 
 export const STOCK_TOKEN_BY_ADDRESS = new Map(
