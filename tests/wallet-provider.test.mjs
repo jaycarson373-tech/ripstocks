@@ -1,6 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { discoverEvmWallets, ensureRobinhoodChain, isPhantomProvider, selectEvmProvider, walletAccount, walletChainId, walletErrorMessage } from "../app/lib/wallet-provider.ts";
+import { discoverEvmWallets, uniqueEvmWalletOptions, ensureRobinhoodChain, isPhantomProvider, selectEvmProvider, walletAccount, walletChainId, walletErrorMessage } from "../app/lib/wallet-provider.ts";
+
+test("Rabby announced and legacy wrappers appear once while MetaMask stays available", () => {
+  const announced = { request: async () => null, isRabby: true, isMetaMask: true };
+  const legacy = { request: async () => null, isRabby: true, isMetaMask: true };
+  const metamask = { request: async () => null, isMetaMask: true };
+  const choices = uniqueEvmWalletOptions([
+    { provider: announced, info: { name: "Rabby Wallet", rdns: "io.rabby" } },
+    { provider: metamask, info: { name: "MetaMask", rdns: "io.metamask" } },
+    { provider: legacy },
+  ]);
+  assert.deepEqual(choices.map(x => x.name), ["Rabby Wallet", "MetaMask"]);
+  assert.equal(choices[0].provider, announced);
+});
+
+test("duplicate announcements collapse by identity without hiding unknown distinct wallets", () => {
+  const first = { request: async () => null };
+  const second = { request: async () => null };
+  assert.equal(uniqueEvmWalletOptions([
+    { provider: first, info: { rdns: "io.rabby", name: "Rabby" } },
+    { provider: second, info: { rdns: "io.rabby", name: "Rabby Wallet" } },
+  ]).length, 1);
+  assert.equal(uniqueEvmWalletOptions([{ provider: first }, { provider: second }, { provider: first }]).length, 2);
+});
 
 test("Phantom is never selected for the Robinhood Chain flow", () => {
   const phantom = { isPhantom: true, request: async () => null };

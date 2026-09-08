@@ -66,6 +66,36 @@ function walletId(candidate: ProviderCandidate, index: number) {
   return candidate.info?.rdns?.trim() || `${walletName(candidate).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${index}`;
 }
 
+function walletFamily(candidate: ProviderCandidate): string | null {
+  const rdns = candidate.info?.rdns?.trim().toLowerCase();
+  const name = candidate.info?.name?.trim().toLowerCase();
+  // Announced wallet identity takes precedence over compatibility flags:
+  // Rabby and several other wallets also expose isMetaMask.
+  if (rdns === "io.rabby" || name === "rabby" || name === "rabby wallet") return "rabby";
+  if (rdns === "io.metamask" || name === "metamask") return "metamask";
+  if (rdns?.includes("robinhood") || name === "robinhood wallet") return "robinhood";
+  if (rdns === "com.coinbase.wallet" || name === "coinbase wallet") return "coinbase";
+  if (rdns) return `rdns:${rdns}`;
+  if (candidate.provider.isRobinhood) return "robinhood";
+  if (candidate.provider.isRabby) return "rabby";
+  if (candidate.provider.isCoinbaseWallet) return "coinbase";
+  if (candidate.provider.isMetaMask) return "metamask";
+  return null;
+}
+
+export function uniqueEvmWalletOptions(candidates: ProviderCandidate[]): EvmWalletOption[] {
+  const seenProviders = new Set<EthereumProvider>();
+  const seenFamilies = new Set<string>();
+  return candidates.filter((candidate) => {
+    if (!candidate.provider || isPhantomProvider(candidate) || seenProviders.has(candidate.provider)) return false;
+    const family = walletFamily(candidate);
+    if (family && seenFamilies.has(family)) return false;
+    seenProviders.add(candidate.provider);
+    if (family) seenFamilies.add(family);
+    return true;
+  }).map((candidate, index) => ({ id: walletId(candidate, index), name: walletName(candidate), provider: candidate.provider }));
+}
+
 function startProviderDiscovery(host: ProviderHost) {
   if (providerDiscoveryStarted) return;
   providerDiscoveryStarted = true;
@@ -89,14 +119,7 @@ export async function discoverEvmWallets(host: ProviderHost, waitMs = 180): Prom
   if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
   const legacy = host.ethereum;
   const legacyProviders = legacy?.providers?.map((provider) => ({ provider })) ?? (legacy ? [{ provider: legacy }] : []);
-  const seen = new Set<EthereumProvider>();
-  return [...announcedProviders, ...legacyProviders]
-    .filter((candidate) => {
-      if (!candidate.provider || isPhantomProvider(candidate) || seen.has(candidate.provider)) return false;
-      seen.add(candidate.provider);
-      return true;
-    })
-    .map((candidate, index) => ({ id: walletId(candidate, index), name: walletName(candidate), provider: candidate.provider }));
+  return uniqueEvmWalletOptions([...announcedProviders, ...legacyProviders]);
 }
 
 export function walletAccount(value: unknown): string {

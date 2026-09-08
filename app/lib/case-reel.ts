@@ -4,6 +4,8 @@ export type CaseReelItem<TStock, TRarity> = {
   winning: boolean;
 };
 
+export const CASE_REVEAL_TIMING = { introMs: 450, spinMs: 6_500, lockMs: 650 } as const;
+
 export function buildCaseReel<TStock extends { symbol: string }, TRarity>(
   stocks: TStock[],
   winner: TStock,

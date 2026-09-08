@@ -1062,21 +1062,13 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .pack-progress { font: 400 14px/1.5 var(--font-geist-sans); color: var(--off-white); overflow-wrap: anywhere; }
 .hero-pack-result { position: absolute; inset: 0; z-index: 15; overflow: hidden; text-align: center; background: radial-gradient(ellipse at center, #151d06, #030403 74%); }
 .pending-pack-reveal { position: absolute; inset: 0; z-index: 16; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 26px; text-align: center; background: radial-gradient(ellipse at center, #151d06, #030403 74%); }
-.payment-confirmed-card { position: absolute; inset: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(199,255,0,.13), transparent 48%); animation: confirmedCardExit .45s ease 1.25s both; pointer-events: none; }
+.payment-confirmed-card { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
 .payment-confirmed-card span { color: var(--lime); font: 900 11px var(--font-geist-mono); letter-spacing: .15em; }
 .payment-confirmed-card b { margin-top: 8px; color: var(--off-white); font: 900 clamp(36px, 6vw, 62px)/1 var(--font-geist-sans); }
 .payment-confirmed-card small { margin-top: 12px; color: var(--muted); font: 800 9px var(--font-geist-mono); letter-spacing: .13em; }
-.pending-pack-reveal .case-reveal-header { position: relative; z-index: 3; opacity: 0; animation: pendingReelAppear .3s ease 1.35s both; }
-.pending-pack-reveal .case-reel-window { width: calc(100% - 20px); opacity: 0; animation: pendingReelAppear .3s ease 1.35s both; }
-.pending-pack-reveal .case-reel-track { left: 50%; }
-.pending-pack-reveal .case-reel-card { border-bottom-color: var(--rarity-color); }
-.pending-pack-reveal .case-reel-card small { color: var(--rarity-color); }
-.hero-pack-result, .pending-pack-reveal { --case-card-width: 112px; --case-card-gap: 10px; }
+.hero-pack-result { --case-card-width: 112px; --case-card-gap: 10px; }
 .pull-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pull-actions button { min-height: 36px; padding: 6px 10px; color: var(--lime); border: 1px solid var(--line); border-radius: 5px; background: transparent; font: 750 12px var(--font-geist-mono); cursor: pointer; }
-.pending-reel-track { animation: pendingCaseSpin 4s linear 1.35s infinite both; }
-.pending-pack-reveal .case-reel-card { border-bottom-color: var(--lime); }
-.pending-pack-reveal .case-reel-card small { color: var(--muted); }
 .pending-reveal-action { position: relative; z-index: 4; min-height: 122px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .pending-reveal-action h2 { margin: 0; color: var(--off-white); font-size: clamp(22px, 3vw, 34px); }
 .pending-reveal-action p { max-width: 470px; margin: 9px auto 0; color: var(--muted); font: 500 13px/1.55 var(--font-geist-sans); }
@@ -1095,7 +1087,7 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .hero-pack-result .case-reel-track { left: 50%; transform: translate3d(310px,0,0); }
 .hero-pack-result .case-reel-card { border-bottom-color: var(--rarity-color); }
 .hero-pack-result .case-reel-card small { color: var(--rarity-color); }
-.hero-pack-result.reveal-spin .case-reel-track { animation: heroCaseSpin 4.2s cubic-bezier(.08,.66,.08,1) forwards; }
+.hero-pack-result.reveal-spin .case-reel-track { animation: heroCaseSpin var(--reel-spin-duration, 6.5s) cubic-bezier(.08,.72,.16,1) forwards; }
 .hero-pack-result.reveal-lock .case-reel-track { transform: translate3d(var(--reel-stop),0,0); }
 .hero-pack-result.reveal-lock .case-reel-card:not(.is-winning) { opacity: .32; filter: saturate(.45); transition: opacity .35s ease, filter .35s ease; }
 .hero-pack-result.reveal-lock .case-reel-card.is-winning { border-color: var(--winning-rarity); border-bottom-color: var(--winning-rarity); box-shadow: inset 0 0 28px color-mix(in srgb, var(--winning-rarity) 18%, transparent), 0 0 34px color-mix(in srgb, var(--winning-rarity) 40%, transparent); animation: winnerPulse .55s ease-in-out infinite alternate; }
@@ -1111,10 +1103,7 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .hero-pack-result .result-actions a, .hero-pack-result .result-actions button { font-size: 12px; }
 @keyframes heroPackFloat { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(1deg); } }
 @keyframes heroPackOpen { 0% { transform: scale(1); opacity: 1; } 55% { transform: scale(1.1) rotate(3deg); filter: brightness(1.8); opacity: 1; } 100% { transform: translateY(-28px) scale(1.14); opacity: 0; } }
-@keyframes heroCaseSpin { 0% { transform: translate3d(310px,0,0); } 70% { transform: translate3d(calc(var(--reel-stop) + 160px),0,0); } 88% { transform: translate3d(calc(var(--reel-stop) - 16px),0,0); } 100% { transform: translate3d(var(--reel-stop),0,0); } }
-@keyframes confirmedCardExit { 0%,78% { opacity: 1; visibility: visible; } 100% { opacity: 0; visibility: hidden; } }
-@keyframes pendingReelAppear { to { opacity: 1; } }
-@keyframes pendingCaseSpin { from { transform: translate3d(calc(-1 * var(--pending-stock-count) * (var(--case-card-width) + var(--case-card-gap))),0,0); } to { transform: translate3d(calc(-2 * var(--pending-stock-count) * (var(--case-card-width) + var(--case-card-gap))),0,0); } }
+@keyframes heroCaseSpin { from { transform: translate3d(310px,0,0); } to { transform: translate3d(var(--reel-stop),0,0); } }
 @keyframes revealLoader { to { transform: rotate(360deg); } }
 
 .my-rips { margin-top: 16px; padding: 20px; border: 1px solid rgba(255,255,255,.09); border-radius: 10px; background: #060806; }
@@ -1128,7 +1117,7 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .my-rips > a span { color: var(--lime); }
 .my-rips > a small { color: #7b8378; font: 700 8px var(--font-geist-mono); text-align: right; }
 @media (max-width: 640px) {
-  .hero-pack-result, .pending-pack-reveal { --case-card-width: 86px; --case-card-gap: 8px; }
+  .hero-pack-result { --case-card-width: 86px; --case-card-gap: 8px; }
   .playable-pack { grid-template-columns: minmax(0, 1fr); min-height: 520px; }
 .playable-pack .pack-product { height: 210px; }
   .playable-pack .premium-pack { width: auto; max-width: 90%; height: 200px; object-fit: contain; }
@@ -1139,7 +1128,6 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
   .playable-pack .pack-readout dl div:first-child dd { font-size: 22px; }
   .hero-pack-result { padding: 24px 16px; }
   .pending-pack-reveal { padding: 20px 10px; gap: 16px; }
-  .pending-pack-reveal .case-reel-window { width: calc(100% - 8px); }
   .pending-reveal-action { min-height: 132px; padding-inline: 10px; }
   .hero-pack-result .case-reel-window { width: calc(100% - 20px); }
   .hero-pack-result .case-reveal-header { margin-inline: 12px; }

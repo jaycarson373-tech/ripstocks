@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { buildCaseReel, type CaseReelItem } from "@/app/lib/case-reel";
+import { buildCaseReel, CASE_REVEAL_TIMING, type CaseReelItem } from "@/app/lib/case-reel";
 import { type StockToken } from "@/app/lib/stock-tokens";
 import { ACTIVE_PACK, HOLDER_TOKENS_PER_TICKET, PACK_PRICE_USD, PACK_RARITIES, PACK_STOCKS as STOCK_TOKENS, rarityForValue } from "@/app/lib/pack-config";
 import { type RarityTier } from "@/app/lib/rarity";
@@ -250,11 +250,6 @@ export default function Home() {
       return rarityForValue(averageLoadedValue);
     }, REEL_WINNER_INDEX);
   }, [inventoryBySymbol, packResult]);
-  const pendingReelItems = useMemo(() => {
-    // Supported-stock preview only; a failed inventory refresh must not erase
-    // a paid pack's animation. These tiles never represent a selected prize.
-    return Array.from({ length: STOCK_TOKENS.length * 3 }, (_, index) => STOCK_TOKENS[index % STOCK_TOKENS.length]);
-  }, []);
   const publicReserveReady = status.inventoryValueUsd !== null && status.inventoryValueUsd >= PUBLIC_RESERVE_DISPLAY_FLOOR_USD;
   const arcadeReady = ACTIVE_PACK.enabled && statusState === "ready" && !status.dataError && status.configured && status.packsLive && status.inventoryCount > 0 && publicReserveReady;
   const automationLabel = status.automationLive
@@ -328,7 +323,6 @@ export default function Home() {
   useEffect(() => {
     if (!pendingReveal || !walletProvider) return;
     let active = true;
-    const startedAt = Date.now();
     const armReveal = async () => {
       for (let attempt = 0; attempt < 80; attempt += 1) {
         const blockHex = await walletProvider.request({ method: "eth_blockNumber" }) as string;
@@ -336,10 +330,6 @@ export default function Home() {
         await delay(1_000);
         if (attempt === 79) throw new Error("ENTROPY_TIMEOUT");
       }
-      // Keep the confirmed-payment and reel sequence visible long enough for
-      // the wallet overlay to close before automatic delivery can replace it.
-      const remainingAnimation = 7_200 - (Date.now() - startedAt);
-      if (remainingAnimation > 0) await delay(remainingAnimation);
       if (!active) return;
       setPendingRevealReady(true);
       for (let attempt = 0; attempt < 32; attempt += 1) {
@@ -454,9 +444,10 @@ export default function Home() {
       if (winner) setReelStop(`${-(winner.offsetLeft + winner.offsetWidth / 2)}px`);
     };
     const frame = window.requestAnimationFrame(measure);
-    const spinTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "spin"), 450);
-    const lockTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "lock"), 4_650);
-    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), 5_250);
+    const { introMs, spinMs, lockMs } = CASE_REVEAL_TIMING;
+    const spinTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "spin"), introMs);
+    const lockTimer = window.setTimeout(() => setRevealStage(stage => stage === "reveal" ? stage : "lock"), introMs + spinMs);
+    const revealTimer = window.setTimeout(() => setRevealStage("reveal"), introMs + spinMs + lockMs);
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(spinTimer);
@@ -799,7 +790,7 @@ export default function Home() {
               {notice && <p className="pack-progress" role="status">{notice}</p>}
             </div>
             {packResult && (
-              <div className={`hero-pack-result reveal-${revealStage}`} style={{ "--reel-stop": reelStop, "--winning-rarity": packResult.rarity.color } as CSSProperties} aria-live="polite">
+              <div className={`hero-pack-result reveal-${revealStage}`} style={{ "--reel-stop": reelStop, "--reel-spin-duration": `${CASE_REVEAL_TIMING.spinMs}ms`, "--winning-rarity": packResult.rarity.color } as CSSProperties} aria-live="polite">
                 {revealStage !== "reveal" && <button className="skip-reveal" type="button" onClick={() => setRevealStage("reveal")}>SKIP ANIMATION</button>}
                 <div className="pack-opening-intro">
                   <span>RESULT CONFIRMED ONCHAIN</span>
@@ -834,21 +825,8 @@ export default function Home() {
               </div>
             )}
             {pendingReveal && !packResult && (
-              <div className={`pending-pack-reveal${pendingRevealReady ? " is-ready" : ""}`} style={{ "--pending-stock-count": STOCK_TOKENS.length } as CSSProperties} aria-live="polite">
+              <div className="pending-pack-reveal" aria-live="polite">
                 <div className="payment-confirmed-card"><span>PAYMENT CONFIRMED</span><b>{PACK_PRICE_USD} USDG</b><small>OPENING {ACTIVE_PACK.label}</small></div>
-                <div className="case-reveal-header"><span>PAYMENT CONFIRMED</span><b>AWAITING ONCHAIN RESULT</b></div>
-                <div className="case-reel-window" aria-label="Supported stock preview, not the selected prize">
-                  <div className="case-reel-marker" aria-hidden="true"><i /><span /></div>
-                  <div className="case-reel-track pending-reel-track">
-                    {pendingReelItems.map((stock, index) => (
-                      <div className="case-reel-card" key={`${stock.symbol}-pending-${index}`}>
-                        <StockLogo stock={stock} />
-                        <b>{stock.symbol}</b>
-                        <small>STOCK PREVIEW</small>
-                      </div>
-                    ))}
-                  </div>
-                </div>
                 <div className="pending-reveal-action">
                   <h2>{!pendingRevealReady ? "OPENING YOUR PACK…" : autoDeliveryTimedOut ? "CHECKING YOUR DELIVERY." : "CONFIRMING YOUR STOCK…"}</h2>
                   {autoDeliveryTimedOut && <p>Taking longer than expected. Your payment is confirmed.</p>}
