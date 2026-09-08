@@ -4,19 +4,18 @@ export type CaseReelItem<TStock, TRarity> = {
   winning: boolean;
 };
 
-export const CASE_REVEAL_TIMING = { introMs: 450, spinMs: 6_500, lockMs: 650 } as const;
-export const PACK_OPENING_INTRO_MS = 2_000;
-export const MIN_PAID_SPIN_MS = 4_500;
-
-// Positions are tile units, not pixels, so resizing cannot change the winner.
-export function planReelLanding(position: number, replay: boolean, elapsedSpinMs = MIN_PAID_SPIN_MS) {
-  const durationMs = replay ? CASE_REVEAL_TIMING.spinMs : Math.max(1_000, MIN_PAID_SPIN_MS - elapsedSpinMs);
-  return { index: replay ? 45 : Math.ceil(position) + Math.max(4, Math.ceil(durationMs / 1_000 * 6)), durationMs };
-}
+export const CASE_REVEAL_TIMING = { introMs: 2_000, spinMs: 6_000, lockMs: 200 } as const;
+export const PACK_OPENING_INTRO_MS = CASE_REVEAL_TIMING.introMs;
+export const CASE_WINNER_INDEX = 45;
 
 export function reelPositionAt(start: number, target: number, progress: number) {
   const p = Math.max(0, Math.min(1, progress));
   return start + (target - start) * (1 - Math.pow(1 - p, 3));
+}
+
+// Transaction timing cannot alter this curve or start another animation.
+export function fixedReelPosition(elapsedMs: number) {
+  return reelPositionAt(10, CASE_WINNER_INDEX, elapsedMs / CASE_REVEAL_TIMING.spinMs);
 }
 
 export function buildCaseReel<TStock extends { symbol: string }, TRarity>(

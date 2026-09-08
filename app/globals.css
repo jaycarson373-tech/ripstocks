@@ -1110,6 +1110,7 @@ footer > span { color: #626a61; font: 700 8px var(--font-geist-mono); letter-spa
 .hero-pack-result.reveal-spin .case-reel-track { animation: heroCaseSpin var(--reel-spin-duration, 6.5s) cubic-bezier(.08,.72,.16,1) forwards; }
 .hero-pack-result.reveal-lock .case-reel-track { transform: translate3d(var(--reel-stop),0,0); }
 .hero-pack-result.reveal-lock .case-reel-card:not(.is-winning) { opacity: .32; filter: saturate(.45); transition: opacity .35s ease, filter .35s ease; }
+.hero-pack-result.reveal-lock .case-reel-card.is-sealed { opacity: 1; filter: none; border-color: var(--lime); }
 .hero-pack-result.reveal-lock .case-reel-card.is-winning { border-color: var(--winning-rarity); border-bottom-color: var(--winning-rarity); box-shadow: inset 0 0 28px color-mix(in srgb, var(--winning-rarity) 18%, transparent), 0 0 34px color-mix(in srgb, var(--winning-rarity) 40%, transparent); animation: winnerPulse .55s ease-in-out infinite alternate; }
 .hero-pack-result .confirmed-prize { background: radial-gradient(circle, color-mix(in srgb, var(--rarity-color) 20%, transparent), transparent 55%), rgba(3,4,3,.97); }
 .hero-pack-result .confirmed-prize::before { background: radial-gradient(circle, color-mix(in srgb, var(--rarity-color) 22%, transparent), transparent 64%); }

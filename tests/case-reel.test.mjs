@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { buildCaseReel, CASE_REVEAL_TIMING, PACK_OPENING_INTRO_MS, MIN_PAID_SPIN_MS, planReelLanding, reelPositionAt } from "../app/lib/case-reel.ts";
+import { buildCaseReel, CASE_REVEAL_TIMING, CASE_WINNER_INDEX, PACK_OPENING_INTRO_MS, fixedReelPosition } from "../app/lib/case-reel.ts";
 import { pollDelivery, deliveryPause, OPENING_WAIT_MS } from "../app/lib/delivery-polling.ts";
 
 test("the contained reel lands exactly once on the committed result", () => {
@@ -24,22 +24,21 @@ test("presentation tiles are deterministic and never change the winner", () => {
   assert.deepEqual(first, second);
 });
 
-test("replays retain the long spin but a paid reel lands promptly on delivery", () => {
-  assert.equal(CASE_REVEAL_TIMING.spinMs, 6500);
-  assert.deepEqual(planReelLanding(10, true), { index: 45, durationMs: 6500 });
-  for (const position of [10, 12.4, 19.999]) {
-    const plan = planReelLanding(position, false);
-    assert.ok(plan.index > position && plan.index < 64);
-    assert.equal(plan.durationMs, 1000);
-    assert.equal(reelPositionAt(position, plan.index, 0), position);
-    assert.equal(reelPositionAt(position, plan.index, 1), plan.index);
-    let previous = position;
-    for (let p = 0; p <= 1; p += .01) {
-      const next = reelPositionAt(position, plan.index, p);
-      assert.ok(next >= previous && next <= plan.index);
-      previous = next;
-    }
+test("every reel takes six seconds and decelerates continuously without a speed-up", () => {
+  assert.equal(CASE_REVEAL_TIMING.spinMs, 6000);
+  assert.equal(fixedReelPosition(0), 10);
+  let previous = 10;
+  let previousStep = Infinity;
+  for (let ms = 50; ms <= 6000; ms += 50) {
+    const next = fixedReelPosition(ms);
+    const step = next - previous;
+    assert.ok(step >= 0 && step <= previousStep + 1e-10);
+    assert.ok(next <= CASE_WINNER_INDEX);
+    previous = next;
+    previousStep = step;
   }
+  assert.equal(fixedReelPosition(6000), CASE_WINNER_INDEX);
+  assert.equal(fixedReelPosition(60000), CASE_WINNER_INDEX);
 });
 
 test("inline reels declare their own desktop and mobile tile dimensions", () => {
@@ -56,7 +55,7 @@ test("payment and delivery use one mounted reel with no separate loading screen"
   assert.match(page, /\(pendingReveal \|\| packResult\) &&/);
   assert.equal((page.match(/<PackOpening /g) || []).length, 1);
   assert.doesNotMatch(page, /CONFIRMING YOUR STOCK|className="pending-pack-reveal"|setRevealStage/);
-  assert.match(component, /if \(!result \|\| !introDone\) return/);
+  assert.match(component, /if \(!introDone\) return/);
   assert.match(component, /prefers-reduced-motion/);
   assert.match(component, /OPENING PACK/);
   assert.doesNotMatch(page, /No second confirmation needed\. The operator/);
@@ -85,25 +84,23 @@ test("closing a receipt lookup cancels future reads and ignores a late response"
   await deliveryPause(60_000, controller.signal);
 });
 
-test("a slow opening keeps the same reel moving with only an inline delay notice", () => {
+test("late delivery cannot restart the reel or produce an invented stock", () => {
   assert.equal(OPENING_WAIT_MS, 30_000);
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const component = readFileSync(new URL("../app/components/pack-opening.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(component, /if \(waiting\) return|hidden=\{waiting\}|TAKING A LITTLE LONGER|DELIVERY PENDING/);
-  assert.match(component, /\}, \[landing, cycle, introDone\]\)/);
+  assert.match(component, /\}, \[introDone\]\)/);
+  assert.doesNotMatch(component, /planReelLanding|Math\.exp|% cycle|\[result/);
+  assert.match(component, /sealed = !result && index === CASE_WINNER_INDEX/);
+  assert.match(component, /phase === "revealed" && result && children/);
   assert.match(component, /waiting && <p className="opening-retry"/);
   assert.match(page, /delayed=\{autoDeliveryTimedOut\}/);
   assert.doesNotMatch(page, /attempt < 32|RETRY DELIVERY/);
 });
 
-test("pack intro leads into a real fast-to-slow reel, even when delivery is already known", () => {
+test("pack intro and reel timing are fixed, even when delivery is already known", () => {
   assert.equal(PACK_OPENING_INTRO_MS, 2000);
-  assert.equal(MIN_PAID_SPIN_MS, 4500);
-  const early = planReelLanding(10, false, 0);
-  assert.equal(early.durationMs, 4500);
-  assert.ok(early.index >= 30 && early.index < 64);
-  assert.equal(planReelLanding(14, false, 15000).durationMs, 1000);
-  const firstStep = reelPositionAt(10, early.index, .1) - 10;
-  const lastStep = early.index - reelPositionAt(10, early.index, .9);
+  const firstStep = fixedReelPosition(600) - 10;
+  const lastStep = CASE_WINNER_INDEX - fixedReelPosition(5400);
   assert.ok(firstStep > lastStep * 10);
 });
