@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { STOCK_TOKEN_BY_ADDRESS } from "@/app/lib/stock-tokens";
+import { statusRequestOptions } from "@/app/lib/status-request.mjs";
 
 const DEFAULT_RPC = "https://rpc.mainnet.chain.robinhood.com";
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
@@ -17,12 +18,12 @@ type RpcLog = {
 type RpcBlock = { timestamp?: string };
 
 async function rpc<T>(rpcUrl: string, method: string, params: unknown[]) {
-  const response = await fetch(rpcUrl, {
+  const response = await fetch(rpcUrl, statusRequestOptions({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     cache: "no-store",
-  });
+  }));
   if (!response.ok) throw new Error(`Robinhood RPC returned ${response.status}`);
   const payload = await response.json() as RpcEnvelope<T>;
   if (payload.result === undefined || payload.error) throw new Error(payload.error?.message || "Robinhood RPC request failed");
@@ -31,12 +32,12 @@ async function rpc<T>(rpcUrl: string, method: string, params: unknown[]) {
 
 async function rpcBatch<T>(rpcUrl: string, calls: Array<{ method: string; params: unknown[] }>) {
   if (!calls.length) return [];
-  const response = await fetch(rpcUrl, {
+  const response = await fetch(rpcUrl, statusRequestOptions({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(calls.map((call, id) => ({ jsonrpc: "2.0", id, ...call }))),
     cache: "no-store",
-  });
+  }));
   if (!response.ok) throw new Error(`Robinhood RPC returned ${response.status}`);
   const payload = await response.json() as RpcEnvelope<T>[];
   if (!Array.isArray(payload) || payload.length !== calls.length || payload.some((item) => item.result === undefined || item.error)) throw new Error("Robinhood RPC batch failed");
