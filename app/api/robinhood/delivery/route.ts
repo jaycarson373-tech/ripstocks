@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { decodeFunctionResult, encodeFunctionData, parseAbi } from "viem";
+import { buildDeliveryLogFilter } from "@/app/lib/delivery-log-filter";
 import { STOCK_TOKEN_BY_ADDRESS } from "@/app/lib/stock-tokens";
 
-const DELIVERED = "0xc69fc309161aff2ea1fca64cb7735c168e84ea865b4e3683d8f84b742339d656";
 const addressPattern = /^0x[0-9a-fA-F]{40}$/;
 type Log = { topics: string[]; data: string; transactionHash: string; removed?: boolean };
 const packAbi = parseAbi([
@@ -63,7 +63,13 @@ export async function GET(request: Request) {
     const floor = latest > BigInt(95_000) ? latest - BigInt(95_000) : BigInt(0);
     const start = BigInt(from) > floor ? BigInt(from) : floor;
     if (start > latest) return NextResponse.json({ outcome: null, delivered: null }, { headers });
-    const logs = await rpc<Log[]>("eth_getLogs", [{ address: contract, fromBlock: `0x${start.toString(16)}`, toBlock: `0x${latest.toString(16)}`, topics: [DELIVERED, `0x${BigInt(id).toString(16).padStart(64, "0")}`, `0x${buyer.slice(2).toLowerCase().padStart(64, "0")}`] }]);
+    const logs = await rpc<Log[]>("eth_getLogs", [buildDeliveryLogFilter({
+      contract,
+      fromBlock: start,
+      toBlock: latest,
+      requestId: BigInt(id),
+      buyer,
+    })]);
     const log = logs.find(item => !item.removed && item.topics.length === 4 && item.data.length >= 130);
     if (!log) return NextResponse.json({ outcome: null, delivered: null }, { headers });
     const stock = STOCK_TOKEN_BY_ADDRESS.get(`0x${log.topics[3].slice(-40)}`.toLowerCase());
