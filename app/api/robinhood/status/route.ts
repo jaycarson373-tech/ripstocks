@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { STOCK_TOKEN_BY_ADDRESS } from "@/app/lib/stock-tokens";
+import { statusRequestOptions } from "@/app/lib/status-request.mjs";
 
 import { ACTIVE_PACK, PACK_PRICE_USD, PACK_STOCKS as STOCK_TOKENS } from "@/app/lib/pack-config";
 
@@ -27,12 +28,12 @@ function formatUnits(value: bigint, decimals = 18) {
 }
 
 async function rpc(rpcUrl: string, method: string, params: unknown[]) {
-  const response = await fetch(rpcUrl, {
+  const response = await fetch(rpcUrl, statusRequestOptions({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     cache: "no-store",
-  });
+  }));
   if (!response.ok) throw new Error(`Robinhood RPC returned ${response.status}`);
   const payload = await response.json() as RpcResponse;
   if (!payload.result || payload.error) throw new Error(payload.error?.message || "Robinhood RPC call failed");
@@ -52,12 +53,12 @@ async function prizeCalls(rpcUrl: string, contract: string, count: number) {
     method: "eth_call",
     params: [{ to: contract, data: `${PRIZE_AT_SELECTOR}${word(BigInt(index))}` }, "latest"],
   }));
-  const response = await fetch(rpcUrl, {
+  const response = await fetch(rpcUrl, statusRequestOptions({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
-  });
+  }));
   if (!response.ok) throw new Error(`Robinhood RPC batch returned ${response.status}`);
   const payload = await response.json() as RpcResponse[];
   if (!Array.isArray(payload) || payload.some((item) => !item.result || item.error)) {
@@ -81,8 +82,8 @@ async function liveValuations(amounts: Map<string, bigint>) {
   if (!symbols.length) return new Map<string, number>();
   try {
     const [assetsResponse, ...priceResponses] = await Promise.all([
-      fetch("https://api.robinhood.com/rhj/assets", { next: { revalidate: 300 } }),
-      ...symbols.map((stock) => fetch(`https://api.robinhood.com/rhj/prices/${stock.symbol}`, { next: { revalidate: 60 } })),
+      fetch("https://api.robinhood.com/rhj/assets", statusRequestOptions({ next: { revalidate: 300 } })),
+      ...symbols.map((stock) => fetch(`https://api.robinhood.com/rhj/prices/${stock.symbol}`, statusRequestOptions({ next: { revalidate: 60 } }))),
     ]);
     if (!assetsResponse.ok || priceResponses.some((response) => !response.ok)) return new Map<string, number>();
     const assetsPayload = await assetsResponse.json() as { assets?: Array<{ tokenSymbol?: string; currentMultiplier?: string }> };
